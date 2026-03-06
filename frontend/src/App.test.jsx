@@ -280,6 +280,7 @@ describe('App', () => {
       expect(within(summaryRegion).getByText(/^simulation id: sim-fixture$/i)).toBeInTheDocument();
       expect(within(summaryRegion).getByText(/^captured tick range: 0 → 0$/i)).toBeInTheDocument();
       expect(within(summaryRegion).getByText(/^total replay duration \(ticks\): 0$/i)).toBeInTheDocument();
+      expect(within(summaryRegion).getByText(/^replay context: context match$/i)).toBeInTheDocument();
     });
 
     const tickNode = screen.getByText(/^tick count:/i);
