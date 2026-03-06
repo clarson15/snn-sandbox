@@ -116,12 +116,39 @@ export function toEngineStepParams(config) {
   };
 }
 
+function getStorage() {
+  const storage = globalThis?.window?.localStorage;
+
+  if (!storage) {
+    return null;
+  }
+
+  if (
+    typeof storage.getItem !== 'function'
+    || typeof storage.setItem !== 'function'
+  ) {
+    return null;
+  }
+
+  return storage;
+}
+
 export function saveSimulationConfig(config) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+  const storage = getStorage();
+  if (!storage) {
+    return;
+  }
+
+  storage.setItem(STORAGE_KEY, JSON.stringify(config));
 }
 
 export function loadSimulationConfig() {
-  const raw = localStorage.getItem(STORAGE_KEY);
+  const storage = getStorage();
+  if (!storage) {
+    return null;
+  }
+
+  const raw = storage.getItem(STORAGE_KEY);
   if (!raw) {
     return null;
   }
