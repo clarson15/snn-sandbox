@@ -113,4 +113,27 @@ describe('simulation engine skeleton', () => {
     expect(run5x.tick).toBe(100);
     expect(run1x).toEqual(run5x);
   });
+
+  it('maintains deterministic continuity after save/load from persisted world + rng state', () => {
+    const params = {
+      movementDelta: 2,
+      metabolismPerTick: 0.25,
+      movementCostMultiplier: 0.1,
+      consumeRadius: 2,
+      foodSpawnChance: 0.2,
+      foodEnergyValue: 7,
+      maxFood: 200
+    };
+
+    const baselineRng = createSeededPrng('save-load-seed');
+    const baselineAt40 = runTicks(baseState, baselineRng, 40, params);
+    const persistedRngState = baselineRng.getState();
+    const baselineNext60 = runTicks(baselineAt40, baselineRng, 60, params);
+
+    const resumedRng = createSeededPrng('save-load-seed', persistedRngState);
+    const resumedNext60 = runTicks(baselineAt40, resumedRng, 60, params);
+
+    const hash = (state) => JSON.stringify(state);
+    expect(hash(resumedNext60)).toEqual(hash(baselineNext60));
+  });
 });

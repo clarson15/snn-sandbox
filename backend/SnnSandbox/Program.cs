@@ -70,6 +70,12 @@ public class Program
 
         app.MapGet("/api/simulations/snapshots", (ISimulationSnapshotStore store) => Results.Ok(store.List()));
 
+        app.MapGet("/api/simulations/snapshots/{id}", (string id, ISimulationSnapshotStore store) =>
+        {
+            var snapshot = store.GetById(id);
+            return snapshot is null ? Results.NotFound() : Results.Ok(snapshot);
+        });
+
         // SPA fallback for frontend routes
         app.MapFallbackToFile("index.html");
 

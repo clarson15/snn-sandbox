@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { stepWorld } from './simulation/engine';
+import { createWorldState, stepWorld } from './simulation/engine';
 import {
   DEFAULT_CONFIG,
   createInitialWorldFromConfig,
@@ -15,7 +15,7 @@ import { createSeededPrng } from './simulation/prng';
 import { mapBrainToVisualizerModel } from './simulation/brainVisualizer';
 import { drawWorldSnapshot } from './simulation/renderer';
 import { pickOrganismAtPoint } from './simulation/selection';
-import { listSimulationSnapshots, saveSimulationSnapshot } from './simulation/api';
+import { getSimulationSnapshot, listSimulationSnapshots, saveSimulationSnapshot } from './simulation/api';
 
 const TICK_MS = 1000 / 30;
 const SPEED_OPTIONS = [1, 2, 5, 10];
@@ -29,6 +29,8 @@ function App() {
   const [errors, setErrors] = useState({});
   const [savedSimulations, setSavedSimulations] = useState([]);
   const [saveStatus, setSaveStatus] = useState('');
+  const [loadStatus, setLoadStatus] = useState('');
+  const [activeLoadedMetadata, setActiveLoadedMetadata] = useState(null);
   const [formState, setFormState] = useState(() => {
     const saved = loadSimulationConfig();
     if (!saved) {
@@ -155,6 +157,63 @@ function App() {
     });
   };
 
+  const validateLoadedSnapshot = (snapshot) => {
+    if (!snapshot || typeof snapshot !== 'object') {
+      throw new Error('Snapshot payload missing.');
+    }
+
+    if (!snapshot.parameters || typeof snapshot.parameters !== 'object') {
+      throw new Error('Snapshot parameters are missing.');
+    }
+
+    if (!snapshot.worldState || typeof snapshot.worldState !== 'object') {
+      throw new Error('Snapshot world state is missing.');
+    }
+
+    if (!Number.isInteger(snapshot.tickCount) || snapshot.tickCount < 0) {
+      throw new Error('Snapshot tick count is invalid.');
+    }
+
+    if (snapshot.worldState.tick !== snapshot.tickCount) {
+      throw new Error('Snapshot tick count does not match world state tick.');
+    }
+  };
+
+  const applyLoadedSimulation = (snapshot) => {
+    validateLoadedSnapshot(snapshot);
+
+    const loadedConfig = normalizeSimulationConfig(snapshot.parameters, String(snapshot.seed));
+    const loadedWorld = createWorldState(snapshot.worldState);
+    const loadedRng = createSeededPrng(loadedConfig.resolvedSeed, snapshot.rngState);
+
+    worldRef.current = loadedWorld;
+    rngRef.current = loadedRng;
+    stepParamsRef.current = toEngineStepParams(loadedConfig);
+    activeConfigRef.current = loadedConfig;
+    viewportRef.current = {
+      width: loadedConfig.worldWidth,
+      height: loadedConfig.worldHeight
+    };
+
+    saveSimulationConfig(loadedConfig);
+    setFormState({
+      ...loadedConfig,
+      worldWidth: String(loadedConfig.worldWidth),
+      worldHeight: String(loadedConfig.worldHeight),
+      initialPopulation: String(loadedConfig.initialPopulation),
+      initialFoodCount: String(loadedConfig.initialFoodCount),
+      foodSpawnChance: String(loadedConfig.foodSpawnChance),
+      foodEnergyValue: String(loadedConfig.foodEnergyValue),
+      maxFood: String(loadedConfig.maxFood)
+    });
+
+    setSelectedOrganismId(null);
+    setResolvedSeed(loadedConfig.resolvedSeed);
+    setTickDisplay(loadedWorld.tick);
+    setSpeedMultiplier(1);
+    setPaused(false);
+  };
+
   const startSimulation = () => {
     const nextErrors = validateSimulationConfig(formState);
     if (Object.keys(nextErrors).length > 0) {
@@ -180,6 +239,8 @@ function App() {
     setTickDisplay(0);
     setSpeedMultiplier(1);
     setPaused(false);
+    setActiveLoadedMetadata(null);
+    setLoadStatus('');
     saveSimulationConfig(config);
     setFormState((prev) => ({ ...prev, seed: config.seed || config.resolvedSeed }));
   };
@@ -219,7 +280,8 @@ function App() {
         seed: activeConfigRef.current.resolvedSeed,
         parameters: activeConfigRef.current,
         tickCount: worldRef.current.tick,
-        worldState: worldRef.current
+        worldState: worldRef.current,
+        rngState: rngRef.current?.getState?.() ?? null
       });
 
       const items = await listSimulationSnapshots();
@@ -227,6 +289,22 @@ function App() {
       setSaveStatus('Saved.');
     } catch {
       setSaveStatus('Failed to save.');
+    }
+  };
+
+  const onLoadSimulation = async (snapshotSummary) => {
+    setLoadStatus('Loading…');
+
+    try {
+      const snapshot = await getSimulationSnapshot(snapshotSummary.id);
+      applyLoadedSimulation(snapshot);
+      setActiveLoadedMetadata({
+        name: snapshotSummary.name,
+        updatedAt: snapshotSummary.updatedAt
+      });
+      setLoadStatus('Loaded.');
+    } catch {
+      setLoadStatus('Failed to load snapshot.');
     }
   };
 
@@ -332,6 +410,12 @@ function App() {
       </section>
 
       {saveStatus ? <p>{saveStatus}</p> : null}
+      {loadStatus ? <p>{loadStatus}</p> : null}
+      {activeLoadedMetadata ? (
+        <p>
+          Active snapshot: {activeLoadedMetadata.name} (updated {formatTimestamp(activeLoadedMetadata.updatedAt)})
+        </p>
+      ) : null}
 
       <section className="config-panel" aria-label="saved simulations">
         <h2>Saved simulations</h2>
@@ -340,7 +424,10 @@ function App() {
         ) : (
           <ul>
             {savedSimulations.map((snapshot) => (
-              <li key={snapshot.id}>{snapshot.name} — {formatTimestamp(snapshot.updatedAt)}</li>
+              <li key={snapshot.id}>
+                {snapshot.name} — {formatTimestamp(snapshot.updatedAt)}{' '}
+                <button type="button" onClick={() => onLoadSimulation(snapshot)}>Load</button>
+              </li>
             ))}
           </ul>
         )}

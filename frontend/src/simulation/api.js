@@ -24,6 +24,21 @@ export async function listSimulationSnapshots() {
   return mapSavedSimulationList(payload);
 }
 
+export async function getSimulationSnapshot(snapshotId) {
+  const response = await fetch(`/api/simulations/snapshots/${encodeURIComponent(snapshotId)}`, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to load snapshot (${response.status})`);
+  }
+
+  return response.json();
+}
+
 export async function saveSimulationSnapshot(snapshot) {
   const response = await fetch('/api/simulations/snapshots', {
     method: 'POST',
