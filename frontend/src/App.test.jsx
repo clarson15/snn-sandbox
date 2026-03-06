@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import App from './App';
-import { STORAGE_KEY } from './simulation/config';
+import { loadSimulationConfig, STORAGE_KEY } from './simulation/config';
 
 describe('App', () => {
   beforeEach(() => {
@@ -55,7 +55,7 @@ describe('App', () => {
 
     expect(screen.getByText(/resolved seed:/i)).toHaveTextContent('1e240');
 
-    const saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY));
+    const saved = loadSimulationConfig();
     expect(saved).toMatchObject({
       name: 'New Simulation',
       resolvedSeed: '1e240'
