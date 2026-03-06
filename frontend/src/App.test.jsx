@@ -352,6 +352,40 @@ describe('App', () => {
     });
   });
 
+  it('saves, applies, and deletes replay comparison presets using deterministic payloads only', async () => {
+    render(<App />);
+
+    const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
+    fireEvent.click(within(savedRegion).getByRole('button', { name: /^load$/i }));
+
+    const presetsRegion = await screen.findByRole('region', { name: /replay comparison presets/i });
+
+    fireEvent.change(within(presetsRegion).getByLabelText(/preset name/i), { target: { value: 'Fixture deterministic preset' } });
+    fireEvent.click(within(presetsRegion).getByRole('button', { name: /save preset/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/replay comparison preset saved\./i)).toBeInTheDocument();
+      expect(screen.getByText(/fixture deterministic preset — seed fixture-seed/i)).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(/^world width$/i), { target: { value: '999' } });
+    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'override-seed' } });
+
+    fireEvent.click(within(presetsRegion).getByRole('button', { name: /^apply$/i }));
+
+    expect(screen.getByLabelText(/^world width$/i)).toHaveValue(800);
+    expect(screen.getByLabelText(/^seed \(optional\)$/i)).toHaveValue('fixture-seed');
+
+    fireEvent.click(within(presetsRegion).getByRole('button', { name: /^delete$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/deleted preset: fixture deterministic preset\./i)).toBeInTheDocument();
+      expect(screen.getByText(/no replay comparison presets saved yet\./i)).toBeInTheDocument();
+    });
+
+    expect(localStorage.getItem('snnSandbox.replayComparisonPresets.v1')).toBe('[]');
+  });
+
   it('shows first-mismatch jump control when mismatch location is available and jumps deterministically', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
       if (url === '/api/simulations/snapshots' && (!options.method || options.method === 'GET')) {
