@@ -20,6 +20,7 @@ import { deriveRunMetadata, serializeRunMetadata } from './simulation/metadata';
 import { replaySnapshotToTick } from './simulation/replay';
 import { deriveReplaySummaryStrip, deriveSimulationParametersSignature, formatMismatchDisplayValue } from './simulation/replaySummary';
 import { deriveReplaySnapshotBundle, downloadReplaySnapshotBundle } from './simulation/replaySnapshotExport';
+import { formatReplayMismatchReport } from './simulation/replayMismatchReport';
 import {
   deleteSimulationSnapshot,
   getSimulationSnapshot,
@@ -492,6 +493,32 @@ function App() {
     jumpReplayToTick(mismatchTick, 'Jumped to mismatch event tick.', false);
   };
 
+  const onCopyMismatchReport = async () => {
+    if (!selectedMismatchDetails) {
+      setReplayStatus('Mismatch details unavailable.');
+      return;
+    }
+
+    const writeText = globalThis?.navigator?.clipboard?.writeText;
+    if (typeof writeText !== 'function') {
+      setReplayStatus('Clipboard unavailable.');
+      return;
+    }
+
+    const report = formatReplayMismatchReport({
+      runMetadata,
+      replaySummary: replaySummaryStrip,
+      selectedMismatchDetails
+    });
+
+    try {
+      await writeText(report);
+      setReplayStatus('Mismatch report copied.');
+    } catch {
+      setReplayStatus('Failed to copy mismatch report.');
+    }
+  };
+
   const onResumeFromReplay = () => {
     if (!replayContextRef.current || !replayWorldState) {
       return;
@@ -673,6 +700,7 @@ function App() {
           {replaySummaryStrip.mismatchDetected || selectedMismatchDetails ? (
             <section className="config-panel" aria-label="replay mismatch details">
               <h2>Mismatch details</h2>
+              <button type="button" onClick={onCopyMismatchReport} disabled={!selectedMismatchDetails}>Copy mismatch report</button>
               {replaySummaryStrip.mismatchEvents.length > 0 ? (
                 <>
                   <h3>Mismatch events</h3>

@@ -536,6 +536,88 @@ describe('App', () => {
     expect(screen.getByText(/absolute delta: n\/a/i)).toBeInTheDocument();
   });
 
+  it('copies deterministic mismatch report payload from mismatch details panel', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
+      if (url === '/api/simulations/snapshots' && (!options.method || options.method === 'GET')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ([{ id: 'sim-mismatch-copy', name: 'Mismatch copy snapshot', updatedAt: '2026-03-06T12:00:01.000Z' }])
+        };
+      }
+
+      if (String(url).startsWith('/api/simulations/snapshots/')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            id: 'sim-mismatch-copy',
+            name: 'Mismatch copy snapshot',
+            seed: 'fixture-seed',
+            parameters: {
+              name: 'Fixture',
+              seed: 'fixture-seed',
+              resolvedSeed: 'fixture-seed',
+              worldWidth: 800,
+              worldHeight: 480,
+              initialPopulation: 12,
+              initialFoodCount: 30,
+              foodSpawnChance: 0.04,
+              foodEnergyValue: 5,
+              maxFood: 120
+            },
+            tickCount: 0,
+            rngState: 123,
+            comparison: {
+              mismatchDetected: true,
+              firstMismatchTick: 12,
+              firstMismatch: {
+                entityId: 'org-7',
+                path: 'organisms[7].energyState',
+                baselineValue: 'feeding',
+                comparisonValue: 'moving',
+                severity: 'high'
+              }
+            },
+            worldState: createInitialWorldFromConfig(normalizeSimulationConfig({
+              name: 'Fixture',
+              seed: 'fixture-seed',
+              worldWidth: 800,
+              worldHeight: 480,
+              initialPopulation: 12,
+              initialFoodCount: 30,
+              foodSpawnChance: 0.04,
+              foodEnergyValue: 5,
+              maxFood: 120
+            }, 'fixture-seed'))
+          })
+        };
+      }
+
+      return { ok: false, status: 404, json: async () => ({}) };
+    }));
+
+    render(<App />);
+
+    const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
+    fireEvent.click(within(savedRegion).getByRole('button', { name: /^load$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /copy mismatch report/i })).toBeEnabled();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /copy mismatch report/i }));
+
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledTimes(1);
+    });
+
+    expect(clipboardWriteText.mock.calls[0][0]).toContain('Replay mismatch report');
+    expect(clipboardWriteText.mock.calls[0][0]).toContain('seed: fixture-seed');
+    expect(clipboardWriteText.mock.calls[0][0]).toContain('firstMismatchTick: 12');
+    expect(screen.getByText(/mismatch report copied\./i)).toBeInTheDocument();
+  });
+
   it('renders mismatch event list and seeks replay tick when an event row is clicked', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
       if (url === '/api/simulations/snapshots' && (!options.method || options.method === 'GET')) {
