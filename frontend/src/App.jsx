@@ -57,6 +57,7 @@ function App() {
   const [replaySnapshotMetadata, setReplaySnapshotMetadata] = useState(null);
   const [selectedMismatchEventKey, setSelectedMismatchEventKey] = useState(null);
   const [mismatchEventFilters, setMismatchEventFilters] = useState({ types: [], severities: [] });
+  const [activeMismatchAnnouncement, setActiveMismatchAnnouncement] = useState('');
   const [formState, setFormState] = useState(() => {
     const saved = loadSimulationConfig();
     if (!saved) {
@@ -88,6 +89,7 @@ function App() {
   const pausedRef = useRef(paused);
   const speedMultiplierRef = useRef(speedMultiplier);
   const canvasRef = useRef(null);
+  const replayInteractionRegionRef = useRef(null);
   const rngRef = useRef(null);
   const stepParamsRef = useRef(null);
   const activeConfigRef = useRef(null);
@@ -375,6 +377,29 @@ function App() {
   const selectedMismatchDetails =
     filteredMismatchEvents.find((eventItem) => eventItem.id === selectedMismatchEventKey) ?? replaySummaryStrip.mismatchDetails;
 
+  useEffect(() => {
+    if (!replayActive || filteredMismatchEvents.length === 0 || !Number.isInteger(replayWorldState?.tick)) {
+      return;
+    }
+
+    const replayTick = replayWorldState.tick;
+    const exactTickMatch = filteredMismatchEvents.find((eventItem) => eventItem.tick === replayTick);
+    if (exactTickMatch && exactTickMatch.id !== selectedMismatchEventKey) {
+      setSelectedMismatchEventKey(exactTickMatch.id);
+    }
+  }, [filteredMismatchEvents, replayActive, replayWorldState?.tick, selectedMismatchEventKey]);
+
+  useEffect(() => {
+    if (!selectedMismatchDetails) {
+      setActiveMismatchAnnouncement('');
+      return;
+    }
+
+    setActiveMismatchAnnouncement(
+      `Active mismatch tick ${selectedMismatchDetails.tick}, path ${selectedMismatchDetails.path}`
+    );
+  }, [selectedMismatchDetails]);
+
   const replayTimeline = useMemo(() => {
     const startTick = Number.isInteger(replayContextRef.current?.baseWorldState?.tick) ? replayContextRef.current.baseWorldState.tick : 0;
     const currentTick = Number.isInteger(replayWorldState?.tick) ? replayWorldState.tick : startTick;
@@ -541,6 +566,34 @@ function App() {
     setSelectedMismatchEventKey(eventItem.id);
     setReplayTickInput(mismatchTick);
     jumpReplayToTick(mismatchTick, 'Jumped to mismatch event tick.', false);
+  };
+
+  const onReplayMismatchKeyboardNavigate = (event) => {
+    if (!replayActive || filteredMismatchEvents.length < 2) {
+      return;
+    }
+
+    if (!event.altKey || (event.key !== 'ArrowDown' && event.key !== 'ArrowUp')) {
+      return;
+    }
+
+    const container = replayInteractionRegionRef.current;
+    if (!container) {
+      return;
+    }
+
+    if (document.activeElement && !container.contains(document.activeElement)) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const currentIndex = filteredMismatchEvents.findIndex((eventItem) => eventItem.id === selectedMismatchEventKey);
+    const fallbackIndex = 0;
+    const activeIndex = currentIndex >= 0 ? currentIndex : fallbackIndex;
+    const offset = event.key === 'ArrowDown' ? 1 : -1;
+    const nextIndex = (activeIndex + offset + filteredMismatchEvents.length) % filteredMismatchEvents.length;
+    onJumpToMismatchEvent(filteredMismatchEvents[nextIndex]);
   };
 
   const toggleMismatchFilter = (category, value) => {
@@ -771,8 +824,8 @@ function App() {
       </section>
 
       {replayActive ? (
-        <>
-          <section className="config-panel replay-summary-strip" aria-label="replay session summary strip">
+        <div ref={replayInteractionRegionRef} onKeyDown={onReplayMismatchKeyboardNavigate}>
+          <section className="config-panel replay-summary-strip" aria-label="replay session summary strip" tabIndex={-1}>
             <h2>Replay summary</h2>
             <p>Deterministic context: {replaySummaryStrip.contextLabel}</p>
             <p>Seed: {replaySummaryStrip.seed}</p>
@@ -835,16 +888,26 @@ function App() {
                   {filteredMismatchEvents.length > 0 ? (
                     <>
                       <h3>Mismatch events</h3>
+                      <p>Keyboard: Alt+ArrowUp / Alt+ArrowDown to move between mismatch events while focused in replay panels.</p>
+                      <p className="sr-only" aria-live="polite">{activeMismatchAnnouncement}</p>
                       <ul>
-                        {filteredMismatchEvents.map((eventItem) => (
-                          <li key={eventItem.id}>
-                            <button type="button" onClick={() => onJumpToMismatchEvent(eventItem)}>
-                              Tick {eventItem.tick} · {eventItem.path} · type {eventItem.type} · baseline {formatMismatchDisplayValue(eventItem.baselineValue)} · comparison{' '}
-                              {formatMismatchDisplayValue(eventItem.comparisonValue)}
-                              {eventItem.severity ? ` · severity ${eventItem.severity}` : ''}
-                            </button>
-                          </li>
-                        ))}
+                        {filteredMismatchEvents.map((eventItem) => {
+                          const isActiveMismatch = selectedMismatchDetails?.id === eventItem.id;
+                          return (
+                            <li key={eventItem.id}>
+                              <button
+                                type="button"
+                                onClick={() => onJumpToMismatchEvent(eventItem)}
+                                className={isActiveMismatch ? 'active-mismatch-event' : undefined}
+                                aria-current={isActiveMismatch ? 'true' : undefined}
+                              >
+                                Tick {eventItem.tick} · {eventItem.path} · type {eventItem.type} · baseline {formatMismatchDisplayValue(eventItem.baselineValue)} · comparison{' '}
+                                {formatMismatchDisplayValue(eventItem.comparisonValue)}
+                                {eventItem.severity ? ` · severity ${eventItem.severity}` : ''}
+                              </button>
+                            </li>
+                          );
+                        })}
                       </ul>
                     </>
                   ) : (
@@ -896,10 +959,11 @@ function App() {
                   const positionPercent = replayTimeline.latestRecordedTick > 0
                     ? (markerTick / replayTimeline.latestRecordedTick) * 100
                     : 0;
+                  const isActiveMismatchMarker = selectedMismatchDetails?.tick === markerTick;
                   return (
                     <span
                       key={`marker-${markerTick}`}
-                      className="replay-marker"
+                      className={isActiveMismatchMarker ? 'replay-marker replay-marker-active' : 'replay-marker'}
                       style={{ left: `${positionPercent}%` }}
                       title={`Mismatch tick ${markerTick}`}
                       aria-hidden="true"
@@ -938,7 +1002,7 @@ function App() {
               <button type="button" onClick={onResumeFromReplay}>Resume live from selected tick</button>
             </div>
           </section>
-        </>
+        </div>
       ) : null}
 
       {saveStatus ? <p>{saveStatus}</p> : null}

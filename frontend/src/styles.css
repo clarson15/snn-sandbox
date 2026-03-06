@@ -125,6 +125,28 @@ button:disabled {
   transform: translate(-50%, -50%);
 }
 
+.replay-marker-active {
+  background: #22d3ee;
+  border-color: #67e8f9;
+}
+
+.active-mismatch-event {
+  border-color: #67e8f9;
+  box-shadow: 0 0 0 1px #67e8f9;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 canvas {
   border: 1px solid #334155;
   border-radius: 0.5rem;
