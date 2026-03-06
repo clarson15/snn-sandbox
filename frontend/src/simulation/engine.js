@@ -13,6 +13,9 @@
  * @property {number} x
  * @property {number} y
  * @property {number} energy
+ * @property {number} age
+ * @property {number} generation
+ * @property {{size:number,speed:number,visionRange:number,turnRate:number,metabolism:number}} traits
  */
 
 /**
@@ -77,6 +80,7 @@ function moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMul
     ...organism,
     x: organism.x + dx,
     y: organism.y + dy,
+    age: organism.age + 1,
     energy: Math.max(0, organism.energy - energySpent)
   };
 }
@@ -157,10 +161,12 @@ export function stepWorld(state, rng, params = {}) {
     }
   }
 
-  const organisms = movedOrganisms.map((organism) => ({
-    ...organism,
-    energy: organism.energy + (consumedEnergyByOrganismId.get(organism.id) ?? 0)
-  }));
+  const organisms = movedOrganisms
+    .map((organism) => ({
+      ...organism,
+      energy: organism.energy + (consumedEnergyByOrganismId.get(organism.id) ?? 0)
+    }))
+    .filter((organism) => organism.energy > 0);
 
   const nextFood = Array.from(foodById.values()).sort((a, b) => a.id.localeCompare(b.id));
 

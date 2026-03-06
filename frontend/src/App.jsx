@@ -13,6 +13,7 @@ import {
 } from './simulation/config';
 import { createSeededPrng } from './simulation/prng';
 import { drawWorldSnapshot } from './simulation/renderer';
+import { pickOrganismAtPoint } from './simulation/selection';
 
 const TICK_MS = 1000 / 30;
 const SPEED_OPTIONS = [1, 2, 5, 10];
@@ -22,6 +23,7 @@ function App() {
   const [speedMultiplier, setSpeedMultiplier] = useState(1);
   const [tickDisplay, setTickDisplay] = useState(0);
   const [resolvedSeed, setResolvedSeed] = useState('');
+  const [selectedOrganismId, setSelectedOrganismId] = useState(null);
   const [errors, setErrors] = useState({});
   const [formState, setFormState] = useState(() => {
     const saved = loadSimulationConfig();
@@ -106,6 +108,20 @@ function App() {
     return () => cancelAnimationFrame(frame);
   }, []);
 
+  const selectedOrganism = useMemo(() => {
+    if (!selectedOrganismId || !worldRef.current) {
+      return null;
+    }
+
+    return worldRef.current.organisms.find((organism) => organism.id === selectedOrganismId) ?? null;
+  }, [selectedOrganismId, tickDisplay]);
+
+  useEffect(() => {
+    if (selectedOrganismId && !selectedOrganism) {
+      setSelectedOrganismId(null);
+    }
+  }, [selectedOrganismId, selectedOrganism]);
+
   const onFieldChange = (field) => (event) => {
     const nextValue = event.target.value;
     setFormState((prev) => ({ ...prev, [field]: nextValue }));
@@ -138,6 +154,7 @@ function App() {
       height: config.worldHeight
     };
 
+    setSelectedOrganismId(null);
     setResolvedSeed(config.resolvedSeed);
     setTickDisplay(0);
     setSpeedMultiplier(1);
@@ -151,6 +168,21 @@ function App() {
   const onSpeedSelect = (multiplier) => {
     setSpeedMultiplier(multiplier);
     setPaused(false);
+  };
+
+  const onCanvasClick = (event) => {
+    if (!canvasRef.current || !worldRef.current) {
+      return;
+    }
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const scaleX = canvasRef.current.width / rect.width;
+    const scaleY = canvasRef.current.height / rect.height;
+    const x = (event.clientX - rect.left) * scaleX;
+    const y = (event.clientY - rect.top) * scaleY;
+
+    const selected = pickOrganismAtPoint(worldRef.current.organisms, x, y);
+    setSelectedOrganismId(selected?.id ?? null);
   };
 
   return (
@@ -249,7 +281,31 @@ function App() {
         width={Number(formState.worldWidth) || DEFAULT_CONFIG.worldWidth}
         height={Number(formState.worldHeight) || DEFAULT_CONFIG.worldHeight}
         aria-label="simulation world"
+        onClick={onCanvasClick}
       />
+
+      <section className="config-panel" aria-label="organism inspector">
+        <h2>Organism inspector</h2>
+        {selectedOrganism ? (
+          <>
+            <p><strong>ID:</strong> {selectedOrganism.id}</p>
+            <p><strong>Generation:</strong> {selectedOrganism.generation}</p>
+            <p><strong>Age:</strong> {selectedOrganism.age}</p>
+            <p><strong>Energy:</strong> {selectedOrganism.energy.toFixed(3)}</p>
+            <p><strong>Position:</strong> ({selectedOrganism.x.toFixed(3)}, {selectedOrganism.y.toFixed(3)})</p>
+            <h3>Physical traits</h3>
+            <ul>
+              <li>Size: {selectedOrganism.traits.size}</li>
+              <li>Speed: {selectedOrganism.traits.speed}</li>
+              <li>Vision range: {selectedOrganism.traits.visionRange}</li>
+              <li>Turn rate: {selectedOrganism.traits.turnRate}</li>
+              <li>Metabolism: {selectedOrganism.traits.metabolism}</li>
+            </ul>
+          </>
+        ) : (
+          <p>Click an organism to inspect it.</p>
+        )}
+      </section>
     </main>
   );
 }

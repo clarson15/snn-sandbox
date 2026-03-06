@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import App from './App';
-import { loadSimulationConfig, STORAGE_KEY } from './simulation/config';
+import { createInitialWorldFromConfig, loadSimulationConfig, normalizeSimulationConfig, STORAGE_KEY } from './simulation/config';
 
 describe('App', () => {
   beforeEach(() => {
@@ -125,5 +125,55 @@ describe('App', () => {
     fireEvent.click(speed2x);
     expect(screen.getByRole('button', { name: /^pause$/i })).toHaveAttribute('aria-pressed', 'false');
     expect(speed2x).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('renders deterministic inspector values from fixed seeded fixture', () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/seed/i), { target: { value: 'fixture-seed' } });
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    const fixtureConfig = normalizeSimulationConfig(
+      {
+        name: 'Fixture',
+        seed: 'fixture-seed',
+        worldWidth: 800,
+        worldHeight: 480,
+        initialPopulation: 12,
+        initialFoodCount: 30,
+        foodSpawnChance: 0.04,
+        foodEnergyValue: 5,
+        maxFood: 120
+      },
+      'fixture-seed'
+    );
+    const fixtureWorld = createInitialWorldFromConfig(fixtureConfig);
+    const target = fixtureWorld.organisms[0];
+
+    const canvas = screen.getByLabelText(/simulation world/i);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 800,
+      height: 480,
+      right: 800,
+      bottom: 480,
+      toJSON: () => ({})
+    });
+
+    fireEvent.click(canvas, { clientX: target.x, clientY: target.y });
+
+    const inspector = screen.getByRole('region', { name: /organism inspector/i });
+
+    expect(inspector).toHaveTextContent(`ID: ${target.id}`);
+    expect(inspector).toHaveTextContent(`Generation: ${target.generation}`);
+    expect(inspector).toHaveTextContent(`Age: ${target.age}`);
+    expect(inspector).toHaveTextContent(`Size: ${target.traits.size}`);
+    expect(inspector).toHaveTextContent(`Speed: ${target.traits.speed}`);
+    expect(inspector).toHaveTextContent(`Vision range: ${target.traits.visionRange}`);
+    expect(inspector).toHaveTextContent(`Turn rate: ${target.traits.turnRate}`);
+    expect(inspector).toHaveTextContent(`Metabolism: ${target.traits.metabolism}`);
   });
 });
