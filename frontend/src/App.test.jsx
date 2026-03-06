@@ -97,4 +97,33 @@ describe('App', () => {
     expect(screen.getByText(/world width must be between 100 and 3000/i)).toBeInTheDocument();
     expect(screen.getByText(/max food must be greater than or equal to initial food count/i)).toBeInTheDocument();
   });
+
+  it('supports pause and runtime speed control transitions', () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    const pauseButton = screen.getByRole('button', { name: /^pause$/i });
+    const speed1x = screen.getByRole('button', { name: /^1x$/i });
+    const speed2x = screen.getByRole('button', { name: /^2x$/i });
+    const speed5x = screen.getByRole('button', { name: /^5x$/i });
+    const speed10x = screen.getByRole('button', { name: /^10x$/i });
+
+    expect(speed1x).toHaveAttribute('aria-pressed', 'true');
+    expect(speed2x).toHaveAttribute('aria-pressed', 'false');
+    expect(speed5x).toHaveAttribute('aria-pressed', 'false');
+    expect(speed10x).toHaveAttribute('aria-pressed', 'false');
+
+    fireEvent.click(speed5x);
+    expect(speed5x).toHaveAttribute('aria-pressed', 'true');
+    expect(speed1x).toHaveAttribute('aria-pressed', 'false');
+
+    fireEvent.click(pauseButton);
+    expect(screen.getByRole('button', { name: /^resume$/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(speed5x).toHaveAttribute('aria-pressed', 'false');
+
+    fireEvent.click(speed2x);
+    expect(screen.getByRole('button', { name: /^pause$/i })).toHaveAttribute('aria-pressed', 'false');
+    expect(speed2x).toHaveAttribute('aria-pressed', 'true');
+  });
 });

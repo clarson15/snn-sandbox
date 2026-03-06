@@ -15,9 +15,11 @@ import { createSeededPrng } from './simulation/prng';
 import { drawWorldSnapshot } from './simulation/renderer';
 
 const TICK_MS = 1000 / 30;
+const SPEED_OPTIONS = [1, 2, 5, 10];
 
 function App() {
   const [paused, setPaused] = useState(false);
+  const [speedMultiplier, setSpeedMultiplier] = useState(1);
   const [tickDisplay, setTickDisplay] = useState(0);
   const [resolvedSeed, setResolvedSeed] = useState('');
   const [errors, setErrors] = useState({});
@@ -50,6 +52,7 @@ function App() {
 
   const worldRef = useRef(null);
   const pausedRef = useRef(paused);
+  const speedMultiplierRef = useRef(speedMultiplier);
   const canvasRef = useRef(null);
   const rngRef = useRef(null);
   const stepParamsRef = useRef(null);
@@ -60,16 +63,20 @@ function App() {
   }, [paused]);
 
   useEffect(() => {
+    speedMultiplierRef.current = speedMultiplier;
+  }, [speedMultiplier]);
+
+  useEffect(() => {
     const interval = setInterval(() => {
       if (pausedRef.current || !worldRef.current || !rngRef.current || !stepParamsRef.current) {
         return;
       }
 
-      worldRef.current = stepWorld(worldRef.current, rngRef.current, stepParamsRef.current);
-
-      if (worldRef.current.tick % 10 === 0) {
-        setTickDisplay(worldRef.current.tick);
+      for (let i = 0; i < speedMultiplierRef.current; i += 1) {
+        worldRef.current = stepWorld(worldRef.current, rngRef.current, stepParamsRef.current);
       }
+
+      setTickDisplay(worldRef.current.tick);
     }, TICK_MS);
 
     return () => clearInterval(interval);
@@ -88,7 +95,7 @@ function App() {
 
     let frame = 0;
     const render = () => {
-      if (!pausedRef.current && worldRef.current) {
+      if (worldRef.current) {
         drawWorldSnapshot(ctx, worldRef.current, viewportRef.current);
       }
       frame = requestAnimationFrame(render);
@@ -133,12 +140,18 @@ function App() {
 
     setResolvedSeed(config.resolvedSeed);
     setTickDisplay(0);
+    setSpeedMultiplier(1);
     setPaused(false);
     saveSimulationConfig(config);
     setFormState((prev) => ({ ...prev, seed: config.seed || config.resolvedSeed }));
   };
 
   const hasSimulation = useMemo(() => Boolean(worldRef.current && rngRef.current), [tickDisplay, resolvedSeed]);
+
+  const onSpeedSelect = (multiplier) => {
+    setSpeedMultiplier(multiplier);
+    setPaused(false);
+  };
 
   return (
     <main className="app-shell">
@@ -214,9 +227,20 @@ function App() {
       {resolvedSeed ? <p className="seed-banner">Resolved seed: {resolvedSeed}</p> : null}
 
       <section className="controls" aria-label="simulation controls">
-        <button type="button" onClick={() => setPaused((value) => !value)} disabled={!hasSimulation}>
+        <button type="button" onClick={() => setPaused((value) => !value)} disabled={!hasSimulation} aria-pressed={paused}>
           {paused ? 'Resume' : 'Pause'}
         </button>
+        {SPEED_OPTIONS.map((multiplier) => (
+          <button
+            key={multiplier}
+            type="button"
+            onClick={() => onSpeedSelect(multiplier)}
+            disabled={!hasSimulation}
+            aria-pressed={!paused && speedMultiplier === multiplier}
+          >
+            {multiplier}x
+          </button>
+        ))}
         <span>Tick: {tickDisplay}</span>
       </section>
 
