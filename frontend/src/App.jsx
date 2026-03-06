@@ -19,6 +19,7 @@ import { deriveSimulationStats, formatSimulationStats } from './simulation/stats
 import { deriveRunMetadata, serializeRunMetadata } from './simulation/metadata';
 import { replaySnapshotToTick } from './simulation/replay';
 import { deriveReplaySummaryStrip, deriveSimulationParametersSignature } from './simulation/replaySummary';
+import { deriveReplaySnapshotBundle, downloadReplaySnapshotBundle } from './simulation/replaySnapshotExport';
 import {
   deleteSimulationSnapshot,
   getSimulationSnapshot,
@@ -457,6 +458,28 @@ function App() {
     setReplayStatus('Resumed live simulation from selected replay tick.');
   };
 
+  const onExportReplaySnapshot = () => {
+    if (!replayContextRef.current || !replayWorldState) {
+      return;
+    }
+
+    const bundle = deriveReplaySnapshotBundle({
+      seed: resolvedSeed,
+      runMetadata,
+      replayTick: replayWorldState.tick,
+      replaySnapshotMetadata,
+      replayWorldState,
+      currentReplayContext: {
+        contextLabel: replaySummaryStrip.contextLabel,
+        contextDifferences: replaySummaryStrip.contextDifferences,
+        simulationParametersSignature: deriveSimulationParametersSignature(activeConfigRef.current)
+      }
+    });
+
+    downloadReplaySnapshotBundle(bundle);
+    setReplayStatus('Replay snapshot exported.');
+  };
+
   const formatTimestamp = (value) => {
     const parsed = new Date(value);
     if (Number.isNaN(parsed.valueOf())) {
@@ -608,6 +631,7 @@ function App() {
             </label>
             <div className="field-row">
               <button type="button" onClick={onReplayJump}>Jump</button>
+              <button type="button" onClick={onExportReplaySnapshot}>Export Snapshot</button>
               <button type="button" onClick={onResumeFromReplay}>Resume live from selected tick</button>
             </div>
           </section>

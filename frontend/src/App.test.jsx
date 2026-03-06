@@ -293,6 +293,32 @@ describe('App', () => {
     expect(within(summaryRegion).getByText(/^captured tick range: 0 → 20$/i)).toBeInTheDocument();
     expect(within(summaryRegion).getByText(/^total replay duration \(ticks\): 20$/i)).toBeInTheDocument();
 
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+    URL.createObjectURL = vi.fn(() => 'blob:test');
+    URL.revokeObjectURL = vi.fn(() => {});
+    const click = vi.fn();
+    const createElement = vi.spyOn(document, 'createElement').mockReturnValue({
+      click,
+      set href(value) {
+        this._href = value;
+      },
+      set download(value) {
+        this._download = value;
+      }
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /export snapshot/i }));
+
+    expect(screen.getByText(/replay snapshot exported\./i)).toBeInTheDocument();
+    expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:test');
+
+    URL.createObjectURL = originalCreateObjectURL;
+    URL.revokeObjectURL = originalRevokeObjectURL;
+    createElement.mockRestore();
+
     await new Promise((resolve) => setTimeout(resolve, 150));
     expect(tickNode).toHaveTextContent('Tick count: 20');
 
