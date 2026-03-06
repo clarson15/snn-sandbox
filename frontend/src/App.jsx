@@ -18,7 +18,7 @@ import { pickOrganismAtPoint } from './simulation/selection';
 import { deriveSimulationStats, formatSimulationStats } from './simulation/stats';
 import { deriveRunMetadata, serializeRunMetadata } from './simulation/metadata';
 import { replaySnapshotToTick } from './simulation/replay';
-import { deriveReplaySummaryStrip, deriveSimulationParametersSignature } from './simulation/replaySummary';
+import { deriveReplaySummaryStrip, deriveSimulationParametersSignature, formatMismatchDisplayValue } from './simulation/replaySummary';
 import { deriveReplaySnapshotBundle, downloadReplaySnapshotBundle } from './simulation/replaySnapshotExport';
 import {
   deleteSimulationSnapshot,
@@ -244,7 +244,15 @@ function App() {
       replayStartTick: loadedWorld.tick,
       simulationParametersSignature: deriveSimulationParametersSignature(loadedConfig),
       mismatchDetected: snapshot?.comparison?.mismatchDetected ?? snapshot?.mismatchDetected ?? false,
-      firstMismatchTick: snapshot?.comparison?.firstMismatchTick ?? snapshot?.firstMismatchTick ?? null
+      firstMismatchTick: snapshot?.comparison?.firstMismatchTick ?? snapshot?.firstMismatchTick ?? null,
+      firstMismatchPath: snapshot?.comparison?.firstMismatchPath ?? snapshot?.firstMismatchPath ?? null,
+      firstMismatchKey: snapshot?.comparison?.firstMismatchKey ?? snapshot?.firstMismatchKey ?? null,
+      firstMismatchEntityId: snapshot?.comparison?.firstMismatchEntityId ?? snapshot?.firstMismatchEntityId ?? null,
+      baselineValue: snapshot?.comparison?.baselineValue ?? snapshot?.baselineValue,
+      comparisonValue: snapshot?.comparison?.comparisonValue ?? snapshot?.comparisonValue,
+      currentValue: snapshot?.comparison?.currentValue ?? snapshot?.currentValue,
+      comparison: snapshot?.comparison,
+      firstMismatch: snapshot?.comparison?.firstMismatch ?? snapshot?.firstMismatch
     });
     setReplayTickInput(String(loadedWorld.tick));
     setReplayStatus('Replay ready. Jump to any tick at or after the loaded snapshot tick.');
@@ -642,6 +650,24 @@ function App() {
               <p>Context differences: {replaySummaryStrip.contextDifferences.join(', ')}</p>
             ) : null}
           </section>
+          {replaySummaryStrip.mismatchDetails ? (
+            <section className="config-panel" aria-label="replay mismatch details">
+              <h2>Mismatch details</h2>
+              <p>First mismatch tick: {replaySummaryStrip.mismatchDetails.tick}</p>
+              {replaySummaryStrip.mismatchDetails.entityId ? (
+                <p>Entity ID: {replaySummaryStrip.mismatchDetails.entityId}</p>
+              ) : null}
+              <p>Compared key/path: {replaySummaryStrip.mismatchDetails.path}</p>
+              <p>Baseline value: {formatMismatchDisplayValue(replaySummaryStrip.mismatchDetails.baselineValue)}</p>
+              <p>Comparison value: {formatMismatchDisplayValue(replaySummaryStrip.mismatchDetails.comparisonValue)}</p>
+              <p>
+                Absolute delta:{' '}
+                {replaySummaryStrip.mismatchDetails.absoluteDelta === null
+                  ? 'N/A'
+                  : formatMismatchDisplayValue(replaySummaryStrip.mismatchDetails.absoluteDelta)}
+              </p>
+            </section>
+          ) : null}
           <section className="config-panel" aria-label="replay timeline controls">
             <h2>Replay timeline</h2>
             <p>Loaded tick floor: {replayContextRef.current?.baseWorldState?.tick ?? 0}</p>

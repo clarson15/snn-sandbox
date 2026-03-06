@@ -80,6 +80,78 @@ function deriveFirstMismatchTick(replaySnapshotMetadata, startTick) {
   return resolvedTick;
 }
 
+function toMismatchPath(mismatchPayload) {
+  const directPath = toNonEmptyString(mismatchPayload?.path);
+  const directKey = toNonEmptyString(mismatchPayload?.key);
+  const comparedPath = toNonEmptyString(mismatchPayload?.comparedPath);
+  const comparedKey = toNonEmptyString(mismatchPayload?.comparedKey);
+  return directPath ?? directKey ?? comparedPath ?? comparedKey;
+}
+
+function toMismatchValue(value) {
+  return value === undefined ? null : value;
+}
+
+function toMismatchDetails(replaySnapshotMetadata, firstMismatchTick, mismatchDetected) {
+  const mismatchPayload = replaySnapshotMetadata?.comparison?.firstMismatch ?? replaySnapshotMetadata?.firstMismatch ?? null;
+  const mismatchPath =
+    toMismatchPath(mismatchPayload) ??
+    toNonEmptyString(replaySnapshotMetadata?.comparison?.firstMismatchPath) ??
+    toNonEmptyString(replaySnapshotMetadata?.comparison?.firstMismatchKey) ??
+    toNonEmptyString(replaySnapshotMetadata?.firstMismatchPath) ??
+    toNonEmptyString(replaySnapshotMetadata?.firstMismatchKey);
+
+  const baselineValue =
+    toMismatchValue(mismatchPayload?.baselineValue) ??
+    toMismatchValue(replaySnapshotMetadata?.comparison?.baselineValue) ??
+    toMismatchValue(replaySnapshotMetadata?.baselineValue);
+
+  const comparisonValue =
+    toMismatchValue(mismatchPayload?.comparisonValue) ??
+    toMismatchValue(mismatchPayload?.currentValue) ??
+    toMismatchValue(replaySnapshotMetadata?.comparison?.comparisonValue) ??
+    toMismatchValue(replaySnapshotMetadata?.comparison?.currentValue) ??
+    toMismatchValue(replaySnapshotMetadata?.comparisonValue) ??
+    toMismatchValue(replaySnapshotMetadata?.currentValue);
+
+  const entityId =
+    toNonEmptyString(mismatchPayload?.entityId) ??
+    toNonEmptyString(replaySnapshotMetadata?.comparison?.firstMismatchEntityId) ??
+    toNonEmptyString(replaySnapshotMetadata?.firstMismatchEntityId);
+
+  const hasMismatchContext = mismatchDetected && firstMismatchTick !== null && mismatchPath !== null && baselineValue !== null && comparisonValue !== null;
+  if (!hasMismatchContext) {
+    return null;
+  }
+
+  const numericBaseline = typeof baselineValue === 'number' && Number.isFinite(baselineValue) ? baselineValue : null;
+  const numericComparison = typeof comparisonValue === 'number' && Number.isFinite(comparisonValue) ? comparisonValue : null;
+
+  return {
+    tick: firstMismatchTick,
+    path: mismatchPath,
+    entityId,
+    baselineValue,
+    comparisonValue,
+    absoluteDelta:
+      numericBaseline !== null && numericComparison !== null
+        ? Math.abs(numericComparison - numericBaseline)
+        : null
+  };
+}
+
+export function formatMismatchDisplayValue(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Number.isInteger(value) ? String(value) : value.toFixed(3);
+  }
+
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  return JSON.stringify(value);
+}
+
 export function deriveReplaySummaryStrip({ replaySnapshotMetadata, replayTick, currentReplayContext }) {
   const startTick = toTick(replaySnapshotMetadata?.tickCount);
   const endTick = toTick(replayTick);
@@ -92,6 +164,7 @@ export function deriveReplaySummaryStrip({ replaySnapshotMetadata, replayTick, c
     replaySnapshotMetadata?.mismatchDetected === true ||
     replaySnapshotMetadata?.comparison?.mismatchDetected === true ||
     firstMismatchTick !== null;
+  const mismatchDetails = toMismatchDetails(replaySnapshotMetadata, firstMismatchTick, mismatchDetected);
 
   return {
     seed: toNonEmptyString(replaySnapshotMetadata?.seed) ?? FALLBACKS.seed,
@@ -105,6 +178,7 @@ export function deriveReplaySummaryStrip({ replaySnapshotMetadata, replayTick, c
         : FALLBACKS.duration,
     firstMismatchTick,
     mismatchDetected,
+    mismatchDetails,
     canJumpToFirstMismatch: mismatchDetected && firstMismatchTick !== null,
     ...contextIndicator
   };
