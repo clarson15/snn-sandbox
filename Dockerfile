@@ -1,12 +1,13 @@
 FROM node:25-alpine AS frontend-build
 WORKDIR /src/frontend
 
-COPY frontend/package*.json ./
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+# Deterministic install: this stage requires package-lock.json and uses npm ci only.
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
 
-# COPY frontend/ ./
-# RUN npm test --if-present
-# RUN npm run build
+COPY frontend/ ./
+RUN npm test
+RUN npm run build
 
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS backend-build
 WORKDIR /src
@@ -29,7 +30,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 
 COPY --from=backend-build /app/publish ./
-# COPY --from=frontend-build /src/frontend/dist ./wwwroot
+COPY --from=frontend-build /src/frontend/dist ./wwwroot
 
 ENV ASPNETCORE_URLS=http://+:5000
 ENV ASPNETCORE_ENVIRONMENT=Production
