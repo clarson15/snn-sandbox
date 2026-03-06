@@ -286,13 +286,22 @@ describe('App', () => {
 
     const tickNode = screen.getByText(/^tick count:/i);
     const jumpInput = screen.getByLabelText(/jump to tick/i);
+    const scrubber = screen.getByRole('slider', { name: /replay timeline scrubber/i });
+
+    expect(scrubber).toHaveAttribute('min', '0');
+    expect(scrubber).toHaveAttribute('max', '0');
 
     fireEvent.change(jumpInput, { target: { value: '20' } });
     fireEvent.click(screen.getByRole('button', { name: /^jump$/i }));
     expect(tickNode).toHaveTextContent('Tick count: 20');
+    expect(scrubber).toHaveAttribute('max', '20');
+
+    fireEvent.change(scrubber, { target: { value: '7' } });
+    expect(tickNode).toHaveTextContent('Tick count: 7');
+    expect(jumpInput).toHaveValue(7);
     const summaryRegion = screen.getByRole('region', { name: /replay session summary strip/i });
-    expect(within(summaryRegion).getByText(/^captured tick range: 0 → 20$/i)).toBeInTheDocument();
-    expect(within(summaryRegion).getByText(/^total replay duration \(ticks\): 20$/i)).toBeInTheDocument();
+    expect(within(summaryRegion).getByText(/^captured tick range: 0 → 7$/i)).toBeInTheDocument();
+    expect(within(summaryRegion).getByText(/^total replay duration \(ticks\): 7$/i)).toBeInTheDocument();
 
     const originalCreateObjectURL = URL.createObjectURL;
     const originalRevokeObjectURL = URL.revokeObjectURL;
@@ -321,12 +330,12 @@ describe('App', () => {
     createElement.mockRestore();
 
     await new Promise((resolve) => setTimeout(resolve, 150));
-    expect(tickNode).toHaveTextContent('Tick count: 20');
+    expect(tickNode).toHaveTextContent('Tick count: 7');
 
     fireEvent.click(screen.getByRole('button', { name: /resume live from selected tick/i }));
 
     await waitFor(() => {
-      expect(Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(20);
+      expect(Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(7);
     });
   });
 
@@ -687,6 +696,8 @@ describe('App', () => {
 
     expect(screen.getByText(/tick 12 · organisms\[0\]\.age/i)).toBeInTheDocument();
     expect(screen.getByText(/tick 18 · organisms\[2\]\.energy/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/replay mismatch markers/i)).toBeInTheDocument();
+    expect(document.querySelectorAll('.replay-marker')).toHaveLength(2);
 
     fireEvent.click(screen.getByRole('button', { name: /tick 18 · organisms\[2\]\.energy/i }));
 

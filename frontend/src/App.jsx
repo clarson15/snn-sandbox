@@ -350,6 +350,25 @@ function App() {
   const selectedMismatchDetails =
     replaySummaryStrip.mismatchEvents.find((eventItem) => eventItem.id === selectedMismatchEventKey) ?? replaySummaryStrip.mismatchDetails;
 
+  const replayTimeline = useMemo(() => {
+    const startTick = Number.isInteger(replayContextRef.current?.baseWorldState?.tick) ? replayContextRef.current.baseWorldState.tick : 0;
+    const currentTick = Number.isInteger(replayWorldState?.tick) ? replayWorldState.tick : startTick;
+    const mismatchTicks = replaySummaryStrip.mismatchEvents
+      .map((eventItem) => eventItem.tick)
+      .filter((tickValue) => Number.isInteger(tickValue) && tickValue >= 0);
+    const firstMismatchTick = Number.isInteger(replaySummaryStrip.firstMismatchTick) ? replaySummaryStrip.firstMismatchTick : null;
+
+    const latestRecordedTick = Math.max(startTick, currentTick, ...(firstMismatchTick === null ? [] : [firstMismatchTick]), ...mismatchTicks);
+    const markerTicks = Array.from(new Set(mismatchTicks)).sort((a, b) => a - b);
+
+    return {
+      minTick: 0,
+      latestRecordedTick,
+      markerTicks,
+      currentTick
+    };
+  }, [replaySummaryStrip.firstMismatchTick, replaySummaryStrip.mismatchEvents, replayWorldState?.tick, replayActive]);
+
   const onSpeedSelect = (multiplier) => {
     setSpeedMultiplier(multiplier);
     setPaused(false);
@@ -474,6 +493,12 @@ function App() {
 
   const onReplayJump = () => {
     jumpReplayToTick(replayTickInput, 'Replay tick applied.');
+  };
+
+  const onReplayScrub = (event) => {
+    const nextTick = event.target.value;
+    setReplayTickInput(nextTick);
+    jumpReplayToTick(nextTick, 'Replay tick applied.', false);
   };
 
   const onJumpToFirstMismatch = () => {
@@ -743,12 +768,49 @@ function App() {
             <h2>Replay timeline</h2>
             <p>Loaded tick floor: {replayContextRef.current?.baseWorldState?.tick ?? 0}</p>
             <label>
+              Timeline scrubber
+              <input
+                aria-label="Replay timeline scrubber"
+                type="range"
+                min={replayTimeline.minTick}
+                max={replayTimeline.latestRecordedTick}
+                step="1"
+                value={replayTimeline.currentTick}
+                onChange={onReplayScrub}
+                list="replay-mismatch-markers"
+              />
+            </label>
+            {replayTimeline.markerTicks.length > 0 ? (
+              <div className="replay-marker-strip" aria-label="Replay mismatch markers">
+                {replayTimeline.markerTicks.map((markerTick) => {
+                  const positionPercent = replayTimeline.latestRecordedTick > 0
+                    ? (markerTick / replayTimeline.latestRecordedTick) * 100
+                    : 0;
+                  return (
+                    <span
+                      key={`marker-${markerTick}`}
+                      className="replay-marker"
+                      style={{ left: `${positionPercent}%` }}
+                      title={`Mismatch tick ${markerTick}`}
+                      aria-hidden="true"
+                    />
+                  );
+                })}
+              </div>
+            ) : null}
+            <datalist id="replay-mismatch-markers">
+              {replayTimeline.markerTicks.map((markerTick) => (
+                <option key={`tick-option-${markerTick}`} value={markerTick} />
+              ))}
+            </datalist>
+            <label>
               Jump to tick
               <input
                 type="number"
                 value={replayTickInput}
                 onChange={(event) => setReplayTickInput(event.target.value)}
-                min={replayContextRef.current?.baseWorldState?.tick ?? 0}
+                min={replayTimeline.minTick}
+                max={replayTimeline.latestRecordedTick}
               />
             </label>
             <div className="field-row">
