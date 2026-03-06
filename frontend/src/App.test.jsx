@@ -280,8 +280,21 @@ describe('App', () => {
       expect(within(summaryRegion).getByText(/^simulation id: sim-fixture$/i)).toBeInTheDocument();
       expect(within(summaryRegion).getByText(/^captured tick range: 0 → 0$/i)).toBeInTheDocument();
       expect(within(summaryRegion).getByText(/^total replay duration \(ticks\): 0$/i)).toBeInTheDocument();
-      expect(within(summaryRegion).getByText(/^replay context: context match$/i)).toBeInTheDocument();
+      expect(within(summaryRegion).getByText(/^deterministic context: context match$/i)).toBeInTheDocument();
+      expect(within(summaryRegion).getByText(/^simulation version: snn-sandbox-v1$/i)).toBeInTheDocument();
+      expect(within(summaryRegion).getByText(/^parameter fingerprint:/i)).toBeInTheDocument();
+      expect(within(summaryRegion).getByRole('button', { name: /copy deterministic context/i })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /jump to first mismatch/i })).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /copy deterministic context/i }));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledTimes(1);
+    });
+    expect(clipboardWriteText.mock.calls[0][0]).toContain('seed=fixture-seed');
+    expect(clipboardWriteText.mock.calls[0][0]).toContain('simulationVersion=snn-sandbox-v1');
+    await waitFor(() => {
+      expect(screen.getByText(/deterministic context copied\./i)).toBeInTheDocument();
     });
 
     const tickNode = screen.getByText(/^tick count:/i);

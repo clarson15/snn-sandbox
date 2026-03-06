@@ -1,5 +1,7 @@
 const FALLBACKS = {
   seed: 'Unknown seed',
+  simulationVersion: 'Unknown version',
+  parameterFingerprint: 'Unknown fingerprint',
   simulationName: 'Unknown simulation',
   simulationId: 'Unknown simulation ID',
   tick: 'Unknown tick',
@@ -8,6 +10,7 @@ const FALLBACKS = {
 
 const CONTEXT_LABELS = {
   seed: 'seed',
+  simulationVersion: 'simulationVersion',
   replayStartTick: 'replayStartTick',
   simulationParameters: 'simulationParameters'
 };
@@ -37,6 +40,27 @@ export function deriveSimulationParametersSignature(parameters) {
   });
 }
 
+export function formatDeterministicReplayContext(summary) {
+  const differences = Array.isArray(summary?.contextDifferences) ? summary.contextDifferences.join(',') : '';
+
+  return [
+    `seed=${summary?.seed ?? FALLBACKS.seed}`,
+    `simulationVersion=${summary?.simulationVersion ?? FALLBACKS.simulationVersion}`,
+    `parameterFingerprint=${summary?.parameterFingerprint ?? FALLBACKS.parameterFingerprint}`,
+    `context=${summary?.contextLabel ?? 'Context Unknown'}`,
+    `contextDifferences=${differences || 'none'}`
+  ].join(' | ');
+}
+
+function deriveSimulationVersion(metadata) {
+  return (
+    toNonEmptyString(metadata?.simulationVersion) ??
+    toNonEmptyString(metadata?.comparison?.simulationVersion) ??
+    toNonEmptyString(metadata?.parameters?.simulationVersion) ??
+    null
+  );
+}
+
 function deriveReplayContextIndicator({ replaySnapshotMetadata, currentReplayContext }) {
   const differences = [];
 
@@ -44,6 +68,12 @@ function deriveReplayContextIndicator({ replaySnapshotMetadata, currentReplayCon
   const currentSeed = toNonEmptyString(currentReplayContext?.seed);
   if (replaySeed !== currentSeed) {
     differences.push(CONTEXT_LABELS.seed);
+  }
+
+  const replayVersion = deriveSimulationVersion(replaySnapshotMetadata);
+  const currentVersion = toNonEmptyString(currentReplayContext?.simulationVersion);
+  if (replayVersion !== currentVersion) {
+    differences.push(CONTEXT_LABELS.simulationVersion);
   }
 
   const replayStartTick = toTick(replaySnapshotMetadata?.replayStartTick ?? replaySnapshotMetadata?.tickCount);
@@ -262,6 +292,8 @@ export function deriveReplaySummaryStrip({ replaySnapshotMetadata, replayTick, c
 
   return {
     seed: toNonEmptyString(replaySnapshotMetadata?.seed) ?? FALLBACKS.seed,
+    simulationVersion: deriveSimulationVersion(replaySnapshotMetadata) ?? FALLBACKS.simulationVersion,
+    parameterFingerprint: toNonEmptyString(replaySnapshotMetadata?.simulationParametersSignature) ?? FALLBACKS.parameterFingerprint,
     simulationName: toNonEmptyString(replaySnapshotMetadata?.name) ?? FALLBACKS.simulationName,
     simulationId: toNonEmptyString(replaySnapshotMetadata?.id) ?? FALLBACKS.simulationId,
     startTick: startTick ?? FALLBACKS.tick,
