@@ -146,3 +146,11 @@ Simulation behavior must be deterministic:
 - Avoid nondeterministic sources in simulation logic (for example, wall-clock time or unseeded randomness)
 
 If a seed is not provided when creating a simulation, one may be generated and persisted with the simulation state.
+
+### Deterministic tick engine contract
+
+The frontend `SimulationEngine` skeleton in `frontend/src/simulation/engine.js` follows this contract:
+- `stepWorld(state, rng, params)` is the single tick transition function.
+- It accepts current `WorldState` + seeded RNG + params and returns a **new** `WorldState`.
+- It must not use ambient nondeterministic APIs (`Math.random`, `Date.now`).
+- Replaying `runTicks(initialState, createSeededPrng(seed), n, params)` must produce identical snapshots for the same inputs.
