@@ -15,6 +15,7 @@ import { createSeededPrng } from './simulation/prng';
 import { mapBrainToVisualizerModel } from './simulation/brainVisualizer';
 import { drawWorldSnapshot } from './simulation/renderer';
 import { pickOrganismAtPoint } from './simulation/selection';
+import { listSimulationSnapshots, saveSimulationSnapshot } from './simulation/api';
 
 const TICK_MS = 1000 / 30;
 const SPEED_OPTIONS = [1, 2, 5, 10];
@@ -26,6 +27,8 @@ function App() {
   const [resolvedSeed, setResolvedSeed] = useState('');
   const [selectedOrganismId, setSelectedOrganismId] = useState(null);
   const [errors, setErrors] = useState({});
+  const [savedSimulations, setSavedSimulations] = useState([]);
+  const [saveStatus, setSaveStatus] = useState('');
   const [formState, setFormState] = useState(() => {
     const saved = loadSimulationConfig();
     if (!saved) {
@@ -59,6 +62,7 @@ function App() {
   const canvasRef = useRef(null);
   const rngRef = useRef(null);
   const stepParamsRef = useRef(null);
+  const activeConfigRef = useRef(null);
   const viewportRef = useRef({ width: DEFAULT_CONFIG.worldWidth, height: DEFAULT_CONFIG.worldHeight });
 
   useEffect(() => {
@@ -109,6 +113,14 @@ function App() {
     return () => cancelAnimationFrame(frame);
   }, []);
 
+  useEffect(() => {
+    listSimulationSnapshots()
+      .then((items) => setSavedSimulations(items))
+      .catch(() => {
+        setSavedSimulations([]);
+      });
+  }, []);
+
   const selectedOrganism = useMemo(() => {
     if (!selectedOrganismId || !worldRef.current) {
       return null;
@@ -157,6 +169,7 @@ function App() {
     worldRef.current = initialWorld;
     rngRef.current = createSeededPrng(config.resolvedSeed);
     stepParamsRef.current = toEngineStepParams(config);
+    activeConfigRef.current = config;
     viewportRef.current = {
       width: config.worldWidth,
       height: config.worldHeight
@@ -191,6 +204,39 @@ function App() {
 
     const selected = pickOrganismAtPoint(worldRef.current.organisms, x, y);
     setSelectedOrganismId(selected?.id ?? null);
+  };
+
+  const onSaveSimulation = async () => {
+    if (!worldRef.current || !activeConfigRef.current) {
+      return;
+    }
+
+    setSaveStatus('Saving…');
+
+    try {
+      await saveSimulationSnapshot({
+        name: activeConfigRef.current.name,
+        seed: activeConfigRef.current.resolvedSeed,
+        parameters: activeConfigRef.current,
+        tickCount: worldRef.current.tick,
+        worldState: worldRef.current
+      });
+
+      const items = await listSimulationSnapshots();
+      setSavedSimulations(items);
+      setSaveStatus('Saved.');
+    } catch {
+      setSaveStatus('Failed to save.');
+    }
+  };
+
+  const formatTimestamp = (value) => {
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.valueOf())) {
+      return value;
+    }
+
+    return parsed.toLocaleString();
   };
 
   return (
@@ -281,7 +327,23 @@ function App() {
             {multiplier}x
           </button>
         ))}
+        <button type="button" onClick={onSaveSimulation} disabled={!hasSimulation}>Save snapshot</button>
         <span>Tick: {tickDisplay}</span>
+      </section>
+
+      {saveStatus ? <p>{saveStatus}</p> : null}
+
+      <section className="config-panel" aria-label="saved simulations">
+        <h2>Saved simulations</h2>
+        {savedSimulations.length === 0 ? (
+          <p>No saved simulations yet.</p>
+        ) : (
+          <ul>
+            {savedSimulations.map((snapshot) => (
+              <li key={snapshot.id}>{snapshot.name} — {formatTimestamp(snapshot.updatedAt)}</li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <canvas

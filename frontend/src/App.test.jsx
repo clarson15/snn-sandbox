@@ -21,6 +21,30 @@ describe('App', () => {
       array[0] = 123456;
       return array;
     });
+
+    vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
+      if (url === '/api/simulations/snapshots' && (!options.method || options.method === 'GET')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => []
+        };
+      }
+
+      if (url === '/api/simulations/snapshots' && options.method === 'POST') {
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({ id: 'sim-1' })
+        };
+      }
+
+      return {
+        ok: false,
+        status: 404,
+        json: async () => ({})
+      };
+    }));
   });
 
   afterEach(() => {
@@ -31,6 +55,7 @@ describe('App', () => {
     }
 
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     cleanup();
   });
 

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.HttpOverrides;
+using SnnSandbox;
 
 public class Program
 {
@@ -7,6 +8,7 @@ public class Program
         var builder = WebApplication.CreateBuilder(args);
 
         builder.Services.AddControllers();
+        builder.Services.AddSingleton<ISimulationSnapshotStore, InMemorySimulationSnapshotStore>();
 
         builder.Services.Configure<ForwardedHeadersOptions>(options =>
         {
@@ -44,6 +46,29 @@ public class Program
             version = appVersion,
             environment = app.Environment.EnvironmentName
         });
+
+        app.MapPost("/api/simulations/snapshots", (SaveSimulationSnapshotRequest request, ISimulationSnapshotStore store) =>
+        {
+            if (string.IsNullOrWhiteSpace(request.Name))
+            {
+                return Results.BadRequest(new { error = "Simulation name is required." });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Seed))
+            {
+                return Results.BadRequest(new { error = "Simulation seed is required." });
+            }
+
+            if (request.TickCount < 0)
+            {
+                return Results.BadRequest(new { error = "Tick count must be greater than or equal to 0." });
+            }
+
+            var saved = store.Save(request);
+            return Results.Created($"/api/simulations/snapshots/{saved.Id}", saved);
+        });
+
+        app.MapGet("/api/simulations/snapshots", (ISimulationSnapshotStore store) => Results.Ok(store.List()));
 
         // SPA fallback for frontend routes
         app.MapFallbackToFile("index.html");
