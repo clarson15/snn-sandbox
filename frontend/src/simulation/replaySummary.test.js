@@ -45,6 +45,7 @@ describe('deriveReplaySummaryStrip', () => {
       firstMismatchTick: null,
       mismatchDetected: false,
       mismatchDetails: null,
+      mismatchEvents: [],
       canJumpToFirstMismatch: false,
       contextLabel: 'Context Match',
       contextDifferences: []
@@ -79,6 +80,7 @@ describe('deriveReplaySummaryStrip', () => {
       firstMismatchTick: null,
       mismatchDetected: true,
       mismatchDetails: null,
+      mismatchEvents: [],
       canJumpToFirstMismatch: false,
       contextLabel: 'Context Mismatch',
       contextDifferences: ['replayStartTick', 'simulationParameters']
@@ -111,6 +113,7 @@ describe('deriveReplaySummaryStrip', () => {
       firstMismatchTick: null,
       mismatchDetected: true,
       mismatchDetails: null,
+      mismatchEvents: [],
       canJumpToFirstMismatch: false,
       contextLabel: 'Context Mismatch',
       contextDifferences: ['seed', 'replayStartTick', 'simulationParameters']
@@ -203,6 +206,39 @@ describe('deriveReplaySummaryStrip', () => {
       comparisonValue: 9,
       absoluteDelta: 0.5
     });
+  });
+
+  it('derives stable mismatch events ordered by tick then payload order', () => {
+    const summary = deriveReplaySummaryStrip({
+      replaySnapshotMetadata: {
+        id: 'sim-123',
+        name: 'Fixture snapshot',
+        seed: 'fixture-seed',
+        tickCount: 10,
+        comparison: {
+          mismatchDetected: true,
+          mismatchEvents: [
+            { tick: 14, path: 'organisms[1].energy', baselineValue: 2, comparisonValue: 3, severity: 'high' },
+            { tick: 12, path: 'organisms[0].age', baselineValue: 4, comparisonValue: 5 },
+            { tick: 14, path: 'organisms[1].state', baselineValue: 'idle', comparisonValue: 'moving' }
+          ]
+        },
+        simulationParametersSignature: 'sig-a'
+      },
+      replayTick: 20,
+      currentReplayContext: {
+        seed: 'fixture-seed',
+        replayStartTick: 10,
+        simulationParametersSignature: 'sig-a'
+      }
+    });
+
+    expect(summary.mismatchEvents.map((eventItem) => `${eventItem.tick}:${eventItem.path}`)).toEqual([
+      '12:organisms[0].age',
+      '14:organisms[1].energy',
+      '14:organisms[1].state'
+    ]);
+    expect(summary.mismatchEvents[1].severity).toBe('high');
   });
 
   it('formats numeric and string mismatch values for display', () => {

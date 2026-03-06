@@ -152,6 +152,63 @@ export function formatMismatchDisplayValue(value) {
   return JSON.stringify(value);
 }
 
+function normalizeMismatchEvent(eventPayload, fallbackTick, fallbackIndex) {
+  const tick = toTick(eventPayload?.tick) ?? fallbackTick;
+  const path = toMismatchPath(eventPayload);
+  const baselineValue = toMismatchValue(eventPayload?.baselineValue);
+  const comparisonValue = toMismatchValue(eventPayload?.comparisonValue ?? eventPayload?.currentValue);
+  const severity = toNonEmptyString(eventPayload?.severity);
+
+  if (tick === null || path === null || baselineValue === null || comparisonValue === null) {
+    return null;
+  }
+
+  const numericBaseline = typeof baselineValue === 'number' && Number.isFinite(baselineValue) ? baselineValue : null;
+  const numericComparison = typeof comparisonValue === 'number' && Number.isFinite(comparisonValue) ? comparisonValue : null;
+
+  return {
+    id: `${tick}:${fallbackIndex}`,
+    tick,
+    path,
+    entityId: toNonEmptyString(eventPayload?.entityId),
+    baselineValue,
+    comparisonValue,
+    severity,
+    absoluteDelta:
+      numericBaseline !== null && numericComparison !== null
+        ? Math.abs(numericComparison - numericBaseline)
+        : null,
+    payloadOrder: fallbackIndex
+  };
+}
+
+function deriveMismatchEvents(replaySnapshotMetadata, firstMismatchTick, mismatchDetails) {
+  const eventsPayload =
+    replaySnapshotMetadata?.comparison?.mismatchEvents ??
+    replaySnapshotMetadata?.comparison?.events ??
+    replaySnapshotMetadata?.mismatchEvents ??
+    replaySnapshotMetadata?.events;
+
+  const normalizedEvents = Array.isArray(eventsPayload)
+    ? eventsPayload
+        .map((eventPayload, index) => normalizeMismatchEvent(eventPayload, firstMismatchTick, index))
+        .filter(Boolean)
+    : [];
+
+  if (normalizedEvents.length > 0) {
+    return normalizedEvents
+      .slice()
+      .sort((a, b) => (a.tick === b.tick ? a.payloadOrder - b.payloadOrder : a.tick - b.tick))
+      .map(({ payloadOrder, ...eventItem }) => eventItem);
+  }
+
+  if (mismatchDetails) {
+    return [{ ...mismatchDetails, id: `${mismatchDetails.tick}:0`, severity: null }];
+  }
+
+  return [];
+}
+
 export function deriveReplaySummaryStrip({ replaySnapshotMetadata, replayTick, currentReplayContext }) {
   const startTick = toTick(replaySnapshotMetadata?.tickCount);
   const endTick = toTick(replayTick);
@@ -165,6 +222,7 @@ export function deriveReplaySummaryStrip({ replaySnapshotMetadata, replayTick, c
     replaySnapshotMetadata?.comparison?.mismatchDetected === true ||
     firstMismatchTick !== null;
   const mismatchDetails = toMismatchDetails(replaySnapshotMetadata, firstMismatchTick, mismatchDetected);
+  const mismatchEvents = deriveMismatchEvents(replaySnapshotMetadata, firstMismatchTick, mismatchDetails);
 
   return {
     seed: toNonEmptyString(replaySnapshotMetadata?.seed) ?? FALLBACKS.seed,
@@ -179,6 +237,7 @@ export function deriveReplaySummaryStrip({ replaySnapshotMetadata, replayTick, c
     firstMismatchTick,
     mismatchDetected,
     mismatchDetails,
+    mismatchEvents,
     canJumpToFirstMismatch: mismatchDetected && firstMismatchTick !== null,
     ...contextIndicator
   };
