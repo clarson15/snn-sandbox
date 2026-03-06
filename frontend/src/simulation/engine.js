@@ -39,7 +39,9 @@
 /**
  * @typedef {object} StepParams
  * @property {number} [movementDelta=1] max absolute movement in one axis per tick
- * @property {number} [metabolismPerTick=0.1] energy spent per tick
+ * @property {number} [metabolismPerTick=0.1] base energy spent per tick
+ * @property {number} [movementCostMultiplier=0.05] movement energy cost multiplier per Euclidean distance
+ * @property {number} [consumeRadius=2] max distance from organism to food for deterministic consumption
  * @property {number} [foodSpawnChance=0.05] probability to spawn one food per tick
  * @property {number} [foodEnergyValue=5] energy value for spawned food
  * @property {number} [worldWidth=100] world width used for spawn bounds
@@ -60,6 +62,37 @@ export function createWorldState(initial = {}) {
 }
 
 /**
+ * @param {WorldOrganism} organism
+ * @param {number} dx
+ * @param {number} dy
+ * @param {number} metabolismPerTick
+ * @param {number} movementCostMultiplier
+ * @returns {WorldOrganism}
+ */
+function moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMultiplier) {
+  const movementDistance = Math.hypot(dx, dy);
+  const energySpent = metabolismPerTick + movementDistance * movementCostMultiplier;
+
+  return {
+    ...organism,
+    x: organism.x + dx,
+    y: organism.y + dy,
+    energy: Math.max(0, organism.energy - energySpent)
+  };
+}
+
+/**
+ * @param {WorldOrganism} organism
+ * @param {WorldFood} food
+ * @returns {number}
+ */
+function squaredDistance(organism, food) {
+  const dx = organism.x - food.x;
+  const dy = organism.y - food.y;
+  return dx * dx + dy * dy;
+}
+
+/**
  * Advance the simulation by one deterministic tick.
  *
  * @param {WorldState} state
@@ -70,25 +103,66 @@ export function createWorldState(initial = {}) {
 export function stepWorld(state, rng, params = {}) {
   const movementDelta = params.movementDelta ?? 1;
   const metabolismPerTick = params.metabolismPerTick ?? 0.1;
+  const movementCostMultiplier = params.movementCostMultiplier ?? 0.05;
+  const consumeRadius = params.consumeRadius ?? 2;
   const foodSpawnChance = params.foodSpawnChance ?? 0.05;
   const foodEnergyValue = params.foodEnergyValue ?? 5;
   const worldWidth = params.worldWidth ?? 100;
   const worldHeight = params.worldHeight ?? 100;
   const maxFood = params.maxFood ?? Number.POSITIVE_INFINITY;
 
-  const organisms = state.organisms.map((organism) => {
+  const movedOrganisms = state.organisms.map((organism) => {
     const dx = (rng.nextFloat() * 2 - 1) * movementDelta;
     const dy = (rng.nextFloat() * 2 - 1) * movementDelta;
 
-    return {
-      ...organism,
-      x: organism.x + dx,
-      y: organism.y + dy,
-      energy: Math.max(0, organism.energy - metabolismPerTick)
-    };
+    return moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMultiplier);
   });
 
-  const nextFood = state.food.map((item) => ({ ...item }));
+  // Stable iteration ordering for deterministic food consumption.
+  // Organisms consume in lexical id order; each organism can consume at most one food per tick.
+  const foodById = new Map(state.food.map((item) => [item.id, { ...item }]));
+  const consumeRadiusSquared = consumeRadius * consumeRadius;
+  const consumedEnergyByOrganismId = new Map();
+
+  const organismsByStableOrder = [...movedOrganisms].sort((a, b) => a.id.localeCompare(b.id));
+
+  for (const organism of organismsByStableOrder) {
+    if (foodById.size === 0) {
+      break;
+    }
+
+    let chosenFoodId = null;
+    let chosenDistance = Number.POSITIVE_INFINITY;
+
+    for (const [foodId, food] of foodById.entries()) {
+      const distance = squaredDistance(organism, food);
+
+      if (distance > consumeRadiusSquared) {
+        continue;
+      }
+
+      if (distance < chosenDistance || (distance === chosenDistance && (chosenFoodId === null || foodId < chosenFoodId))) {
+        chosenDistance = distance;
+        chosenFoodId = foodId;
+      }
+    }
+
+    if (chosenFoodId !== null) {
+      const food = foodById.get(chosenFoodId);
+      consumedEnergyByOrganismId.set(
+        organism.id,
+        (consumedEnergyByOrganismId.get(organism.id) ?? 0) + food.energyValue
+      );
+      foodById.delete(chosenFoodId);
+    }
+  }
+
+  const organisms = movedOrganisms.map((organism) => ({
+    ...organism,
+    energy: organism.energy + (consumedEnergyByOrganismId.get(organism.id) ?? 0)
+  }));
+
+  const nextFood = Array.from(foodById.values()).sort((a, b) => a.id.localeCompare(b.id));
 
   if (nextFood.length < maxFood && rng.nextFloat() < foodSpawnChance) {
     nextFood.push({
