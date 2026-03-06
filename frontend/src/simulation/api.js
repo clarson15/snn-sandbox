@@ -55,3 +55,16 @@ export async function saveSimulationSnapshot(snapshot) {
 
   return response.json();
 }
+
+export async function deleteSimulationSnapshot(snapshotId) {
+  const response = await fetch(`/api/simulations/snapshots/${encodeURIComponent(snapshotId)}`, {
+    method: 'DELETE',
+    headers: {
+      Accept: 'application/json'
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to delete snapshot (${response.status})`);
+  }
+}

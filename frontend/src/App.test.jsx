@@ -22,6 +22,8 @@ describe('App', () => {
       return array;
     });
 
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
     vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
       if (url === '/api/simulations/snapshots' && (!options.method || options.method === 'GET')) {
         return {
@@ -79,6 +81,14 @@ describe('App', () => {
           ok: true,
           status: 201,
           json: async () => ({ id: 'sim-1' })
+        };
+      }
+
+      if (String(url).startsWith('/api/simulations/snapshots/') && options.method === 'DELETE') {
+        return {
+          ok: true,
+          status: 204,
+          json: async () => ({})
         };
       }
 
@@ -233,6 +243,63 @@ describe('App', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/failed to load snapshot/i)).toBeInTheDocument();
+    });
+  });
+
+  it('deletes a snapshot after explicit confirmation and updates the list', async () => {
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /delete/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/deleted\./i)).toBeInTheDocument();
+      expect(screen.queryByText(/fixture snapshot/i)).not.toBeInTheDocument();
+    });
+  });
+
+  it('cancels delete when confirmation is declined', async () => {
+    window.confirm.mockReturnValue(false);
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /delete/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/delete cancelled\./i)).toBeInTheDocument();
+      expect(screen.getByText(/fixture snapshot/i)).toBeInTheDocument();
+    });
+  });
+
+  it('surfaces delete API failures without desyncing the local list', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
+      if (url === '/api/simulations/snapshots' && (!options.method || options.method === 'GET')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ([{ id: 'sim-fixture', name: 'Fixture snapshot', updatedAt: '2026-03-06T12:00:01.000Z' }])
+        };
+      }
+
+      if (String(url).startsWith('/api/simulations/snapshots/') && options.method === 'DELETE') {
+        return { ok: false, status: 500, json: async () => ({}) };
+      }
+
+      if (String(url).startsWith('/api/simulations/snapshots/')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ id: 'sim-fixture', tickCount: 0, worldState: { tick: 0 }, parameters: {} })
+        };
+      }
+
+      return { ok: false, status: 404, json: async () => ({}) };
+    }));
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: /delete/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/failed to delete snapshot\./i)).toBeInTheDocument();
+      expect(screen.getByText(/fixture snapshot/i)).toBeInTheDocument();
     });
   });
 

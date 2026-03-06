@@ -31,6 +31,8 @@ public interface ISimulationSnapshotStore
     IReadOnlyList<SimulationSnapshotRecord> List();
 
     SimulationSnapshotRecord? GetById(string id);
+
+    bool DeleteById(string id);
 }
 
 public sealed class InMemorySimulationSnapshotStore : ISimulationSnapshotStore
@@ -66,5 +68,10 @@ public sealed class InMemorySimulationSnapshotStore : ISimulationSnapshotStore
     public SimulationSnapshotRecord? GetById(string id)
     {
         return _snapshots.TryGetValue(id, out var record) ? record : null;
+    }
+
+    public bool DeleteById(string id)
+    {
+        return _snapshots.TryRemove(id, out _);
     }
 }

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { getSimulationSnapshot, mapSavedSimulationList } from './api';
+import { deleteSimulationSnapshot, getSimulationSnapshot, mapSavedSimulationList } from './api';
 
 describe('mapSavedSimulationList', () => {
   it('maps API fields and orders by updatedAt descending', () => {
@@ -49,5 +49,24 @@ describe('getSimulationSnapshot', () => {
 
     expect(fetchMock).toHaveBeenCalledWith('/api/simulations/snapshots/sim-1', expect.any(Object));
     expect(result).toEqual({ id: 'sim-1' });
+  });
+});
+
+describe('deleteSimulationSnapshot', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('deletes by stable snapshot id', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 204,
+      json: async () => ({})
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await deleteSimulationSnapshot('sim-1');
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/simulations/snapshots/sim-1', expect.objectContaining({ method: 'DELETE' }));
   });
 });

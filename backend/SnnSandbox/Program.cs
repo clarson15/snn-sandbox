@@ -76,6 +76,12 @@ public class Program
             return snapshot is null ? Results.NotFound() : Results.Ok(snapshot);
         });
 
+        app.MapDelete("/api/simulations/snapshots/{id}", (string id, ISimulationSnapshotStore store) =>
+        {
+            var deleted = store.DeleteById(id);
+            return deleted ? Results.NoContent() : Results.NotFound();
+        });
+
         // SPA fallback for frontend routes
         app.MapFallbackToFile("index.html");
 
