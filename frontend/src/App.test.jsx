@@ -709,6 +709,90 @@ describe('App', () => {
     expect(tickInput).toHaveValue(18);
   });
 
+  it('filters mismatch events by type/severity and supports active filter chips', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
+      if (url === '/api/simulations/snapshots' && (!options.method || options.method === 'GET')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ([{ id: 'sim-mismatch-filter-events', name: 'Mismatch filter snapshot', updatedAt: '2026-03-06T12:00:01.000Z' }])
+        };
+      }
+
+      if (String(url).startsWith('/api/simulations/snapshots/')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            id: 'sim-mismatch-filter-events',
+            name: 'Mismatch filter snapshot',
+            seed: 'fixture-seed',
+            parameters: {
+              name: 'Fixture',
+              seed: 'fixture-seed',
+              resolvedSeed: 'fixture-seed',
+              worldWidth: 800,
+              worldHeight: 480,
+              initialPopulation: 12,
+              initialFoodCount: 30,
+              foodSpawnChance: 0.04,
+              foodEnergyValue: 5,
+              maxFood: 120
+            },
+            tickCount: 0,
+            rngState: 123,
+            comparison: {
+              mismatchDetected: true,
+              firstMismatchTick: 10,
+              mismatchEvents: [
+                { tick: 11, path: 'organisms[0].brain.state', baselineValue: 1, comparisonValue: 2, severity: 'low' },
+                { tick: 12, path: 'organisms[0].brain.input[0]', baselineValue: 1, comparisonValue: 2, severity: 'medium' },
+                { tick: 13, path: 'organisms[0].brain.output[0]', baselineValue: 1, comparisonValue: 2, severity: 'high' }
+              ]
+            },
+            worldState: createInitialWorldFromConfig(normalizeSimulationConfig({
+              name: 'Fixture',
+              seed: 'fixture-seed',
+              worldWidth: 800,
+              worldHeight: 480,
+              initialPopulation: 12,
+              initialFoodCount: 30,
+              foodSpawnChance: 0.04,
+              foodEnergyValue: 5,
+              maxFood: 120
+            }, 'fixture-seed'))
+          })
+        };
+      }
+
+      return { ok: false, status: 404, json: async () => ({}) };
+    }));
+
+    render(<App />);
+
+    const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
+    fireEvent.click(within(savedRegion).getByRole('button', { name: /^load$/i }));
+
+    await screen.findByRole('region', { name: /replay mismatch details/i });
+    expect(screen.getByText(/tick 11 · organisms\[0\]\.brain\.state/i)).toBeInTheDocument();
+    expect(screen.getByText(/tick 12 · organisms\[0\]\.brain\.input\[0\]/i)).toBeInTheDocument();
+    expect(screen.getByText(/tick 13 · organisms\[0\]\.brain\.output\[0\]/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /type: input/i }));
+    expect(screen.getByText(/tick 12 · organisms\[0\]\.brain\.input\[0\]/i)).toBeInTheDocument();
+    expect(screen.queryByText(/tick 11 · organisms\[0\]\.brain\.state/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/tick 13 · organisms\[0\]\.brain\.output\[0\]/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /type: input ×/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /severity: high/i }));
+    expect(screen.getByText(/no mismatch events match active filters\./i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /clear all filters/i }));
+    expect(screen.getByText(/tick 11 · organisms\[0\]\.brain\.state/i)).toBeInTheDocument();
+    expect(screen.getByText(/tick 12 · organisms\[0\]\.brain\.input\[0\]/i)).toBeInTheDocument();
+    expect(screen.getByText(/tick 13 · organisms\[0\]\.brain\.output\[0\]/i)).toBeInTheDocument();
+  });
+
   it('shows deterministic mismatch-event empty state when no mismatch events are provided', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
       if (url === '/api/simulations/snapshots' && (!options.method || options.method === 'GET')) {
