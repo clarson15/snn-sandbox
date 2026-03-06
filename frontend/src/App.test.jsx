@@ -334,6 +334,46 @@ describe('App', () => {
     vi.useRealTimers();
   });
 
+  it('increases tick throughput at higher speed and keeps continuity when pausing/resuming at 1x', () => {
+    vi.useFakeTimers();
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+    const tickNode = screen.getByText(/^tick count:/i);
+    const readTick = () => Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10);
+
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    const after1x = readTick();
+
+    fireEvent.click(screen.getByRole('button', { name: /^5x$/i }));
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    const after5x = readTick();
+    const delta1x = after1x;
+    const delta5x = after5x - after1x;
+
+    expect(delta1x).toBeGreaterThan(0);
+    expect(delta5x).toBeGreaterThan(delta1x);
+
+    fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
+    const pausedTick = readTick();
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(readTick()).toBe(pausedTick);
+
+    fireEvent.click(screen.getByRole('button', { name: /^1x$/i }));
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(readTick()).toBeGreaterThan(pausedTick);
+
+    vi.useRealTimers();
+  });
+
   it('renders deterministic inspector values from fixed seeded fixture', () => {
     render(<App />);
 
