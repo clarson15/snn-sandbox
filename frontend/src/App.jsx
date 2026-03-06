@@ -16,6 +16,7 @@ import { mapBrainToVisualizerModel } from './simulation/brainVisualizer';
 import { drawWorldSnapshot } from './simulation/renderer';
 import { pickOrganismAtPoint } from './simulation/selection';
 import { deriveSimulationStats, formatSimulationStats } from './simulation/stats';
+import { deriveRunMetadata, serializeRunMetadata } from './simulation/metadata';
 import {
   deleteSimulationSnapshot,
   getSimulationSnapshot,
@@ -37,6 +38,7 @@ function App() {
   const [saveStatus, setSaveStatus] = useState('');
   const [loadStatus, setLoadStatus] = useState('');
   const [deleteStatus, setDeleteStatus] = useState('');
+  const [copyMetadataStatus, setCopyMetadataStatus] = useState('');
   const [activeLoadedMetadata, setActiveLoadedMetadata] = useState(null);
   const [formState, setFormState] = useState(() => {
     const saved = loadSimulationConfig();
@@ -248,6 +250,7 @@ function App() {
     setPaused(false);
     setActiveLoadedMetadata(null);
     setLoadStatus('');
+    setCopyMetadataStatus('');
     saveSimulationConfig(config);
     setFormState((prev) => ({ ...prev, seed: config.seed || config.resolvedSeed }));
   };
@@ -258,6 +261,18 @@ function App() {
     const stats = deriveSimulationStats(worldRef.current);
     return formatSimulationStats(stats);
   }, [tickDisplay, resolvedSeed]);
+
+  const runMetadata = useMemo(
+    () => deriveRunMetadata({
+      resolvedSeed,
+      tickCount: tickDisplay,
+      speedMultiplier,
+      snapshotId: activeLoadedMetadata?.id
+    }),
+    [resolvedSeed, tickDisplay, speedMultiplier, activeLoadedMetadata?.id]
+  );
+
+  const serializedRunMetadata = useMemo(() => serializeRunMetadata(runMetadata), [runMetadata]);
 
   const onSpeedSelect = (multiplier) => {
     setSpeedMultiplier(multiplier);
@@ -311,10 +326,11 @@ function App() {
       const snapshot = await getSimulationSnapshot(snapshotSummary.id);
       applyLoadedSimulation(snapshot);
       setActiveLoadedMetadata({
-        id: snapshotSummary.id,
-        name: snapshotSummary.name,
-        updatedAt: snapshotSummary.updatedAt
+        id: snapshot.id,
+        name: snapshot.name ?? snapshotSummary.name,
+        updatedAt: snapshot.updatedAt ?? snapshotSummary.updatedAt
       });
+      setCopyMetadataStatus('');
       setLoadStatus('Loaded.');
     } catch {
       setLoadStatus('Failed to load snapshot.');
@@ -341,6 +357,21 @@ function App() {
       setDeleteStatus('Deleted.');
     } catch {
       setDeleteStatus('Failed to delete snapshot.');
+    }
+  };
+
+  const onCopyRunMetadata = async () => {
+    const writeText = globalThis?.navigator?.clipboard?.writeText;
+    if (typeof writeText !== 'function') {
+      setCopyMetadataStatus('Clipboard unavailable.');
+      return;
+    }
+
+    try {
+      await writeText(serializedRunMetadata);
+      setCopyMetadataStatus('Metadata copied.');
+    } catch {
+      setCopyMetadataStatus('Failed to copy metadata.');
     }
   };
 
@@ -453,9 +484,19 @@ function App() {
         <p>Tick count: {formattedStats.tickCount}</p>
       </section>
 
+      <section className="config-panel" aria-label="run metadata panel">
+        <h2>Run metadata</h2>
+        <p>Seed: {runMetadata.seed}</p>
+        <p>Current tick: {runMetadata.tickCount}</p>
+        <p>Speed multiplier: {runMetadata.speedMultiplier}</p>
+        <p>Snapshot ID: {runMetadata.snapshotId}</p>
+        <button type="button" onClick={onCopyRunMetadata} disabled={!hasSimulation}>Copy metadata payload</button>
+      </section>
+
       {saveStatus ? <p>{saveStatus}</p> : null}
       {loadStatus ? <p>{loadStatus}</p> : null}
       {deleteStatus ? <p>{deleteStatus}</p> : null}
+      {copyMetadataStatus ? <p>{copyMetadataStatus}</p> : null}
       {activeLoadedMetadata ? (
         <p>
           Active snapshot: {activeLoadedMetadata.name} (updated {formatTimestamp(activeLoadedMetadata.updatedAt)})
