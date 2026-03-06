@@ -42,6 +42,9 @@
  * @property {number} [metabolismPerTick=0.1] energy spent per tick
  * @property {number} [foodSpawnChance=0.05] probability to spawn one food per tick
  * @property {number} [foodEnergyValue=5] energy value for spawned food
+ * @property {number} [worldWidth=100] world width used for spawn bounds
+ * @property {number} [worldHeight=100] world height used for spawn bounds
+ * @property {number} [maxFood=Infinity] maximum food entities in world
  */
 
 /**
@@ -69,6 +72,9 @@ export function stepWorld(state, rng, params = {}) {
   const metabolismPerTick = params.metabolismPerTick ?? 0.1;
   const foodSpawnChance = params.foodSpawnChance ?? 0.05;
   const foodEnergyValue = params.foodEnergyValue ?? 5;
+  const worldWidth = params.worldWidth ?? 100;
+  const worldHeight = params.worldHeight ?? 100;
+  const maxFood = params.maxFood ?? Number.POSITIVE_INFINITY;
 
   const organisms = state.organisms.map((organism) => {
     const dx = (rng.nextFloat() * 2 - 1) * movementDelta;
@@ -84,11 +90,11 @@ export function stepWorld(state, rng, params = {}) {
 
   const nextFood = state.food.map((item) => ({ ...item }));
 
-  if (rng.nextFloat() < foodSpawnChance) {
+  if (nextFood.length < maxFood && rng.nextFloat() < foodSpawnChance) {
     nextFood.push({
       id: `food-${state.tick + 1}-${nextFood.length}`,
-      x: rng.nextFloat() * 100,
-      y: rng.nextFloat() * 100,
+      x: rng.nextFloat() * worldWidth,
+      y: rng.nextFloat() * worldHeight,
       energyValue: foodEnergyValue
     });
   }
