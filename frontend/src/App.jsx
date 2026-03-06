@@ -22,6 +22,7 @@ import {
   deriveReplaySummaryStrip,
   deriveSimulationParametersSignature,
   filterMismatchEvents,
+  formatDeterministicReplayContext,
   formatMismatchDisplayValue
 } from './simulation/replaySummary';
 import { deriveReplaySnapshotBundle, downloadReplaySnapshotBundle } from './simulation/replaySnapshotExport';
@@ -35,6 +36,7 @@ import {
 
 const TICK_MS = 1000 / 30;
 const SPEED_OPTIONS = [1, 2, 5, 10];
+const SIMULATION_VERSION = 'snn-sandbox-v1';
 
 function App() {
   const [paused, setPaused] = useState(false);
@@ -248,6 +250,7 @@ function App() {
       id: snapshot.id,
       name: snapshot.name,
       seed: snapshot.seed,
+      simulationVersion: snapshot.simulationVersion ?? snapshot?.comparison?.simulationVersion ?? SIMULATION_VERSION,
       tickCount: snapshot.tickCount,
       replayStartTick: loadedWorld.tick,
       simulationParametersSignature: deriveSimulationParametersSignature(loadedConfig),
@@ -337,6 +340,7 @@ function App() {
       replayTick: replayWorldState?.tick,
       currentReplayContext: {
         seed: resolvedSeed,
+        simulationVersion: SIMULATION_VERSION,
         replayStartTick: replayContextRef.current?.baseWorldState?.tick,
         simulationParametersSignature: deriveSimulationParametersSignature(activeConfigRef.current)
       }
@@ -561,6 +565,21 @@ function App() {
     setMismatchEventFilters({ types: [], severities: [] });
   };
 
+  const onCopyDeterministicContext = async () => {
+    const writeText = globalThis?.navigator?.clipboard?.writeText;
+    if (typeof writeText !== 'function') {
+      setReplayStatus('Clipboard unavailable.');
+      return;
+    }
+
+    try {
+      await writeText(formatDeterministicReplayContext(replaySummaryStrip));
+      setReplayStatus('Deterministic context copied.');
+    } catch {
+      setReplayStatus('Failed to copy deterministic context.');
+    }
+  };
+
   const onCopyMismatchReport = async () => {
     if (!selectedMismatchDetails) {
       setReplayStatus('Mismatch details unavailable.');
@@ -755,15 +774,18 @@ function App() {
         <>
           <section className="config-panel replay-summary-strip" aria-label="replay session summary strip">
             <h2>Replay summary</h2>
+            <p>Deterministic context: {replaySummaryStrip.contextLabel}</p>
             <p>Seed: {replaySummaryStrip.seed}</p>
+            <p>Simulation version: {replaySummaryStrip.simulationVersion}</p>
+            <p>Parameter fingerprint: {replaySummaryStrip.parameterFingerprint}</p>
+            <button type="button" onClick={onCopyDeterministicContext}>Copy deterministic context</button>
+            {replaySummaryStrip.contextDifferences.length > 0 ? (
+              <p>Context differences: {replaySummaryStrip.contextDifferences.join(', ')}</p>
+            ) : null}
             <p>Simulation: {replaySummaryStrip.simulationName}</p>
             <p>Simulation ID: {replaySummaryStrip.simulationId}</p>
             <p>Captured tick range: {replaySummaryStrip.startTick} → {replaySummaryStrip.endTick}</p>
             <p>Total replay duration (ticks): {replaySummaryStrip.durationTicks}</p>
-            <p>Replay context: {replaySummaryStrip.contextLabel}</p>
-            {replaySummaryStrip.contextDifferences.length > 0 ? (
-              <p>Context differences: {replaySummaryStrip.contextDifferences.join(', ')}</p>
-            ) : null}
           </section>
           {replaySummaryStrip.mismatchDetected || selectedMismatchDetails ? (
             <section className="config-panel" aria-label="replay mismatch details">

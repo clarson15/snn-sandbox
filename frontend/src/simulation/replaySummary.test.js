@@ -25,6 +25,7 @@ describe('deriveReplaySummaryStrip', () => {
           id: 'sim-123',
           name: 'Fixture snapshot',
           seed: 'fixture-seed',
+          simulationVersion: 'snn-sandbox-v1',
           tickCount: 10,
           replayStartTick: 10,
           simulationParametersSignature: parametersSignature
@@ -32,12 +33,15 @@ describe('deriveReplaySummaryStrip', () => {
         replayTick: 42,
         currentReplayContext: {
           seed: 'fixture-seed',
+          simulationVersion: 'snn-sandbox-v1',
           replayStartTick: 10,
           simulationParametersSignature: parametersSignature
         }
       })
     ).toEqual({
       seed: 'fixture-seed',
+      simulationVersion: 'snn-sandbox-v1',
+      parameterFingerprint: parametersSignature,
       simulationName: 'Fixture snapshot',
       simulationId: 'sim-123',
       startTick: 10,
@@ -60,6 +64,7 @@ describe('deriveReplaySummaryStrip', () => {
           id: 'sim-123',
           name: 'Fixture snapshot',
           seed: 'fixture-seed',
+          simulationVersion: 'snn-sandbox-v1',
           tickCount: 10,
           replayStartTick: 10,
           simulationParametersSignature: 'sig-a'
@@ -67,12 +72,15 @@ describe('deriveReplaySummaryStrip', () => {
         replayTick: 10,
         currentReplayContext: {
           seed: 'fixture-seed',
+          simulationVersion: 'snn-sandbox-v1',
           replayStartTick: 14,
           simulationParametersSignature: 'sig-b'
         }
       })
     ).toEqual({
       seed: 'fixture-seed',
+      simulationVersion: 'snn-sandbox-v1',
+      parameterFingerprint: 'sig-a',
       simulationName: 'Fixture snapshot',
       simulationId: 'sim-123',
       startTick: 10,
@@ -106,6 +114,8 @@ describe('deriveReplaySummaryStrip', () => {
       })
     ).toEqual({
       seed: 'Unknown seed',
+      simulationVersion: 'Unknown version',
+      parameterFingerprint: 'Unknown fingerprint',
       simulationName: 'Unknown simulation',
       simulationId: 'Unknown simulation ID',
       startTick: 'Unknown tick',
