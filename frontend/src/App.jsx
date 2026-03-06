@@ -15,6 +15,7 @@ import { createSeededPrng } from './simulation/prng';
 import { mapBrainToVisualizerModel } from './simulation/brainVisualizer';
 import { drawWorldSnapshot } from './simulation/renderer';
 import { pickOrganismAtPoint } from './simulation/selection';
+import { deriveSimulationStats, formatSimulationStats } from './simulation/stats';
 import {
   deleteSimulationSnapshot,
   getSimulationSnapshot,
@@ -253,6 +254,11 @@ function App() {
 
   const hasSimulation = useMemo(() => Boolean(worldRef.current && rngRef.current), [tickDisplay, resolvedSeed]);
 
+  const formattedStats = useMemo(() => {
+    const stats = deriveSimulationStats(worldRef.current);
+    return formatSimulationStats(stats);
+  }, [tickDisplay, resolvedSeed]);
+
   const onSpeedSelect = (multiplier) => {
     setSpeedMultiplier(multiplier);
     setPaused(false);
@@ -436,7 +442,15 @@ function App() {
           </button>
         ))}
         <button type="button" onClick={onSaveSimulation} disabled={!hasSimulation}>Save snapshot</button>
-        <span>Tick: {tickDisplay}</span>
+      </section>
+
+      <section className="config-panel" aria-label="simulation stats">
+        <h2>Simulation stats</h2>
+        <p>Population: {formattedStats.population}</p>
+        <p>Food count: {formattedStats.foodCount}</p>
+        <p>Average generation: {formattedStats.averageGeneration}</p>
+        <p>Average organism energy: {formattedStats.averageEnergy}</p>
+        <p>Tick count: {formattedStats.tickCount}</p>
       </section>
 
       {saveStatus ? <p>{saveStatus}</p> : null}

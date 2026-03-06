@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import App from './App';
@@ -101,6 +101,8 @@ describe('App', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
+
     if (typeof window.localStorage?.clear === 'function') {
       window.localStorage.clear();
     } else if (typeof window.localStorage?.removeItem === 'function') {
@@ -212,7 +214,7 @@ describe('App', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/active snapshot:/i)).toHaveTextContent('Fixture snapshot');
-      expect(screen.getByText(/^tick:/i)).toHaveTextContent('Tick: 0');
+      expect(screen.getByText(/^tick count:/i)).toHaveTextContent('Tick count: 0');
       expect(screen.getByText(/loaded\./i)).toBeInTheDocument();
     });
   });
@@ -301,6 +303,35 @@ describe('App', () => {
       expect(screen.getByText(/failed to delete snapshot\./i)).toBeInTheDocument();
       expect(screen.getByText(/fixture snapshot/i)).toBeInTheDocument();
     });
+  });
+
+  it('updates stats while running and keeps tick-derived metrics stable while paused', () => {
+    vi.useFakeTimers();
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    const tickNode = screen.getByText(/^tick count:/i);
+    expect(tickNode).toHaveTextContent('Tick count: 0');
+
+    act(() => {
+      vi.advanceTimersByTime(110);
+    });
+    expect(Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(0);
+
+    const pausedTick = Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10);
+    fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+
+    expect(tickNode).toHaveTextContent(`Tick count: ${pausedTick}`);
+    expect(screen.getByText(/^population:/i)).toBeInTheDocument();
+    expect(screen.getByText(/^food count:/i)).toBeInTheDocument();
+    expect(screen.getByText(/^average generation:/i).textContent).toMatch(/\d+\.\d{2}$/);
+    expect(screen.getByText(/^average organism energy:/i).textContent).toMatch(/\d+\.\d{3}$/);
+
+    vi.useRealTimers();
   });
 
   it('renders deterministic inspector values from fixed seeded fixture', () => {
