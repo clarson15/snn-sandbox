@@ -15,7 +15,12 @@ import { createSeededPrng } from './simulation/prng';
 import { mapBrainToVisualizerModel } from './simulation/brainVisualizer';
 import { drawWorldSnapshot } from './simulation/renderer';
 import { pickOrganismAtPoint } from './simulation/selection';
-import { getSimulationSnapshot, listSimulationSnapshots, saveSimulationSnapshot } from './simulation/api';
+import {
+  deleteSimulationSnapshot,
+  getSimulationSnapshot,
+  listSimulationSnapshots,
+  saveSimulationSnapshot
+} from './simulation/api';
 
 const TICK_MS = 1000 / 30;
 const SPEED_OPTIONS = [1, 2, 5, 10];
@@ -30,6 +35,7 @@ function App() {
   const [savedSimulations, setSavedSimulations] = useState([]);
   const [saveStatus, setSaveStatus] = useState('');
   const [loadStatus, setLoadStatus] = useState('');
+  const [deleteStatus, setDeleteStatus] = useState('');
   const [activeLoadedMetadata, setActiveLoadedMetadata] = useState(null);
   const [formState, setFormState] = useState(() => {
     const saved = loadSimulationConfig();
@@ -299,12 +305,36 @@ function App() {
       const snapshot = await getSimulationSnapshot(snapshotSummary.id);
       applyLoadedSimulation(snapshot);
       setActiveLoadedMetadata({
+        id: snapshotSummary.id,
         name: snapshotSummary.name,
         updatedAt: snapshotSummary.updatedAt
       });
       setLoadStatus('Loaded.');
     } catch {
       setLoadStatus('Failed to load snapshot.');
+    }
+  };
+
+  const onDeleteSimulation = async (snapshotSummary) => {
+    const confirmed = window.confirm(`Delete snapshot "${snapshotSummary.name}"? This cannot be undone.`);
+    if (!confirmed) {
+      setDeleteStatus('Delete cancelled.');
+      return;
+    }
+
+    setDeleteStatus('Deleting…');
+
+    try {
+      await deleteSimulationSnapshot(snapshotSummary.id);
+      setSavedSimulations((previous) => previous.filter((snapshot) => snapshot.id !== snapshotSummary.id));
+
+      if (activeLoadedMetadata?.id === snapshotSummary.id) {
+        setActiveLoadedMetadata(null);
+      }
+
+      setDeleteStatus('Deleted.');
+    } catch {
+      setDeleteStatus('Failed to delete snapshot.');
     }
   };
 
@@ -411,6 +441,7 @@ function App() {
 
       {saveStatus ? <p>{saveStatus}</p> : null}
       {loadStatus ? <p>{loadStatus}</p> : null}
+      {deleteStatus ? <p>{deleteStatus}</p> : null}
       {activeLoadedMetadata ? (
         <p>
           Active snapshot: {activeLoadedMetadata.name} (updated {formatTimestamp(activeLoadedMetadata.updatedAt)})
@@ -426,7 +457,8 @@ function App() {
             {savedSimulations.map((snapshot) => (
               <li key={snapshot.id}>
                 {snapshot.name} — {formatTimestamp(snapshot.updatedAt)}{' '}
-                <button type="button" onClick={() => onLoadSimulation(snapshot)}>Load</button>
+                <button type="button" onClick={() => onLoadSimulation(snapshot)}>Load</button>{' '}
+                <button type="button" onClick={() => onDeleteSimulation(snapshot)}>Delete</button>
               </li>
             ))}
           </ul>

@@ -56,6 +56,48 @@ public class UnitTest1 : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+    public async Task Delete_RemovesSnapshotAndListReflectsChange()
+    {
+        using var client = _factory.CreateClient();
+
+        var payload = new
+        {
+            name = "Delete Fixture",
+            seed = "fixture-seed-delete",
+            parameters = new { worldWidth = 800, worldHeight = 480 },
+            tickCount = 77,
+            rngState = 9u,
+            worldState = new { tick = 77, organisms = Array.Empty<object>(), food = Array.Empty<object>() }
+        };
+
+        var saveResponse = await client.PostAsJsonAsync("/api/simulations/snapshots", payload);
+        Assert.Equal(HttpStatusCode.Created, saveResponse.StatusCode);
+
+        var saved = await saveResponse.Content.ReadFromJsonAsync<SimulationSnapshotRecordDto>();
+        Assert.NotNull(saved);
+
+        var deleteResponse = await client.DeleteAsync($"/api/simulations/snapshots/{saved!.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+
+        var fetchDeletedResponse = await client.GetAsync($"/api/simulations/snapshots/{saved.Id}");
+        Assert.Equal(HttpStatusCode.NotFound, fetchDeletedResponse.StatusCode);
+
+        var list = await client.GetFromJsonAsync<List<SimulationSnapshotRecordDto>>("/api/simulations/snapshots");
+        Assert.NotNull(list);
+        Assert.DoesNotContain(list!, item => item.Id == saved.Id);
+    }
+
+    [Fact]
+    public async Task Delete_ReturnsNotFoundForUnknownId()
+    {
+        using var client = _factory.CreateClient();
+
+        var response = await client.DeleteAsync("/api/simulations/snapshots/sim-missing");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Save_RejectsMissingName()
     {
         using var client = _factory.CreateClient();
