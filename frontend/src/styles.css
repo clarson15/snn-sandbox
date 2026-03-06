@@ -25,13 +25,46 @@ body {
   text-align: left;
 }
 
-h1 {
+h1,
+h2 {
   margin: 0;
 }
 
 p {
   margin: 0.35rem 0 0;
   color: #b9c4d1;
+}
+
+.config-panel {
+  width: min(100%, 820px);
+  display: grid;
+  gap: 0.75rem;
+  border: 1px solid #334155;
+  border-radius: 0.5rem;
+  background: #0b1220;
+  padding: 1rem;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+label {
+  display: grid;
+  gap: 0.3rem;
+  color: #d7deea;
+  font-size: 0.95rem;
+}
+
+input {
+  width: 100%;
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #e2e8f0;
+  border-radius: 0.4rem;
+  padding: 0.45rem 0.6rem;
 }
 
 .controls {
@@ -51,6 +84,21 @@ button {
 
 button:hover {
   background: #273449;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.error-text {
+  color: #fb7185;
+  font-size: 0.82rem;
+}
+
+.seed-banner {
+  margin: 0;
+  color: #67e8f9;
 }
 
 canvas {
