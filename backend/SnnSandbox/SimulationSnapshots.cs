@@ -9,7 +9,8 @@ public record SaveSimulationSnapshotRequest(
     [property: JsonPropertyName("seed")] string Seed,
     [property: JsonPropertyName("parameters")] JsonElement Parameters,
     [property: JsonPropertyName("tickCount")] long TickCount,
-    [property: JsonPropertyName("worldState")] JsonElement WorldState
+    [property: JsonPropertyName("worldState")] JsonElement WorldState,
+    [property: JsonPropertyName("rngState")] uint? RngState
 );
 
 public record SimulationSnapshotRecord(
@@ -19,6 +20,7 @@ public record SimulationSnapshotRecord(
     [property: JsonPropertyName("parameters")] JsonElement Parameters,
     [property: JsonPropertyName("tickCount")] long TickCount,
     [property: JsonPropertyName("worldState")] JsonElement WorldState,
+    [property: JsonPropertyName("rngState")] uint? RngState,
     [property: JsonPropertyName("updatedAt")] DateTimeOffset UpdatedAt
 );
 
@@ -27,6 +29,8 @@ public interface ISimulationSnapshotStore
     SimulationSnapshotRecord Save(SaveSimulationSnapshotRequest request);
 
     IReadOnlyList<SimulationSnapshotRecord> List();
+
+    SimulationSnapshotRecord? GetById(string id);
 }
 
 public sealed class InMemorySimulationSnapshotStore : ISimulationSnapshotStore
@@ -43,6 +47,7 @@ public sealed class InMemorySimulationSnapshotStore : ISimulationSnapshotStore
             Parameters: request.Parameters,
             TickCount: request.TickCount,
             WorldState: request.WorldState,
+            RngState: request.RngState,
             UpdatedAt: now
         );
 
@@ -56,5 +61,10 @@ public sealed class InMemorySimulationSnapshotStore : ISimulationSnapshotStore
             .Values
             .OrderByDescending(snapshot => snapshot.UpdatedAt)
             .ToList();
+    }
+
+    public SimulationSnapshotRecord? GetById(string id)
+    {
+        return _snapshots.TryGetValue(id, out var record) ? record : null;
     }
 }

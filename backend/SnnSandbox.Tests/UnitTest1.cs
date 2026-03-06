@@ -29,6 +29,7 @@ public class UnitTest1 : IClassFixture<WebApplicationFactory<Program>>
                 maxFood = 120
             },
             tickCount = 12345,
+            rngState = 123u,
             worldState = new
             {
                 tick = 12345,
@@ -47,6 +48,11 @@ public class UnitTest1 : IClassFixture<WebApplicationFactory<Program>>
         var saved = list![0];
         Assert.Equal("fixture-seed-0001", saved.Seed);
         Assert.Equal(12345, saved.TickCount);
+
+        var loaded = await client.GetFromJsonAsync<SimulationSnapshotRecordDto>($"/api/simulations/snapshots/{saved.Id}");
+        Assert.NotNull(loaded);
+        Assert.Equal(saved.Id, loaded!.Id);
+        Assert.Equal((uint)123, loaded.RngState);
     }
 
     [Fact]
@@ -77,6 +83,8 @@ public class UnitTest1 : IClassFixture<WebApplicationFactory<Program>>
         public string Seed { get; set; } = string.Empty;
 
         public long TickCount { get; set; }
+
+        public uint? RngState { get; set; }
 
         public DateTimeOffset UpdatedAt { get; set; }
     }

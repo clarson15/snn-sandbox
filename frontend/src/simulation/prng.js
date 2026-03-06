@@ -35,8 +35,8 @@ export function normalizeSeed(seed) {
  *
  * @param {string | number} seed
  */
-export function createSeededPrng(seed) {
-  let state = normalizeSeed(seed);
+export function createSeededPrng(seed, initialState) {
+  let state = Number.isInteger(initialState) ? (initialState >>> 0) : normalizeSeed(seed);
 
   // Avoid an all-zero state lock by nudging with a constant.
   if (state === 0) {
@@ -71,6 +71,11 @@ export function createSeededPrng(seed) {
 
       const span = maxExclusive - min;
       return min + Math.floor(this.nextFloat() * span);
+    },
+
+    /** Returns current internal uint32 state for deterministic persistence. */
+    getState() {
+      return state >>> 0;
     }
   };
 }

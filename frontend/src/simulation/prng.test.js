@@ -62,4 +62,17 @@ describe('createSeededPrng', () => {
     expect(() => prng.nextInt(5, 5)).toThrow(RangeError);
     expect(() => prng.nextInt(0.1, 5)).toThrow(TypeError);
   });
+
+  it('restores sequence continuity from persisted internal state', () => {
+    const baseline = createSeededPrng('resume-seed');
+    const prefix = Array.from({ length: 25 }, () => baseline.nextFloat());
+    const persistedState = baseline.getState();
+    const nextFromBaseline = Array.from({ length: 20 }, () => baseline.nextFloat());
+
+    const resumed = createSeededPrng('resume-seed', persistedState);
+    const nextFromResumed = Array.from({ length: 20 }, () => resumed.nextFloat());
+
+    expect(prefix.length).toBe(25);
+    expect(nextFromResumed).toEqual(nextFromBaseline);
+  });
 });

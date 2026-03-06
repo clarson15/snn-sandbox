@@ -27,7 +27,50 @@ describe('App', () => {
         return {
           ok: true,
           status: 200,
-          json: async () => []
+          json: async () => ([
+            {
+              id: 'sim-fixture',
+              name: 'Fixture snapshot',
+              updatedAt: '2026-03-06T12:00:01.000Z'
+            }
+          ])
+        };
+      }
+
+      if (String(url).startsWith('/api/simulations/snapshots/') && (!options.method || options.method === 'GET')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            id: 'sim-fixture',
+            name: 'Fixture snapshot',
+            seed: 'fixture-seed',
+            parameters: {
+              name: 'Fixture',
+              seed: 'fixture-seed',
+              resolvedSeed: 'fixture-seed',
+              worldWidth: 800,
+              worldHeight: 480,
+              initialPopulation: 12,
+              initialFoodCount: 30,
+              foodSpawnChance: 0.04,
+              foodEnergyValue: 5,
+              maxFood: 120
+            },
+            tickCount: 0,
+            rngState: 123,
+            worldState: createInitialWorldFromConfig(normalizeSimulationConfig({
+              name: 'Fixture',
+              seed: 'fixture-seed',
+              worldWidth: 800,
+              worldHeight: 480,
+              initialPopulation: 12,
+              initialFoodCount: 30,
+              foodSpawnChance: 0.04,
+              foodEnergyValue: 5,
+              maxFood: 120
+            }, 'fixture-seed'))
+          })
         };
       }
 
@@ -150,6 +193,47 @@ describe('App', () => {
     fireEvent.click(speed2x);
     expect(screen.getByRole('button', { name: /^pause$/i })).toHaveAttribute('aria-pressed', 'false');
     expect(speed2x).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('loads a saved snapshot and shows active snapshot metadata', async () => {
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /load/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/active snapshot:/i)).toHaveTextContent('Fixture snapshot');
+      expect(screen.getByText(/^tick:/i)).toHaveTextContent('Tick: 0');
+      expect(screen.getByText(/loaded\./i)).toBeInTheDocument();
+    });
+  });
+
+  it('surfaces load failures for invalid/corrupt snapshots', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
+      if (url === '/api/simulations/snapshots' && (!options.method || options.method === 'GET')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ([{ id: 'sim-bad', name: 'Bad snapshot', updatedAt: '2026-03-06T12:00:01.000Z' }])
+        };
+      }
+
+      if (String(url).startsWith('/api/simulations/snapshots/')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ id: 'sim-bad', tickCount: 10, worldState: { tick: 9 } })
+        };
+      }
+
+      return { ok: false, status: 404, json: async () => ({}) };
+    }));
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: /load/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/failed to load snapshot/i)).toBeInTheDocument();
+    });
   });
 
   it('renders deterministic inspector values from fixed seeded fixture', () => {
