@@ -152,12 +152,32 @@ export function formatMismatchDisplayValue(value) {
   return JSON.stringify(value);
 }
 
+export function deriveMismatchEventType(path) {
+  const normalizedPath = String(path ?? '').toLowerCase();
+
+  if (normalizedPath.includes('input')) {
+    return 'input';
+  }
+
+  if (normalizedPath.includes('output')) {
+    return 'output';
+  }
+
+  return 'state';
+}
+
+export function normalizeMismatchSeverity(severity) {
+  const normalized = toNonEmptyString(severity)?.toLowerCase() ?? null;
+  return normalized === 'low' || normalized === 'medium' || normalized === 'high' ? normalized : null;
+}
+
 function normalizeMismatchEvent(eventPayload, fallbackTick, fallbackIndex) {
   const tick = toTick(eventPayload?.tick) ?? fallbackTick;
   const path = toMismatchPath(eventPayload);
   const baselineValue = toMismatchValue(eventPayload?.baselineValue);
   const comparisonValue = toMismatchValue(eventPayload?.comparisonValue ?? eventPayload?.currentValue);
-  const severity = toNonEmptyString(eventPayload?.severity);
+  const severity = normalizeMismatchSeverity(eventPayload?.severity);
+  const type = deriveMismatchEventType(path);
 
   if (tick === null || path === null || baselineValue === null || comparisonValue === null) {
     return null;
@@ -170,6 +190,7 @@ function normalizeMismatchEvent(eventPayload, fallbackTick, fallbackIndex) {
     id: `${tick}:${fallbackIndex}`,
     tick,
     path,
+    type,
     entityId: toNonEmptyString(eventPayload?.entityId),
     baselineValue,
     comparisonValue,
@@ -203,10 +224,25 @@ function deriveMismatchEvents(replaySnapshotMetadata, firstMismatchTick, mismatc
   }
 
   if (mismatchDetails) {
-    return [{ ...mismatchDetails, id: `${mismatchDetails.tick}:0`, severity: null }];
+    return [{ ...mismatchDetails, id: `${mismatchDetails.tick}:0`, type: deriveMismatchEventType(mismatchDetails.path), severity: null }];
   }
 
   return [];
+}
+
+export function filterMismatchEvents(mismatchEvents, filters) {
+  if (!Array.isArray(mismatchEvents) || mismatchEvents.length === 0) {
+    return [];
+  }
+
+  const allowedTypes = new Set(Array.isArray(filters?.types) ? filters.types : []);
+  const allowedSeverities = new Set(Array.isArray(filters?.severities) ? filters.severities : []);
+
+  return mismatchEvents.filter((eventItem) => {
+    const typeAllowed = allowedTypes.size === 0 || allowedTypes.has(eventItem.type);
+    const severityAllowed = allowedSeverities.size === 0 || allowedSeverities.has(eventItem.severity);
+    return typeAllowed && severityAllowed;
+  });
 }
 
 export function deriveReplaySummaryStrip({ replaySnapshotMetadata, replayTick, currentReplayContext }) {

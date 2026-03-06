@@ -18,7 +18,12 @@ import { pickOrganismAtPoint } from './simulation/selection';
 import { deriveSimulationStats, formatSimulationStats } from './simulation/stats';
 import { deriveRunMetadata, serializeRunMetadata } from './simulation/metadata';
 import { replaySnapshotToTick } from './simulation/replay';
-import { deriveReplaySummaryStrip, deriveSimulationParametersSignature, formatMismatchDisplayValue } from './simulation/replaySummary';
+import {
+  deriveReplaySummaryStrip,
+  deriveSimulationParametersSignature,
+  filterMismatchEvents,
+  formatMismatchDisplayValue
+} from './simulation/replaySummary';
 import { deriveReplaySnapshotBundle, downloadReplaySnapshotBundle } from './simulation/replaySnapshotExport';
 import { formatReplayMismatchReport } from './simulation/replayMismatchReport';
 import {
@@ -49,6 +54,7 @@ function App() {
   const [replayWorldState, setReplayWorldState] = useState(null);
   const [replaySnapshotMetadata, setReplaySnapshotMetadata] = useState(null);
   const [selectedMismatchEventKey, setSelectedMismatchEventKey] = useState(null);
+  const [mismatchEventFilters, setMismatchEventFilters] = useState({ types: [], severities: [] });
   const [formState, setFormState] = useState(() => {
     const saved = loadSimulationConfig();
     if (!saved) {
@@ -259,6 +265,7 @@ function App() {
     setReplayTickInput(String(loadedWorld.tick));
     setReplayStatus('Replay ready. Jump to any tick at or after the loaded snapshot tick.');
     setSelectedMismatchEventKey(null);
+    setMismatchEventFilters({ types: [], severities: [] });
     setSelectedOrganismId(null);
     setResolvedSeed(loadedConfig.resolvedSeed);
     setTickDisplay(loadedWorld.tick);
@@ -297,6 +304,7 @@ function App() {
     setReplayStatus('');
     setReplaySnapshotMetadata(null);
     setSelectedMismatchEventKey(null);
+    setMismatchEventFilters({ types: [], severities: [] });
     setActiveLoadedMetadata(null);
     setLoadStatus('');
     setCopyMetadataStatus('');
@@ -336,19 +344,32 @@ function App() {
     [replaySnapshotMetadata, replayWorldState?.tick, resolvedSeed]
   );
 
+  const filteredMismatchEvents = useMemo(
+    () => filterMismatchEvents(replaySummaryStrip.mismatchEvents, mismatchEventFilters),
+    [replaySummaryStrip.mismatchEvents, mismatchEventFilters]
+  );
+
+  const activeMismatchFilterChips = useMemo(
+    () => [
+      ...mismatchEventFilters.types.map((value) => ({ category: 'types', value, label: `Type: ${value}` })),
+      ...mismatchEventFilters.severities.map((value) => ({ category: 'severities', value, label: `Severity: ${value}` }))
+    ],
+    [mismatchEventFilters]
+  );
+
   useEffect(() => {
-    if (replaySummaryStrip.mismatchEvents.length === 0) {
+    if (filteredMismatchEvents.length === 0) {
       setSelectedMismatchEventKey(null);
       return;
     }
 
-    if (selectedMismatchEventKey === null || !replaySummaryStrip.mismatchEvents.some((eventItem) => eventItem.id === selectedMismatchEventKey)) {
-      setSelectedMismatchEventKey(replaySummaryStrip.mismatchEvents[0].id);
+    if (selectedMismatchEventKey === null || !filteredMismatchEvents.some((eventItem) => eventItem.id === selectedMismatchEventKey)) {
+      setSelectedMismatchEventKey(filteredMismatchEvents[0].id);
     }
-  }, [replaySummaryStrip.mismatchEvents, selectedMismatchEventKey]);
+  }, [filteredMismatchEvents, selectedMismatchEventKey]);
 
   const selectedMismatchDetails =
-    replaySummaryStrip.mismatchEvents.find((eventItem) => eventItem.id === selectedMismatchEventKey) ?? replaySummaryStrip.mismatchDetails;
+    filteredMismatchEvents.find((eventItem) => eventItem.id === selectedMismatchEventKey) ?? replaySummaryStrip.mismatchDetails;
 
   const replayTimeline = useMemo(() => {
     const startTick = Number.isInteger(replayContextRef.current?.baseWorldState?.tick) ? replayContextRef.current.baseWorldState.tick : 0;
@@ -516,6 +537,28 @@ function App() {
     setSelectedMismatchEventKey(eventItem.id);
     setReplayTickInput(mismatchTick);
     jumpReplayToTick(mismatchTick, 'Jumped to mismatch event tick.', false);
+  };
+
+  const toggleMismatchFilter = (category, value) => {
+    setMismatchEventFilters((previous) => {
+      const values = previous[category] ?? [];
+      const nextValues = values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
+      return {
+        ...previous,
+        [category]: nextValues
+      };
+    });
+  };
+
+  const clearMismatchFilter = (category, value) => {
+    setMismatchEventFilters((previous) => ({
+      ...previous,
+      [category]: (previous[category] ?? []).filter((item) => item !== value)
+    }));
+  };
+
+  const clearAllMismatchFilters = () => {
+    setMismatchEventFilters({ types: [], severities: [] });
   };
 
   const onCopyMismatchReport = async () => {
@@ -728,18 +771,63 @@ function App() {
               <button type="button" onClick={onCopyMismatchReport} disabled={!selectedMismatchDetails}>Copy mismatch report</button>
               {replaySummaryStrip.mismatchEvents.length > 0 ? (
                 <>
-                  <h3>Mismatch events</h3>
-                  <ul>
-                    {replaySummaryStrip.mismatchEvents.map((eventItem) => (
-                      <li key={eventItem.id}>
-                        <button type="button" onClick={() => onJumpToMismatchEvent(eventItem)}>
-                          Tick {eventItem.tick} · {eventItem.path} · baseline {formatMismatchDisplayValue(eventItem.baselineValue)} · comparison{' '}
-                          {formatMismatchDisplayValue(eventItem.comparisonValue)}
-                          {eventItem.severity ? ` · severity ${eventItem.severity}` : ''}
-                        </button>
-                      </li>
+                  <h3>Mismatch filters</h3>
+                  <div className="field-row" aria-label="mismatch type filters">
+                    {['state', 'input', 'output'].map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => toggleMismatchFilter('types', type)}
+                        aria-pressed={mismatchEventFilters.types.includes(type)}
+                      >
+                        Type: {type}
+                      </button>
                     ))}
-                  </ul>
+                  </div>
+                  <div className="field-row" aria-label="mismatch severity filters">
+                    {['low', 'medium', 'high'].map((severity) => (
+                      <button
+                        key={severity}
+                        type="button"
+                        onClick={() => toggleMismatchFilter('severities', severity)}
+                        aria-pressed={mismatchEventFilters.severities.includes(severity)}
+                      >
+                        Severity: {severity}
+                      </button>
+                    ))}
+                  </div>
+                  {activeMismatchFilterChips.length > 0 ? (
+                    <div className="field-row" aria-label="active mismatch filters">
+                      {activeMismatchFilterChips.map((chip) => (
+                        <button
+                          key={`${chip.category}-${chip.value}`}
+                          type="button"
+                          onClick={() => clearMismatchFilter(chip.category, chip.value)}
+                        >
+                          {chip.label} ×
+                        </button>
+                      ))}
+                      <button type="button" onClick={clearAllMismatchFilters}>Clear all filters</button>
+                    </div>
+                  ) : null}
+                  {filteredMismatchEvents.length > 0 ? (
+                    <>
+                      <h3>Mismatch events</h3>
+                      <ul>
+                        {filteredMismatchEvents.map((eventItem) => (
+                          <li key={eventItem.id}>
+                            <button type="button" onClick={() => onJumpToMismatchEvent(eventItem)}>
+                              Tick {eventItem.tick} · {eventItem.path} · type {eventItem.type} · baseline {formatMismatchDisplayValue(eventItem.baselineValue)} · comparison{' '}
+                              {formatMismatchDisplayValue(eventItem.comparisonValue)}
+                              {eventItem.severity ? ` · severity ${eventItem.severity}` : ''}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  ) : (
+                    <p>No mismatch events match active filters.</p>
+                  )}
                 </>
               ) : (
                 <p>No mismatch events available for this replay payload.</p>

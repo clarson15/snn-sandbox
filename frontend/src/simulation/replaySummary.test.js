@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   deriveReplaySummaryStrip,
   deriveSimulationParametersSignature,
+  filterMismatchEvents,
   formatMismatchDisplayValue
 } from './replaySummary';
 
@@ -239,6 +240,22 @@ describe('deriveReplaySummaryStrip', () => {
       '14:organisms[1].state'
     ]);
     expect(summary.mismatchEvents[1].severity).toBe('high');
+    expect(summary.mismatchEvents.map((eventItem) => eventItem.type)).toEqual(['state', 'state', 'state']);
+  });
+
+  it('filters mismatch events deterministically by type and severity', () => {
+    const mismatchEvents = [
+      { id: '12:0', tick: 12, path: 'organisms[0].brain.state', type: 'state', severity: 'low' },
+      { id: '14:1', tick: 14, path: 'organisms[0].brain.input[0]', type: 'input', severity: 'medium' },
+      { id: '16:2', tick: 16, path: 'organisms[0].brain.output[1]', type: 'output', severity: 'high' }
+    ];
+
+    expect(filterMismatchEvents(mismatchEvents, { types: ['input'], severities: [] }).map((eventItem) => eventItem.id)).toEqual(['14:1']);
+    expect(filterMismatchEvents(mismatchEvents, { types: [], severities: ['high'] }).map((eventItem) => eventItem.id)).toEqual(['16:2']);
+    expect(filterMismatchEvents(mismatchEvents, { types: ['state', 'output'], severities: ['low', 'high'] }).map((eventItem) => eventItem.id)).toEqual([
+      '12:0',
+      '16:2'
+    ]);
   });
 
   it('formats numeric and string mismatch values for display', () => {
