@@ -258,8 +258,9 @@ describe('App', () => {
       expect(screen.getByText(/active snapshot:/i)).toHaveTextContent('Fixture snapshot');
       expect(screen.getByText(/^tick count:/i)).toHaveTextContent('Tick count: 0');
       expect(screen.getByText(/loaded\./i)).toBeInTheDocument();
-      expect(screen.getByText(/^seed:/i)).toHaveTextContent('Seed: fixture-seed');
-      expect(screen.getByText(/^snapshot id:/i)).toHaveTextContent('Snapshot ID: sim-fixture');
+      const runMetadataPanel = screen.getByRole('region', { name: /run metadata panel/i });
+      expect(within(runMetadataPanel).getByText(/^seed: fixture-seed$/i)).toBeInTheDocument();
+      expect(within(runMetadataPanel).getByText(/^snapshot id: sim-fixture$/i)).toBeInTheDocument();
     });
   });
 
@@ -270,8 +271,15 @@ describe('App', () => {
     fireEvent.click(within(savedRegion).getByRole('button', { name: /^load$/i }));
 
     await waitFor(() => {
+      const summaryRegion = screen.getByRole('region', { name: /replay session summary strip/i });
+      expect(summaryRegion).toBeInTheDocument();
       expect(screen.getByRole('region', { name: /replay timeline controls/i })).toBeInTheDocument();
       expect(screen.getByText(/^tick count:/i)).toHaveTextContent('Tick count: 0');
+      expect(within(summaryRegion).getByText(/^seed: fixture-seed$/i)).toBeInTheDocument();
+      expect(within(summaryRegion).getByText(/^simulation: fixture snapshot$/i)).toBeInTheDocument();
+      expect(within(summaryRegion).getByText(/^simulation id: sim-fixture$/i)).toBeInTheDocument();
+      expect(within(summaryRegion).getByText(/^captured tick range: 0 → 0$/i)).toBeInTheDocument();
+      expect(within(summaryRegion).getByText(/^total replay duration \(ticks\): 0$/i)).toBeInTheDocument();
     });
 
     const tickNode = screen.getByText(/^tick count:/i);
@@ -280,6 +288,9 @@ describe('App', () => {
     fireEvent.change(jumpInput, { target: { value: '20' } });
     fireEvent.click(screen.getByRole('button', { name: /^jump$/i }));
     expect(tickNode).toHaveTextContent('Tick count: 20');
+    const summaryRegion = screen.getByRole('region', { name: /replay session summary strip/i });
+    expect(within(summaryRegion).getByText(/^captured tick range: 0 → 20$/i)).toBeInTheDocument();
+    expect(within(summaryRegion).getByText(/^total replay duration \(ticks\): 20$/i)).toBeInTheDocument();
 
     await new Promise((resolve) => setTimeout(resolve, 150));
     expect(tickNode).toHaveTextContent('Tick count: 20');

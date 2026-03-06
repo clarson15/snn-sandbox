@@ -101,6 +101,11 @@ button:disabled {
   color: #67e8f9;
 }
 
+.replay-summary-strip {
+  border-color: #2563eb;
+  background: #0a1630;
+}
+
 canvas {
   border: 1px solid #334155;
   border-radius: 0.5rem;

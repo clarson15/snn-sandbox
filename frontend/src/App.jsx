@@ -18,6 +18,7 @@ import { pickOrganismAtPoint } from './simulation/selection';
 import { deriveSimulationStats, formatSimulationStats } from './simulation/stats';
 import { deriveRunMetadata, serializeRunMetadata } from './simulation/metadata';
 import { replaySnapshotToTick } from './simulation/replay';
+import { deriveReplaySummaryStrip } from './simulation/replaySummary';
 import {
   deleteSimulationSnapshot,
   getSimulationSnapshot,
@@ -44,6 +45,7 @@ function App() {
   const [replayTickInput, setReplayTickInput] = useState('');
   const [replayStatus, setReplayStatus] = useState('');
   const [replayWorldState, setReplayWorldState] = useState(null);
+  const [replaySnapshotMetadata, setReplaySnapshotMetadata] = useState(null);
   const [formState, setFormState] = useState(() => {
     const saved = loadSimulationConfig();
     if (!saved) {
@@ -233,6 +235,12 @@ function App() {
     };
 
     setReplayWorldState(createWorldState(loadedWorld));
+    setReplaySnapshotMetadata({
+      id: snapshot.id,
+      name: snapshot.name,
+      seed: snapshot.seed,
+      tickCount: snapshot.tickCount
+    });
     setReplayTickInput(String(loadedWorld.tick));
     setReplayStatus('Replay ready. Jump to any tick at or after the loaded snapshot tick.');
     setSelectedOrganismId(null);
@@ -271,6 +279,7 @@ function App() {
     setReplayWorldState(null);
     setReplayTickInput('');
     setReplayStatus('');
+    setReplaySnapshotMetadata(null);
     setActiveLoadedMetadata(null);
     setLoadStatus('');
     setCopyMetadataStatus('');
@@ -296,6 +305,14 @@ function App() {
   );
 
   const serializedRunMetadata = useMemo(() => serializeRunMetadata(runMetadata), [runMetadata]);
+
+  const replaySummaryStrip = useMemo(
+    () => deriveReplaySummaryStrip({
+      replaySnapshotMetadata,
+      replayTick: replayWorldState?.tick
+    }),
+    [replaySnapshotMetadata, replayWorldState?.tick]
+  );
 
   const onSpeedSelect = (multiplier) => {
     setSpeedMultiplier(multiplier);
@@ -557,23 +574,33 @@ function App() {
       </section>
 
       {replayActive ? (
-        <section className="config-panel" aria-label="replay timeline controls">
-          <h2>Replay timeline</h2>
-          <p>Loaded tick floor: {replayContextRef.current?.baseWorldState?.tick ?? 0}</p>
-          <label>
-            Jump to tick
-            <input
-              type="number"
-              value={replayTickInput}
-              onChange={(event) => setReplayTickInput(event.target.value)}
-              min={replayContextRef.current?.baseWorldState?.tick ?? 0}
-            />
-          </label>
-          <div className="field-row">
-            <button type="button" onClick={onReplayJump}>Jump</button>
-            <button type="button" onClick={onResumeFromReplay}>Resume live from selected tick</button>
-          </div>
-        </section>
+        <>
+          <section className="config-panel replay-summary-strip" aria-label="replay session summary strip">
+            <h2>Replay summary</h2>
+            <p>Seed: {replaySummaryStrip.seed}</p>
+            <p>Simulation: {replaySummaryStrip.simulationName}</p>
+            <p>Simulation ID: {replaySummaryStrip.simulationId}</p>
+            <p>Captured tick range: {replaySummaryStrip.startTick} → {replaySummaryStrip.endTick}</p>
+            <p>Total replay duration (ticks): {replaySummaryStrip.durationTicks}</p>
+          </section>
+          <section className="config-panel" aria-label="replay timeline controls">
+            <h2>Replay timeline</h2>
+            <p>Loaded tick floor: {replayContextRef.current?.baseWorldState?.tick ?? 0}</p>
+            <label>
+              Jump to tick
+              <input
+                type="number"
+                value={replayTickInput}
+                onChange={(event) => setReplayTickInput(event.target.value)}
+                min={replayContextRef.current?.baseWorldState?.tick ?? 0}
+              />
+            </label>
+            <div className="field-row">
+              <button type="button" onClick={onReplayJump}>Jump</button>
+              <button type="button" onClick={onResumeFromReplay}>Resume live from selected tick</button>
+            </div>
+          </section>
+        </>
       ) : null}
 
       {saveStatus ? <p>{saveStatus}</p> : null}
