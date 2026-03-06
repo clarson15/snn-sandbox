@@ -263,6 +263,34 @@ describe('App', () => {
     });
   });
 
+  it('supports deterministic replay tick jumps from a loaded snapshot and only resumes when explicit', async () => {
+    render(<App />);
+
+    const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
+    fireEvent.click(within(savedRegion).getByRole('button', { name: /^load$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('region', { name: /replay timeline controls/i })).toBeInTheDocument();
+      expect(screen.getByText(/^tick count:/i)).toHaveTextContent('Tick count: 0');
+    });
+
+    const tickNode = screen.getByText(/^tick count:/i);
+    const jumpInput = screen.getByLabelText(/jump to tick/i);
+
+    fireEvent.change(jumpInput, { target: { value: '20' } });
+    fireEvent.click(screen.getByRole('button', { name: /^jump$/i }));
+    expect(tickNode).toHaveTextContent('Tick count: 20');
+
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(tickNode).toHaveTextContent('Tick count: 20');
+
+    fireEvent.click(screen.getByRole('button', { name: /resume live from selected tick/i }));
+
+    await waitFor(() => {
+      expect(Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(20);
+    });
+  });
+
   it('surfaces load failures for invalid/corrupt snapshots', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
       if (url === '/api/simulations/snapshots' && (!options.method || options.method === 'GET')) {
