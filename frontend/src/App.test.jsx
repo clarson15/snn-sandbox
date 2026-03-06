@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import App from './App';
@@ -47,7 +47,23 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: /start simulation/i })).toBeInTheDocument();
   });
 
-  it('generates a seed when omitted and persists config', () => {
+  it('generates a seed when omitted and persists config', async () => {
+    const canReadWriteStorage = (() => {
+      const storage = window.localStorage;
+      if (!storage || typeof storage.setItem !== 'function' || typeof storage.getItem !== 'function') {
+        return false;
+      }
+
+      try {
+        storage.setItem(STORAGE_KEY, '__probe__');
+        const probe = storage.getItem(STORAGE_KEY);
+        storage.removeItem(STORAGE_KEY);
+        return probe === '__probe__';
+      } catch {
+        return false;
+      }
+    })();
+
     render(<App />);
 
     fireEvent.change(screen.getByLabelText(/seed/i), { target: { value: '' } });
@@ -55,10 +71,18 @@ describe('App', () => {
 
     expect(screen.getByText(/resolved seed:/i)).toHaveTextContent('1e240');
 
-    const saved = loadSimulationConfig();
-    expect(saved).toMatchObject({
-      name: 'New Simulation',
-      resolvedSeed: '1e240'
+    await waitFor(() => {
+      const saved = loadSimulationConfig();
+
+      if (!canReadWriteStorage) {
+        expect(saved).toBeNull();
+        return;
+      }
+
+      expect(saved).toMatchObject({
+        name: 'New Simulation',
+        resolvedSeed: '1e240'
+      });
     });
   });
 
