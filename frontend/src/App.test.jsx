@@ -1,11 +1,13 @@
 import '@testing-library/jest-dom/vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import App from './App';
 import { createInitialWorldFromConfig, loadSimulationConfig, normalizeSimulationConfig, STORAGE_KEY } from './simulation/config';
 
 describe('App', () => {
+  let clipboardWriteText;
+
   beforeEach(() => {
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 1);
     vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
@@ -23,6 +25,12 @@ describe('App', () => {
     });
 
     vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    clipboardWriteText = vi.fn(async () => undefined);
+    Object.defineProperty(window.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: clipboardWriteText }
+    });
 
     vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
       if (url === '/api/simulations/snapshots' && (!options.method || options.method === 'GET')) {
@@ -207,15 +215,51 @@ describe('App', () => {
     expect(speed2x).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('renders deterministic run metadata and copies a stable payload', async () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/seed/i), { target: { value: 'meta-seed' } });
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    expect(screen.getByText(/^seed:/i)).toHaveTextContent('Seed: meta-seed');
+    expect(screen.getByText(/^speed multiplier:/i)).toHaveTextContent('Speed multiplier: 1x');
+    expect(screen.getByText(/^snapshot id:/i)).toHaveTextContent('Snapshot ID: No snapshot');
+
+    await waitFor(() => {
+      const tickValue = Number.parseInt(screen.getByText(/^current tick:/i).textContent.replace(/\D+/g, ''), 10);
+      expect(tickValue).toBeGreaterThan(0);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /^5x$/i }));
+    expect(screen.getByText(/^speed multiplier:/i)).toHaveTextContent('Speed multiplier: 5x');
+
+    const tickValue = Number.parseInt(screen.getByText(/^current tick:/i).textContent.replace(/\D+/g, ''), 10);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /copy metadata payload/i }));
+    });
+
+    expect(clipboardWriteText).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(/metadata copied\./i)).toBeInTheDocument();
+
+    const copiedPayload = clipboardWriteText.mock.calls[0][0];
+    expect(copiedPayload).toBe(
+      `{"seed":"meta-seed","tickCount":${tickValue},"speedMultiplier":"5x","snapshotId":"No snapshot"}`
+    );
+  });
+
   it('loads a saved snapshot and shows active snapshot metadata', async () => {
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: /load/i }));
+    const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
+    fireEvent.click(within(savedRegion).getByRole('button', { name: /^load$/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/active snapshot:/i)).toHaveTextContent('Fixture snapshot');
       expect(screen.getByText(/^tick count:/i)).toHaveTextContent('Tick count: 0');
       expect(screen.getByText(/loaded\./i)).toBeInTheDocument();
+      expect(screen.getByText(/^seed:/i)).toHaveTextContent('Seed: fixture-seed');
+      expect(screen.getByText(/^snapshot id:/i)).toHaveTextContent('Snapshot ID: sim-fixture');
     });
   });
 
@@ -241,7 +285,8 @@ describe('App', () => {
     }));
 
     render(<App />);
-    fireEvent.click(await screen.findByRole('button', { name: /load/i }));
+    const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
+    fireEvent.click(within(savedRegion).getByRole('button', { name: /^load$/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/failed to load snapshot/i)).toBeInTheDocument();
