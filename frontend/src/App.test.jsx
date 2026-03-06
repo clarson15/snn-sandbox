@@ -24,7 +24,7 @@ describe('App', () => {
   });
 
   afterEach(() => {
-    localStorage.clear();
+    window.localStorage.clear();
     vi.restoreAllMocks();
     cleanup();
   });
@@ -50,7 +50,7 @@ describe('App', () => {
 
     expect(screen.getByText(/resolved seed:/i)).toHaveTextContent('1e240');
 
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    const saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY));
     expect(saved).toMatchObject({
       name: 'New Simulation',
       resolvedSeed: '1e240'
