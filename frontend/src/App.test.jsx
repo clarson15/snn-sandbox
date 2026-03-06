@@ -711,6 +711,8 @@ describe('App', () => {
     expect(screen.getByText(/tick 18 · organisms\[2\]\.energy/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/replay mismatch markers/i)).toBeInTheDocument();
     expect(document.querySelectorAll('.replay-marker')).toHaveLength(2);
+    expect(document.querySelectorAll('.replay-marker-active')).toHaveLength(1);
+    expect(screen.getByRole('button', { name: /tick 12 · organisms\[0\]\.age/i })).toHaveAttribute('aria-current', 'true');
 
     fireEvent.click(screen.getByRole('button', { name: /tick 18 · organisms\[2\]\.energy/i }));
 
@@ -720,6 +722,21 @@ describe('App', () => {
 
     const tickInput = screen.getByLabelText(/jump to tick/i);
     expect(tickInput).toHaveValue(18);
+    expect(screen.getByRole('button', { name: /tick 18 · organisms\[2\]\.energy/i })).toHaveAttribute('aria-current', 'true');
+
+    fireEvent.change(screen.getByRole('slider', { name: /replay timeline scrubber/i }), { target: { value: '12' } });
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /tick 12 · organisms\[0\]\.age/i })).toHaveAttribute('aria-current', 'true');
+    });
+
+    const replaySummaryRegion = screen.getByRole('region', { name: /replay session summary strip/i });
+    replaySummaryRegion.focus();
+    fireEvent.keyDown(replaySummaryRegion, { key: 'ArrowDown', altKey: true });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /tick 18 · organisms\[2\]\.energy/i })).toHaveAttribute('aria-current', 'true');
+    });
+    expect(screen.getByLabelText(/jump to tick/i)).toHaveValue(18);
   });
 
   it('filters mismatch events by type/severity and supports active filter chips', async () => {
