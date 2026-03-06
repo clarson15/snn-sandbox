@@ -64,12 +64,34 @@ function deriveReplayContextIndicator({ replaySnapshotMetadata, currentReplayCon
   };
 }
 
+function deriveFirstMismatchTick(replaySnapshotMetadata, startTick) {
+  const directTick = toTick(replaySnapshotMetadata?.firstMismatchTick);
+  const comparisonTick = toTick(replaySnapshotMetadata?.comparison?.firstMismatchTick);
+  const resolvedTick = directTick ?? comparisonTick;
+
+  if (resolvedTick === null) {
+    return null;
+  }
+
+  if (startTick !== null && resolvedTick < startTick) {
+    return null;
+  }
+
+  return resolvedTick;
+}
+
 export function deriveReplaySummaryStrip({ replaySnapshotMetadata, replayTick, currentReplayContext }) {
   const startTick = toTick(replaySnapshotMetadata?.tickCount);
   const endTick = toTick(replayTick);
 
   const normalizedEndTick = endTick ?? startTick;
   const contextIndicator = deriveReplayContextIndicator({ replaySnapshotMetadata, currentReplayContext });
+  const firstMismatchTick = deriveFirstMismatchTick(replaySnapshotMetadata, startTick);
+  const mismatchDetected =
+    contextIndicator.contextDifferences.length > 0 ||
+    replaySnapshotMetadata?.mismatchDetected === true ||
+    replaySnapshotMetadata?.comparison?.mismatchDetected === true ||
+    firstMismatchTick !== null;
 
   return {
     seed: toNonEmptyString(replaySnapshotMetadata?.seed) ?? FALLBACKS.seed,
@@ -81,6 +103,9 @@ export function deriveReplaySummaryStrip({ replaySnapshotMetadata, replayTick, c
       startTick !== null && normalizedEndTick !== null
         ? Math.max(0, normalizedEndTick - startTick)
         : FALLBACKS.duration,
+    firstMismatchTick,
+    mismatchDetected,
+    canJumpToFirstMismatch: mismatchDetected && firstMismatchTick !== null,
     ...contextIndicator
   };
 }
