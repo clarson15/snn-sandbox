@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { deriveReplaySummaryStrip, deriveSimulationParametersSignature } from './replaySummary';
+import {
+  deriveReplaySummaryStrip,
+  deriveSimulationParametersSignature,
+  formatMismatchDisplayValue
+} from './replaySummary';
 
 describe('deriveReplaySummaryStrip', () => {
   it('maps replay metadata into deterministic summary values with context match', () => {
@@ -40,6 +44,7 @@ describe('deriveReplaySummaryStrip', () => {
       durationTicks: 32,
       firstMismatchTick: null,
       mismatchDetected: false,
+      mismatchDetails: null,
       canJumpToFirstMismatch: false,
       contextLabel: 'Context Match',
       contextDifferences: []
@@ -73,6 +78,7 @@ describe('deriveReplaySummaryStrip', () => {
       durationTicks: 0,
       firstMismatchTick: null,
       mismatchDetected: true,
+      mismatchDetails: null,
       canJumpToFirstMismatch: false,
       contextLabel: 'Context Mismatch',
       contextDifferences: ['replayStartTick', 'simulationParameters']
@@ -104,6 +110,7 @@ describe('deriveReplaySummaryStrip', () => {
       durationTicks: 'Unknown duration',
       firstMismatchTick: null,
       mismatchDetected: true,
+      mismatchDetails: null,
       canJumpToFirstMismatch: false,
       contextLabel: 'Context Mismatch',
       contextDifferences: ['seed', 'replayStartTick', 'simulationParameters']
@@ -159,5 +166,47 @@ describe('deriveReplaySummaryStrip', () => {
       mismatchDetected: true,
       canJumpToFirstMismatch: false
     });
+  });
+
+  it('derives mismatch details payload with absolute delta from replay snapshot metadata only', () => {
+    expect(
+      deriveReplaySummaryStrip({
+        replaySnapshotMetadata: {
+          id: 'sim-123',
+          name: 'Fixture snapshot',
+          seed: 'fixture-seed',
+          tickCount: 10,
+          comparison: {
+            mismatchDetected: true,
+            firstMismatchTick: 26,
+            firstMismatch: {
+              entityId: 'org-4',
+              path: 'organisms[4].energy',
+              baselineValue: 8.5,
+              comparisonValue: 9
+            }
+          },
+          simulationParametersSignature: 'sig-a'
+        },
+        replayTick: 26,
+        currentReplayContext: {
+          seed: 'fixture-seed',
+          replayStartTick: 10,
+          simulationParametersSignature: 'sig-a'
+        }
+      }).mismatchDetails
+    ).toEqual({
+      tick: 26,
+      path: 'organisms[4].energy',
+      entityId: 'org-4',
+      baselineValue: 8.5,
+      comparisonValue: 9,
+      absoluteDelta: 0.5
+    });
+  });
+
+  it('formats numeric and string mismatch values for display', () => {
+    expect(formatMismatchDisplayValue(12.34567)).toBe('12.346');
+    expect(formatMismatchDisplayValue('active')).toBe('active');
   });
 });
