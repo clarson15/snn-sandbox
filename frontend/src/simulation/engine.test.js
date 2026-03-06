@@ -114,6 +114,28 @@ describe('simulation engine skeleton', () => {
     expect(run1x).toEqual(run5x);
   });
 
+  it('preserves deterministic state when switching between pause/1x/2x/5x/10x and returning to 1x', () => {
+    const params = {
+      movementDelta: 2,
+      metabolismPerTick: 0.25,
+      movementCostMultiplier: 0.1,
+      consumeRadius: 2,
+      foodSpawnChance: 0.2,
+      foodEnergyValue: 7,
+      maxFood: 200
+    };
+
+    // 0 represents Pause; others represent ticks processed in that scheduler frame.
+    const mixedSchedule = [1, 2, 5, 0, 10, 1, 0, 2, 5, 1, 1, 10, 0, 1];
+    const totalTicks = mixedSchedule.reduce((sum, value) => sum + value, 0);
+
+    const baseline1x = runTicks(baseState, createSeededPrng('speed-switch-seed'), totalTicks, params);
+    const switched = runTickSchedule(baseState, createSeededPrng('speed-switch-seed'), mixedSchedule, params);
+
+    expect(switched.tick).toBe(totalTicks);
+    expect(switched).toEqual(baseline1x);
+  });
+
   it('maintains deterministic continuity after save/load from persisted world + rng state', () => {
     const params = {
       movementDelta: 2,
