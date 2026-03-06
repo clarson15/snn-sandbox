@@ -47,6 +47,7 @@ function App() {
   const [replayStatus, setReplayStatus] = useState('');
   const [replayWorldState, setReplayWorldState] = useState(null);
   const [replaySnapshotMetadata, setReplaySnapshotMetadata] = useState(null);
+  const [selectedMismatchEventKey, setSelectedMismatchEventKey] = useState(null);
   const [formState, setFormState] = useState(() => {
     const saved = loadSimulationConfig();
     if (!saved) {
@@ -256,6 +257,7 @@ function App() {
     });
     setReplayTickInput(String(loadedWorld.tick));
     setReplayStatus('Replay ready. Jump to any tick at or after the loaded snapshot tick.');
+    setSelectedMismatchEventKey(null);
     setSelectedOrganismId(null);
     setResolvedSeed(loadedConfig.resolvedSeed);
     setTickDisplay(loadedWorld.tick);
@@ -293,6 +295,7 @@ function App() {
     setReplayTickInput('');
     setReplayStatus('');
     setReplaySnapshotMetadata(null);
+    setSelectedMismatchEventKey(null);
     setActiveLoadedMetadata(null);
     setLoadStatus('');
     setCopyMetadataStatus('');
@@ -331,6 +334,20 @@ function App() {
     }),
     [replaySnapshotMetadata, replayWorldState?.tick, resolvedSeed]
   );
+
+  useEffect(() => {
+    if (replaySummaryStrip.mismatchEvents.length === 0) {
+      setSelectedMismatchEventKey(null);
+      return;
+    }
+
+    if (selectedMismatchEventKey === null || !replaySummaryStrip.mismatchEvents.some((eventItem) => eventItem.id === selectedMismatchEventKey)) {
+      setSelectedMismatchEventKey(replaySummaryStrip.mismatchEvents[0].id);
+    }
+  }, [replaySummaryStrip.mismatchEvents, selectedMismatchEventKey]);
+
+  const selectedMismatchDetails =
+    replaySummaryStrip.mismatchEvents.find((eventItem) => eventItem.id === selectedMismatchEventKey) ?? replaySummaryStrip.mismatchDetails;
 
   const onSpeedSelect = (multiplier) => {
     setSpeedMultiplier(multiplier);
@@ -433,20 +450,29 @@ function App() {
     }
   };
 
-  const onReplayJump = () => {
+  const jumpReplayToTick = (targetTick, successStatus, allowClampStatus = true) => {
     if (!replayContextRef.current) {
       return;
     }
 
     const replayResult = replaySnapshotToTick({
       ...replayContextRef.current,
-      targetTick: replayTickInput
+      targetTick
     });
 
     setReplayWorldState(replayResult.worldState);
     setTickDisplay(replayResult.tick);
     setReplayTickInput(String(replayResult.tick));
-    setReplayStatus(replayResult.clamped ? 'Tick clamped to snapshot minimum tick.' : 'Replay tick applied.');
+    if (allowClampStatus && replayResult.clamped) {
+      setReplayStatus('Tick clamped to snapshot minimum tick.');
+      return;
+    }
+
+    setReplayStatus(successStatus);
+  };
+
+  const onReplayJump = () => {
+    jumpReplayToTick(replayTickInput, 'Replay tick applied.');
   };
 
   const onJumpToFirstMismatch = () => {
@@ -456,20 +482,14 @@ function App() {
 
     const mismatchTick = String(replaySummaryStrip.firstMismatchTick);
     setReplayTickInput(mismatchTick);
+    jumpReplayToTick(mismatchTick, 'Jumped to first mismatch tick.', false);
+  };
 
-    if (!replayContextRef.current) {
-      return;
-    }
-
-    const replayResult = replaySnapshotToTick({
-      ...replayContextRef.current,
-      targetTick: mismatchTick
-    });
-
-    setReplayWorldState(replayResult.worldState);
-    setTickDisplay(replayResult.tick);
-    setReplayTickInput(String(replayResult.tick));
-    setReplayStatus('Jumped to first mismatch tick.');
+  const onJumpToMismatchEvent = (eventItem) => {
+    const mismatchTick = String(eventItem.tick);
+    setSelectedMismatchEventKey(eventItem.id);
+    setReplayTickInput(mismatchTick);
+    jumpReplayToTick(mismatchTick, 'Jumped to mismatch event tick.', false);
   };
 
   const onResumeFromReplay = () => {
@@ -650,22 +670,45 @@ function App() {
               <p>Context differences: {replaySummaryStrip.contextDifferences.join(', ')}</p>
             ) : null}
           </section>
-          {replaySummaryStrip.mismatchDetails ? (
+          {replaySummaryStrip.mismatchDetected || selectedMismatchDetails ? (
             <section className="config-panel" aria-label="replay mismatch details">
               <h2>Mismatch details</h2>
-              <p>First mismatch tick: {replaySummaryStrip.mismatchDetails.tick}</p>
-              {replaySummaryStrip.mismatchDetails.entityId ? (
-                <p>Entity ID: {replaySummaryStrip.mismatchDetails.entityId}</p>
+              {replaySummaryStrip.mismatchEvents.length > 0 ? (
+                <>
+                  <h3>Mismatch events</h3>
+                  <ul>
+                    {replaySummaryStrip.mismatchEvents.map((eventItem) => (
+                      <li key={eventItem.id}>
+                        <button type="button" onClick={() => onJumpToMismatchEvent(eventItem)}>
+                          Tick {eventItem.tick} · {eventItem.path} · baseline {formatMismatchDisplayValue(eventItem.baselineValue)} · comparison{' '}
+                          {formatMismatchDisplayValue(eventItem.comparisonValue)}
+                          {eventItem.severity ? ` · severity ${eventItem.severity}` : ''}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <p>No mismatch events available for this replay payload.</p>
+              )}
+              {selectedMismatchDetails ? (
+                <>
+                  <p>First mismatch tick: {selectedMismatchDetails.tick}</p>
+                  {selectedMismatchDetails.entityId ? (
+                    <p>Entity ID: {selectedMismatchDetails.entityId}</p>
+                  ) : null}
+                  <p>Compared key/path: {selectedMismatchDetails.path}</p>
+                  <p>Baseline value: {formatMismatchDisplayValue(selectedMismatchDetails.baselineValue)}</p>
+                  <p>Comparison value: {formatMismatchDisplayValue(selectedMismatchDetails.comparisonValue)}</p>
+                  {selectedMismatchDetails.severity ? <p>Severity: {selectedMismatchDetails.severity}</p> : null}
+                  <p>
+                    Absolute delta:{' '}
+                    {selectedMismatchDetails.absoluteDelta === null
+                      ? 'N/A'
+                      : formatMismatchDisplayValue(selectedMismatchDetails.absoluteDelta)}
+                  </p>
+                </>
               ) : null}
-              <p>Compared key/path: {replaySummaryStrip.mismatchDetails.path}</p>
-              <p>Baseline value: {formatMismatchDisplayValue(replaySummaryStrip.mismatchDetails.baselineValue)}</p>
-              <p>Comparison value: {formatMismatchDisplayValue(replaySummaryStrip.mismatchDetails.comparisonValue)}</p>
-              <p>
-                Absolute delta:{' '}
-                {replaySummaryStrip.mismatchDetails.absoluteDelta === null
-                  ? 'N/A'
-                  : formatMismatchDisplayValue(replaySummaryStrip.mismatchDetails.absoluteDelta)}
-              </p>
             </section>
           ) : null}
           <section className="config-panel" aria-label="replay timeline controls">
