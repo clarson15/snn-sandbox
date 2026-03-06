@@ -106,6 +106,25 @@ button:disabled {
   background: #0a1630;
 }
 
+.replay-marker-strip {
+  position: relative;
+  height: 0.6rem;
+  border-radius: 9999px;
+  background: #1e293b;
+  border: 1px solid #334155;
+}
+
+.replay-marker {
+  position: absolute;
+  top: 50%;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 9999px;
+  background: #f59e0b;
+  border: 1px solid #facc15;
+  transform: translate(-50%, -50%);
+}
+
 canvas {
   border: 1px solid #334155;
   border-radius: 0.5rem;
