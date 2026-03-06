@@ -281,6 +281,7 @@ describe('App', () => {
       expect(within(summaryRegion).getByText(/^captured tick range: 0 → 0$/i)).toBeInTheDocument();
       expect(within(summaryRegion).getByText(/^total replay duration \(ticks\): 0$/i)).toBeInTheDocument();
       expect(within(summaryRegion).getByText(/^replay context: context match$/i)).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /jump to first mismatch/i })).not.toBeInTheDocument();
     });
 
     const tickNode = screen.getByText(/^tick count:/i);
@@ -326,6 +327,135 @@ describe('App', () => {
 
     await waitFor(() => {
       expect(Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(20);
+    });
+  });
+
+  it('shows first-mismatch jump control when mismatch location is available and jumps deterministically', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
+      if (url === '/api/simulations/snapshots' && (!options.method || options.method === 'GET')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ([{ id: 'sim-mismatch', name: 'Mismatch snapshot', updatedAt: '2026-03-06T12:00:01.000Z' }])
+        };
+      }
+
+      if (String(url).startsWith('/api/simulations/snapshots/')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            id: 'sim-mismatch',
+            name: 'Mismatch snapshot',
+            seed: 'fixture-seed',
+            mismatchDetected: true,
+            firstMismatchTick: 12,
+            parameters: {
+              name: 'Fixture',
+              seed: 'fixture-seed',
+              resolvedSeed: 'fixture-seed',
+              worldWidth: 800,
+              worldHeight: 480,
+              initialPopulation: 12,
+              initialFoodCount: 30,
+              foodSpawnChance: 0.04,
+              foodEnergyValue: 5,
+              maxFood: 120
+            },
+            tickCount: 0,
+            rngState: 123,
+            worldState: createInitialWorldFromConfig(normalizeSimulationConfig({
+              name: 'Fixture',
+              seed: 'fixture-seed',
+              worldWidth: 800,
+              worldHeight: 480,
+              initialPopulation: 12,
+              initialFoodCount: 30,
+              foodSpawnChance: 0.04,
+              foodEnergyValue: 5,
+              maxFood: 120
+            }, 'fixture-seed'))
+          })
+        };
+      }
+
+      return { ok: false, status: 404, json: async () => ({}) };
+    }));
+
+    render(<App />);
+
+    const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
+    fireEvent.click(within(savedRegion).getByRole('button', { name: /^load$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /jump to first mismatch/i })).toBeEnabled();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /jump to first mismatch/i }));
+
+    expect(screen.getByText(/^tick count:/i)).toHaveTextContent('Tick count: 12');
+    expect(screen.getByLabelText(/jump to tick/i)).toHaveValue(12);
+    expect(screen.getByText(/jumped to first mismatch tick\./i)).toBeInTheDocument();
+  });
+
+  it('disables first-mismatch jump control when mismatch location is unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
+      if (url === '/api/simulations/snapshots' && (!options.method || options.method === 'GET')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ([{ id: 'sim-mismatch-no-tick', name: 'Mismatch without tick', updatedAt: '2026-03-06T12:00:01.000Z' }])
+        };
+      }
+
+      if (String(url).startsWith('/api/simulations/snapshots/')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            id: 'sim-mismatch-no-tick',
+            name: 'Mismatch without tick',
+            seed: 'fixture-seed',
+            mismatchDetected: true,
+            parameters: {
+              name: 'Fixture',
+              seed: 'fixture-seed',
+              resolvedSeed: 'fixture-seed',
+              worldWidth: 800,
+              worldHeight: 480,
+              initialPopulation: 12,
+              initialFoodCount: 30,
+              foodSpawnChance: 0.04,
+              foodEnergyValue: 5,
+              maxFood: 120
+            },
+            tickCount: 0,
+            rngState: 123,
+            worldState: createInitialWorldFromConfig(normalizeSimulationConfig({
+              name: 'Fixture',
+              seed: 'fixture-seed',
+              worldWidth: 800,
+              worldHeight: 480,
+              initialPopulation: 12,
+              initialFoodCount: 30,
+              foodSpawnChance: 0.04,
+              foodEnergyValue: 5,
+              maxFood: 120
+            }, 'fixture-seed'))
+          })
+        };
+      }
+
+      return { ok: false, status: 404, json: async () => ({}) };
+    }));
+
+    render(<App />);
+
+    const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
+    fireEvent.click(within(savedRegion).getByRole('button', { name: /^load$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /jump to first mismatch/i })).toBeDisabled();
     });
   });
 

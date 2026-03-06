@@ -242,7 +242,9 @@ function App() {
       seed: snapshot.seed,
       tickCount: snapshot.tickCount,
       replayStartTick: loadedWorld.tick,
-      simulationParametersSignature: deriveSimulationParametersSignature(loadedConfig)
+      simulationParametersSignature: deriveSimulationParametersSignature(loadedConfig),
+      mismatchDetected: snapshot?.comparison?.mismatchDetected ?? snapshot?.mismatchDetected ?? false,
+      firstMismatchTick: snapshot?.comparison?.firstMismatchTick ?? snapshot?.firstMismatchTick ?? null
     });
     setReplayTickInput(String(loadedWorld.tick));
     setReplayStatus('Replay ready. Jump to any tick at or after the loaded snapshot tick.');
@@ -439,6 +441,29 @@ function App() {
     setReplayStatus(replayResult.clamped ? 'Tick clamped to snapshot minimum tick.' : 'Replay tick applied.');
   };
 
+  const onJumpToFirstMismatch = () => {
+    if (!replaySummaryStrip.canJumpToFirstMismatch || replaySummaryStrip.firstMismatchTick === null) {
+      return;
+    }
+
+    const mismatchTick = String(replaySummaryStrip.firstMismatchTick);
+    setReplayTickInput(mismatchTick);
+
+    if (!replayContextRef.current) {
+      return;
+    }
+
+    const replayResult = replaySnapshotToTick({
+      ...replayContextRef.current,
+      targetTick: mismatchTick
+    });
+
+    setReplayWorldState(replayResult.worldState);
+    setTickDisplay(replayResult.tick);
+    setReplayTickInput(String(replayResult.tick));
+    setReplayStatus('Jumped to first mismatch tick.');
+  };
+
   const onResumeFromReplay = () => {
     if (!replayContextRef.current || !replayWorldState) {
       return;
@@ -631,6 +656,15 @@ function App() {
             </label>
             <div className="field-row">
               <button type="button" onClick={onReplayJump}>Jump</button>
+              {replaySummaryStrip.mismatchDetected ? (
+                <button
+                  type="button"
+                  onClick={onJumpToFirstMismatch}
+                  disabled={!replaySummaryStrip.canJumpToFirstMismatch}
+                >
+                  Jump to First Mismatch
+                </button>
+              ) : null}
               <button type="button" onClick={onExportReplaySnapshot}>Export Snapshot</button>
               <button type="button" onClick={onResumeFromReplay}>Resume live from selected tick</button>
             </div>
