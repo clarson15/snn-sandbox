@@ -80,6 +80,48 @@ export function normalizeSimulationConfig(input, resolvedSeed) {
   };
 }
 
+function createInitialBrain(rng) {
+  const neurons = [
+    { id: 'in-energy', type: 'input' },
+    { id: 'in-food-distance', type: 'input' },
+    { id: 'in-food-direction', type: 'input' },
+    { id: 'in-speed', type: 'input' },
+    { id: 'out-forward', type: 'output' },
+    { id: 'out-turn-left', type: 'output' },
+    { id: 'out-turn-right', type: 'output' }
+  ];
+
+  const inputIds = neurons.filter((neuron) => neuron.type === 'input').map((neuron) => neuron.id);
+  const outputIds = neurons.filter((neuron) => neuron.type === 'output').map((neuron) => neuron.id);
+
+  const synapseCount = 1 + rng.nextInt(0, 3);
+  const synapses = [];
+  const usedPairs = new Set();
+
+  while (synapses.length < synapseCount) {
+    const sourceId = inputIds[rng.nextInt(0, inputIds.length)];
+    const targetId = outputIds[rng.nextInt(0, outputIds.length)];
+    const pairKey = `${sourceId}->${targetId}`;
+
+    if (usedPairs.has(pairKey)) {
+      continue;
+    }
+
+    usedPairs.add(pairKey);
+    synapses.push({
+      id: `syn-${synapses.length + 1}`,
+      sourceId,
+      targetId,
+      weight: Number(((rng.nextFloat() * 2) - 1).toFixed(3))
+    });
+  }
+
+  return {
+    neurons,
+    synapses
+  };
+}
+
 export function createInitialWorldFromConfig(config) {
   const rng = createSeededPrng(`${config.resolvedSeed}:initial-world`);
 
@@ -96,7 +138,8 @@ export function createInitialWorldFromConfig(config) {
       visionRange: Number((25 + rng.nextFloat() * 90).toFixed(3)),
       turnRate: Number((0.03 + rng.nextFloat() * 0.09).toFixed(3)),
       metabolism: Number((0.02 + rng.nextFloat() * 0.1).toFixed(3))
-    }
+    },
+    brain: createInitialBrain(rng)
   }));
 
   const food = Array.from({ length: config.initialFoodCount }, (_, index) => ({

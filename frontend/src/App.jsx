@@ -12,6 +12,7 @@ import {
   validateSimulationConfig
 } from './simulation/config';
 import { createSeededPrng } from './simulation/prng';
+import { mapBrainToVisualizerModel } from './simulation/brainVisualizer';
 import { drawWorldSnapshot } from './simulation/renderer';
 import { pickOrganismAtPoint } from './simulation/selection';
 
@@ -121,6 +122,13 @@ function App() {
       setSelectedOrganismId(null);
     }
   }, [selectedOrganismId, selectedOrganism]);
+
+  const brainGraphModel = useMemo(() => {
+    if (!selectedOrganism) {
+      return null;
+    }
+    return mapBrainToVisualizerModel(selectedOrganism.brain);
+  }, [selectedOrganism]);
 
   const onFieldChange = (field) => (event) => {
     const nextValue = event.target.value;
@@ -301,6 +309,45 @@ function App() {
               <li>Turn rate: {selectedOrganism.traits.turnRate}</li>
               <li>Metabolism: {selectedOrganism.traits.metabolism}</li>
             </ul>
+
+            <h3>Brain visualizer (read-only)</h3>
+            {brainGraphModel ? (
+              <>
+                <p>
+                  <strong>Neurons:</strong> {brainGraphModel.nodes.length} | <strong>Synapses:</strong> {brainGraphModel.edges.length}
+                </p>
+                <svg viewBox="0 0 640 300" role="img" aria-label="organism brain graph" className="brain-graph">
+                  {brainGraphModel.edges.map((edge) => {
+                    const source = brainGraphModel.nodes.find((node) => node.id === edge.sourceId);
+                    const target = brainGraphModel.nodes.find((node) => node.id === edge.targetId);
+                    if (!source || !target) {
+                      return null;
+                    }
+
+                    return (
+                      <line
+                        key={edge.id}
+                        x1={source.x}
+                        y1={source.y}
+                        x2={target.x}
+                        y2={target.y}
+                        stroke={edge.color}
+                        strokeWidth={edge.strokeWidth}
+                        opacity="0.85"
+                      />
+                    );
+                  })}
+                  {brainGraphModel.nodes.map((node) => (
+                    <g key={node.id}>
+                      <circle cx={node.x} cy={node.y} r="10" fill="#0f172a" stroke="#94a3b8" strokeWidth="1.5" />
+                      <text x={node.x + 14} y={node.y + 4} fill="#cbd5e1" fontSize="12">{node.id}</text>
+                    </g>
+                  ))}
+                </svg>
+              </>
+            ) : (
+              <p>Brain data unavailable for this organism.</p>
+            )}
           </>
         ) : (
           <p>Click an organism to inspect it.</p>

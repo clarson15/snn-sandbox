@@ -175,5 +175,8 @@ describe('App', () => {
     expect(inspector).toHaveTextContent(`Vision range: ${target.traits.visionRange}`);
     expect(inspector).toHaveTextContent(`Turn rate: ${target.traits.turnRate}`);
     expect(inspector).toHaveTextContent(`Metabolism: ${target.traits.metabolism}`);
+    expect(inspector).toHaveTextContent(`Neurons: ${target.brain.neurons.length}`);
+    expect(inspector).toHaveTextContent(`Synapses: ${target.brain.synapses.length}`);
+    expect(screen.getByRole('img', { name: /organism brain graph/i })).toBeInTheDocument();
   });
 });
