@@ -106,3 +106,11 @@ canvas {
   border-radius: 0.5rem;
   background: #020617;
 }
+
+.brain-graph {
+  width: 100%;
+  max-width: 640px;
+  border: 1px solid #334155;
+  border-radius: 0.5rem;
+  background: #020617;
+}
