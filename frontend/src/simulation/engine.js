@@ -196,3 +196,26 @@ export function runTicks(initialState, rng, ticks, params = {}) {
 
   return current;
 }
+
+/**
+ * Run deterministic ticks according to a scheduling profile where each
+ * entry represents how many discrete simulation ticks should be processed.
+ * A value of 0 represents a paused scheduler frame.
+ *
+ * @param {WorldState} initialState
+ * @param {StepRng} rng
+ * @param {number[]} schedule
+ * @param {StepParams} [params]
+ * @returns {WorldState}
+ */
+export function runTickSchedule(initialState, rng, schedule, params = {}) {
+  let current = createWorldState(initialState);
+
+  for (const ticksThisFrame of schedule) {
+    for (let i = 0; i < ticksThisFrame; i += 1) {
+      current = stepWorld(current, rng, params);
+    }
+  }
+
+  return current;
+}

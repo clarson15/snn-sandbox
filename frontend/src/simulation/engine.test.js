@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createSeededPrng } from './prng';
-import { createWorldState, runTicks, stepWorld } from './engine';
+import { createWorldState, runTickSchedule, runTicks, stepWorld } from './engine';
 
 const baseState = createWorldState({
   tick: 0,
@@ -93,5 +93,24 @@ describe('simulation engine skeleton', () => {
     const runB = runTicks(baseState, createSeededPrng('seed-b'), 100, params);
 
     expect(runA).not.toEqual(runB);
+  });
+
+  it('matches checkpoints for 1x and 5x scheduling with the same seed', () => {
+    const params = {
+      movementDelta: 2,
+      metabolismPerTick: 0.25,
+      movementCostMultiplier: 0.1,
+      consumeRadius: 2,
+      foodSpawnChance: 0.2,
+      foodEnergyValue: 7,
+      maxFood: 200
+    };
+
+    const run1x = runTickSchedule(baseState, createSeededPrng('same-seed-schedule'), new Array(100).fill(1), params);
+    const run5x = runTickSchedule(baseState, createSeededPrng('same-seed-schedule'), new Array(20).fill(5), params);
+
+    expect(run1x.tick).toBe(100);
+    expect(run5x.tick).toBe(100);
+    expect(run1x).toEqual(run5x);
   });
 });
