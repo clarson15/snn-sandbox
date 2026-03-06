@@ -24,7 +24,12 @@ describe('App', () => {
   });
 
   afterEach(() => {
-    window.localStorage.clear();
+    if (typeof window.localStorage?.clear === 'function') {
+      window.localStorage.clear();
+    } else if (typeof window.localStorage?.removeItem === 'function') {
+      window.localStorage.removeItem(STORAGE_KEY);
+    }
+
     vi.restoreAllMocks();
     cleanup();
   });
