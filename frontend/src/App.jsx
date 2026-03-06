@@ -17,6 +17,7 @@ import { drawWorldSnapshot } from './simulation/renderer';
 import { pickOrganismAtPoint } from './simulation/selection';
 import { deriveSimulationStats, formatSimulationStats } from './simulation/stats';
 import { deriveRunMetadata, serializeRunMetadata } from './simulation/metadata';
+import { replaySnapshotToTick } from './simulation/replay';
 import {
   deleteSimulationSnapshot,
   getSimulationSnapshot,
@@ -40,6 +41,9 @@ function App() {
   const [deleteStatus, setDeleteStatus] = useState('');
   const [copyMetadataStatus, setCopyMetadataStatus] = useState('');
   const [activeLoadedMetadata, setActiveLoadedMetadata] = useState(null);
+  const [replayTickInput, setReplayTickInput] = useState('');
+  const [replayStatus, setReplayStatus] = useState('');
+  const [replayWorldState, setReplayWorldState] = useState(null);
   const [formState, setFormState] = useState(() => {
     const saved = loadSimulationConfig();
     if (!saved) {
@@ -75,6 +79,10 @@ function App() {
   const stepParamsRef = useRef(null);
   const activeConfigRef = useRef(null);
   const viewportRef = useRef({ width: DEFAULT_CONFIG.worldWidth, height: DEFAULT_CONFIG.worldHeight });
+  const replayContextRef = useRef(null);
+
+  const displayWorld = replayWorldState ?? worldRef.current;
+  const replayActive = Boolean(replayContextRef.current);
 
   useEffect(() => {
     pausedRef.current = paused;
@@ -86,7 +94,7 @@ function App() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      if (pausedRef.current || !worldRef.current || !rngRef.current || !stepParamsRef.current) {
+      if (replayContextRef.current || pausedRef.current || !worldRef.current || !rngRef.current || !stepParamsRef.current) {
         return;
       }
 
@@ -113,8 +121,9 @@ function App() {
 
     let frame = 0;
     const render = () => {
-      if (worldRef.current) {
-        drawWorldSnapshot(ctx, worldRef.current, viewportRef.current);
+      const worldToDraw = replayWorldState ?? worldRef.current;
+      if (worldToDraw) {
+        drawWorldSnapshot(ctx, worldToDraw, viewportRef.current);
       }
       frame = requestAnimationFrame(render);
     };
@@ -122,7 +131,7 @@ function App() {
     frame = requestAnimationFrame(render);
 
     return () => cancelAnimationFrame(frame);
-  }, []);
+  }, [replayWorldState]);
 
   useEffect(() => {
     listSimulationSnapshots()
@@ -133,12 +142,12 @@ function App() {
   }, []);
 
   const selectedOrganism = useMemo(() => {
-    if (!selectedOrganismId || !worldRef.current) {
+    if (!selectedOrganismId || !displayWorld) {
       return null;
     }
 
-    return worldRef.current.organisms.find((organism) => organism.id === selectedOrganismId) ?? null;
-  }, [selectedOrganismId, tickDisplay]);
+    return displayWorld.organisms.find((organism) => organism.id === selectedOrganismId) ?? null;
+  }, [displayWorld, selectedOrganismId, tickDisplay]);
 
   useEffect(() => {
     if (selectedOrganismId && !selectedOrganism) {
@@ -216,11 +225,21 @@ function App() {
       maxFood: String(loadedConfig.maxFood)
     });
 
+    replayContextRef.current = {
+      baseWorldState: createWorldState(loadedWorld),
+      baseRngState: snapshot.rngState,
+      resolvedSeed: loadedConfig.resolvedSeed,
+      stepParams: toEngineStepParams(loadedConfig)
+    };
+
+    setReplayWorldState(createWorldState(loadedWorld));
+    setReplayTickInput(String(loadedWorld.tick));
+    setReplayStatus('Replay ready. Jump to any tick at or after the loaded snapshot tick.');
     setSelectedOrganismId(null);
     setResolvedSeed(loadedConfig.resolvedSeed);
     setTickDisplay(loadedWorld.tick);
     setSpeedMultiplier(1);
-    setPaused(false);
+    setPaused(true);
   };
 
   const startSimulation = () => {
@@ -248,6 +267,10 @@ function App() {
     setTickDisplay(0);
     setSpeedMultiplier(1);
     setPaused(false);
+    replayContextRef.current = null;
+    setReplayWorldState(null);
+    setReplayTickInput('');
+    setReplayStatus('');
     setActiveLoadedMetadata(null);
     setLoadStatus('');
     setCopyMetadataStatus('');
@@ -258,9 +281,9 @@ function App() {
   const hasSimulation = useMemo(() => Boolean(worldRef.current && rngRef.current), [tickDisplay, resolvedSeed]);
 
   const formattedStats = useMemo(() => {
-    const stats = deriveSimulationStats(worldRef.current);
+    const stats = deriveSimulationStats(displayWorld);
     return formatSimulationStats(stats);
-  }, [tickDisplay, resolvedSeed]);
+  }, [displayWorld, tickDisplay, resolvedSeed]);
 
   const runMetadata = useMemo(
     () => deriveRunMetadata({
@@ -280,7 +303,7 @@ function App() {
   };
 
   const onCanvasClick = (event) => {
-    if (!canvasRef.current || !worldRef.current) {
+    if (!canvasRef.current || !displayWorld) {
       return;
     }
 
@@ -290,7 +313,7 @@ function App() {
     const x = (event.clientX - rect.left) * scaleX;
     const y = (event.clientY - rect.top) * scaleY;
 
-    const selected = pickOrganismAtPoint(worldRef.current.organisms, x, y);
+    const selected = pickOrganismAtPoint(displayWorld.organisms, x, y);
     setSelectedOrganismId(selected?.id ?? null);
   };
 
@@ -373,6 +396,41 @@ function App() {
     } catch {
       setCopyMetadataStatus('Failed to copy metadata.');
     }
+  };
+
+  const onReplayJump = () => {
+    if (!replayContextRef.current) {
+      return;
+    }
+
+    const replayResult = replaySnapshotToTick({
+      ...replayContextRef.current,
+      targetTick: replayTickInput
+    });
+
+    setReplayWorldState(replayResult.worldState);
+    setTickDisplay(replayResult.tick);
+    setReplayTickInput(String(replayResult.tick));
+    setReplayStatus(replayResult.clamped ? 'Tick clamped to snapshot minimum tick.' : 'Replay tick applied.');
+  };
+
+  const onResumeFromReplay = () => {
+    if (!replayContextRef.current || !replayWorldState) {
+      return;
+    }
+
+    const replayResult = replaySnapshotToTick({
+      ...replayContextRef.current,
+      targetTick: replayTickInput
+    });
+
+    worldRef.current = replayResult.worldState;
+    rngRef.current = createSeededPrng(replayContextRef.current.resolvedSeed, replayResult.rngState);
+    replayContextRef.current = null;
+    setReplayWorldState(null);
+    setTickDisplay(replayResult.tick);
+    setPaused(false);
+    setReplayStatus('Resumed live simulation from selected replay tick.');
   };
 
   const formatTimestamp = (value) => {
@@ -458,16 +516,21 @@ function App() {
       {resolvedSeed ? <p className="seed-banner">Resolved seed: {resolvedSeed}</p> : null}
 
       <section className="controls" aria-label="simulation controls">
-        <button type="button" onClick={() => setPaused((value) => !value)} disabled={!hasSimulation} aria-pressed={paused}>
-          {paused ? 'Resume' : 'Pause'}
+        <button
+          type="button"
+          onClick={() => setPaused((value) => !value)}
+          disabled={!hasSimulation || replayActive}
+          aria-pressed={paused || replayActive}
+        >
+          {paused || replayActive ? 'Resume' : 'Pause'}
         </button>
         {SPEED_OPTIONS.map((multiplier) => (
           <button
             key={multiplier}
             type="button"
             onClick={() => onSpeedSelect(multiplier)}
-            disabled={!hasSimulation}
-            aria-pressed={!paused && speedMultiplier === multiplier}
+            disabled={!hasSimulation || replayActive}
+            aria-pressed={!paused && !replayActive && speedMultiplier === multiplier}
           >
             {multiplier}x
           </button>
@@ -493,10 +556,31 @@ function App() {
         <button type="button" onClick={onCopyRunMetadata} disabled={!hasSimulation}>Copy metadata payload</button>
       </section>
 
+      {replayActive ? (
+        <section className="config-panel" aria-label="replay timeline controls">
+          <h2>Replay timeline</h2>
+          <p>Loaded tick floor: {replayContextRef.current?.baseWorldState?.tick ?? 0}</p>
+          <label>
+            Jump to tick
+            <input
+              type="number"
+              value={replayTickInput}
+              onChange={(event) => setReplayTickInput(event.target.value)}
+              min={replayContextRef.current?.baseWorldState?.tick ?? 0}
+            />
+          </label>
+          <div className="field-row">
+            <button type="button" onClick={onReplayJump}>Jump</button>
+            <button type="button" onClick={onResumeFromReplay}>Resume live from selected tick</button>
+          </div>
+        </section>
+      ) : null}
+
       {saveStatus ? <p>{saveStatus}</p> : null}
       {loadStatus ? <p>{loadStatus}</p> : null}
       {deleteStatus ? <p>{deleteStatus}</p> : null}
       {copyMetadataStatus ? <p>{copyMetadataStatus}</p> : null}
+      {replayStatus ? <p>{replayStatus}</p> : null}
       {activeLoadedMetadata ? (
         <p>
           Active snapshot: {activeLoadedMetadata.name} (updated {formatTimestamp(activeLoadedMetadata.updatedAt)})
