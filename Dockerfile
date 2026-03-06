@@ -29,9 +29,12 @@ FROM backend-build AS ci-test
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 
+ARG APP_VERSION=0.0.0-local
+
 COPY --from=backend-build /app/publish ./
 COPY --from=frontend-build /src/frontend/dist ./wwwroot
 
+ENV APP_VERSION=${APP_VERSION}
 ENV ASPNETCORE_URLS=http://+:5000
 ENV ASPNETCORE_ENVIRONMENT=Production
 

@@ -18,6 +18,9 @@ public class Program
 
         var app = builder.Build();
 
+        var appVersion = Environment.GetEnvironmentVariable("APP_VERSION") ?? "unknown";
+        app.Logger.LogInformation("Starting snn-sandbox-api with APP_VERSION={AppVersion}", appVersion);
+
         // Serve frontend static files when packaged in the container image
         app.UseDefaultFiles();
         app.UseStaticFiles();
@@ -38,7 +41,7 @@ public class Program
         // Status endpoint (public - no auth required, but rate limited)
         app.MapGet("/api/status", () => new
         {
-            version = Environment.GetEnvironmentVariable("APP_VERSION") ?? "unknown",
+            version = appVersion,
             environment = app.Environment.EnvironmentName
         });
 

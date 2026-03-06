@@ -115,6 +115,29 @@ Build image:
 docker build -t snn-sandbox:local .
 ```
 
+### APP_VERSION (semver) propagation
+
+`APP_VERSION` is injected at Docker build time and available at runtime.
+
+Version source:
+- **Main branch CI (`main-build.yml`)**: use semver tag on `HEAD` (for example `v1.2.3`) when present; otherwise fallback to `0.0.0+sha.<shortsha>`.
+- **PR CI (`pr-build.yml`)**: use `0.0.0-pr.<pr-number>+sha.<shortsha>`.
+- **Local Docker build**: defaults to `0.0.0-local` unless overridden.
+
+Examples:
+
+```bash
+# local override
+docker build --build-arg APP_VERSION=1.2.3 -t snn-sandbox:local .
+
+# verify runtime value
+curl http://localhost:5000/api/status
+```
+
+Runtime verification:
+- API startup logs include `APP_VERSION=<value>`.
+- `/api/status` returns `version` from `APP_VERSION`.
+
 ## Deterministic simulation seed behavior
 
 Simulation behavior must be deterministic:
