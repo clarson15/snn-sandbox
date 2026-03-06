@@ -22,6 +22,9 @@ RUN dotnet build ./snn-sandbox.sln --configuration Release --no-restore
 RUN dotnet test ./snn-sandbox.sln --configuration Release --no-build --verbosity normal
 RUN dotnet publish ./backend/SnnSandbox/SnnSandbox.csproj -c Release -o /app/publish /p:UseAppHost=false
 
+# CI target consumed by .github/workflows/pr-build.yml
+FROM backend-build AS ci-test
+
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 
