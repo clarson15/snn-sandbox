@@ -18,7 +18,7 @@ import { pickOrganismAtPoint } from './simulation/selection';
 import { deriveSimulationStats, formatSimulationStats } from './simulation/stats';
 import { deriveRunMetadata, serializeRunMetadata } from './simulation/metadata';
 import { replaySnapshotToTick } from './simulation/replay';
-import { deriveReplaySummaryStrip } from './simulation/replaySummary';
+import { deriveReplaySummaryStrip, deriveSimulationParametersSignature } from './simulation/replaySummary';
 import {
   deleteSimulationSnapshot,
   getSimulationSnapshot,
@@ -239,7 +239,9 @@ function App() {
       id: snapshot.id,
       name: snapshot.name,
       seed: snapshot.seed,
-      tickCount: snapshot.tickCount
+      tickCount: snapshot.tickCount,
+      replayStartTick: loadedWorld.tick,
+      simulationParametersSignature: deriveSimulationParametersSignature(loadedConfig)
     });
     setReplayTickInput(String(loadedWorld.tick));
     setReplayStatus('Replay ready. Jump to any tick at or after the loaded snapshot tick.');
@@ -309,9 +311,14 @@ function App() {
   const replaySummaryStrip = useMemo(
     () => deriveReplaySummaryStrip({
       replaySnapshotMetadata,
-      replayTick: replayWorldState?.tick
+      replayTick: replayWorldState?.tick,
+      currentReplayContext: {
+        seed: resolvedSeed,
+        replayStartTick: replayContextRef.current?.baseWorldState?.tick,
+        simulationParametersSignature: deriveSimulationParametersSignature(activeConfigRef.current)
+      }
     }),
-    [replaySnapshotMetadata, replayWorldState?.tick]
+    [replaySnapshotMetadata, replayWorldState?.tick, resolvedSeed]
   );
 
   const onSpeedSelect = (multiplier) => {
@@ -582,6 +589,10 @@ function App() {
             <p>Simulation ID: {replaySummaryStrip.simulationId}</p>
             <p>Captured tick range: {replaySummaryStrip.startTick} → {replaySummaryStrip.endTick}</p>
             <p>Total replay duration (ticks): {replaySummaryStrip.durationTicks}</p>
+            <p>Replay context: {replaySummaryStrip.contextLabel}</p>
+            {replaySummaryStrip.contextDifferences.length > 0 ? (
+              <p>Context differences: {replaySummaryStrip.contextDifferences.join(', ')}</p>
+            ) : null}
           </section>
           <section className="config-panel" aria-label="replay timeline controls">
             <h2>Replay timeline</h2>
