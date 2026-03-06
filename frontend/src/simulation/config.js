@@ -87,7 +87,16 @@ export function createInitialWorldFromConfig(config) {
     id: `org-${index + 1}`,
     x: rng.nextFloat() * config.worldWidth,
     y: rng.nextFloat() * config.worldHeight,
-    energy: 20
+    energy: 20,
+    age: 0,
+    generation: 1,
+    traits: {
+      size: Number((0.8 + rng.nextFloat() * 0.8).toFixed(3)),
+      speed: Number((0.8 + rng.nextFloat() * 1.6).toFixed(3)),
+      visionRange: Number((25 + rng.nextFloat() * 90).toFixed(3)),
+      turnRate: Number((0.03 + rng.nextFloat() * 0.09).toFixed(3)),
+      metabolism: Number((0.02 + rng.nextFloat() * 0.1).toFixed(3))
+    }
   }));
 
   const food = Array.from({ length: config.initialFoodCount }, (_, index) => ({
