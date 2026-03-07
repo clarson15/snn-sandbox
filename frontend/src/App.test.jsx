@@ -1052,6 +1052,44 @@ describe('App', () => {
     vi.useRealTimers();
   });
 
+  it('supports keyboard shortcuts for pause/play, step, speed presets, and ignores keys while typing', () => {
+    vi.useFakeTimers();
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    const tickNode = screen.getByText(/^tick count:/i);
+    const readTick = () => Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10);
+
+    expect(screen.getByText(/shortcuts: space pause\/play/i)).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: '3', code: 'Digit3' });
+    expect(screen.getByRole('button', { name: /^5x$/i })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.keyDown(window, { key: ' ', code: 'Space' });
+    expect(screen.getByRole('button', { name: /^pause$/i })).toHaveAttribute('aria-pressed', 'true');
+
+    const pausedTick = readTick();
+    fireEvent.keyDown(window, { key: '.', code: 'Period' });
+    expect(readTick()).toBe(pausedTick + 1);
+
+    fireEvent.keyDown(window, { key: ' ', code: 'Space' });
+    expect(screen.getByRole('button', { name: /^5x$/i })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.keyDown(window, { key: ' ', code: 'Space' });
+    const seedInput = screen.getByLabelText(/seed/i);
+    seedInput.focus();
+
+    const focusedPauseTick = readTick();
+    fireEvent.keyDown(seedInput, { key: '.', code: 'Period' });
+    fireEvent.keyDown(seedInput, { key: '4', code: 'Digit4' });
+
+    expect(readTick()).toBe(focusedPauseTick);
+    expect(screen.getByRole('button', { name: /^10x$/i })).toHaveAttribute('aria-pressed', 'false');
+
+    vi.useRealTimers();
+  });
+
   it('updates stats while running and keeps tick-derived metrics stable while paused', () => {
     vi.useFakeTimers();
     render(<App />);
