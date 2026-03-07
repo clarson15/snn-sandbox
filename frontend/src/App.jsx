@@ -117,6 +117,15 @@ function App() {
     speedMultiplierRef.current = speedMultiplier;
   }, [speedMultiplier]);
 
+  const advanceOneTick = () => {
+    if (!worldRef.current || !rngRef.current || !stepParamsRef.current) {
+      return;
+    }
+
+    worldRef.current = stepWorld(worldRef.current, rngRef.current, stepParamsRef.current);
+    setTickDisplay(worldRef.current.tick);
+  };
+
   useEffect(() => {
     const interval = setInterval(() => {
       if (replayContextRef.current || pausedRef.current || !worldRef.current || !rngRef.current || !stepParamsRef.current) {
@@ -124,10 +133,8 @@ function App() {
       }
 
       for (let i = 0; i < speedMultiplierRef.current; i += 1) {
-        worldRef.current = stepWorld(worldRef.current, rngRef.current, stepParamsRef.current);
+        advanceOneTick();
       }
-
-      setTickDisplay(worldRef.current.tick);
     }, TICK_MS);
 
     return () => clearInterval(interval);
@@ -435,6 +442,14 @@ function App() {
   const onSpeedSelect = (multiplier) => {
     setSpeedMultiplier(multiplier);
     setPaused(false);
+  };
+
+  const onStepTick = () => {
+    if (!pausedRef.current || replayContextRef.current) {
+      return;
+    }
+
+    advanceOneTick();
   };
 
   const onCanvasClick = (event) => {
@@ -870,6 +885,9 @@ function App() {
             {multiplier}x
           </button>
         ))}
+        <button type="button" onClick={onStepTick} disabled={!hasSimulation || replayActive || !paused}>
+          Step
+        </button>
         <button type="button" onClick={onSaveSimulation} disabled={!hasSimulation}>Save snapshot</button>
       </section>
 

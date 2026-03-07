@@ -136,6 +136,35 @@ describe('simulation engine skeleton', () => {
     expect(switched).toEqual(baseline1x);
   });
 
+  it('yields identical world state for identical single-step sequences with the same seed', () => {
+    const params = {
+      movementDelta: 2,
+      metabolismPerTick: 0.25,
+      movementCostMultiplier: 0.1,
+      consumeRadius: 2,
+      foodSpawnChance: 0.2,
+      foodEnergyValue: 7,
+      maxFood: 200
+    };
+
+    const stepSequence = [1, 1, 0, 1, 0, 1, 1, 0, 1];
+
+    const runSingleStepSequence = () => {
+      let state = baseState;
+      const rng = createSeededPrng('single-step-seed');
+
+      for (const stepAction of stepSequence) {
+        if (stepAction === 1) {
+          state = stepWorld(state, rng, params);
+        }
+      }
+
+      return state;
+    };
+
+    expect(runSingleStepSequence()).toEqual(runSingleStepSequence());
+  });
+
   it('maintains deterministic continuity after save/load from persisted world + rng state', () => {
     const params = {
       movementDelta: 2,

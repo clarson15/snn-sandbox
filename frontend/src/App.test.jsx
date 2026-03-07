@@ -1019,6 +1019,39 @@ describe('App', () => {
     });
   });
 
+  it('steps exactly one tick while paused and keeps step disabled while running', () => {
+    vi.useFakeTimers();
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    const tickNode = screen.getByText(/^tick count:/i);
+    const stepButton = screen.getByRole('button', { name: /^step$/i });
+    const readTick = () => Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10);
+
+    expect(stepButton).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
+    expect(stepButton).toBeEnabled();
+
+    const pausedTick = readTick();
+    fireEvent.click(stepButton);
+    expect(readTick()).toBe(pausedTick + 1);
+
+    fireEvent.click(stepButton);
+    expect(readTick()).toBe(pausedTick + 2);
+
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(readTick()).toBe(pausedTick + 2);
+
+    fireEvent.click(screen.getByRole('button', { name: /^1x$/i }));
+    expect(stepButton).toBeDisabled();
+
+    vi.useRealTimers();
+  });
+
   it('updates stats while running and keeps tick-derived metrics stable while paused', () => {
     vi.useFakeTimers();
     render(<App />);
