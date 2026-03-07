@@ -148,7 +148,9 @@ function App() {
     const render = () => {
       const worldToDraw = replayWorldState ?? worldRef.current;
       if (worldToDraw) {
-        drawWorldSnapshot(ctx, worldToDraw, viewportRef.current);
+        drawWorldSnapshot(ctx, worldToDraw, viewportRef.current, {
+          selectedOrganismId
+        });
       }
       frame = requestAnimationFrame(render);
     };
@@ -156,7 +158,7 @@ function App() {
     frame = requestAnimationFrame(render);
 
     return () => cancelAnimationFrame(frame);
-  }, [replayWorldState]);
+  }, [replayWorldState, selectedOrganismId]);
 
   useEffect(() => {
     listSimulationSnapshots()
