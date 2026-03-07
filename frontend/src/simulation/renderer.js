@@ -36,6 +36,12 @@ function drawBar(ctx, x, y, width, height, ratio, fillStyle) {
 }
 
 function drawSelectedOrganismOverlays(ctx, organism, radius) {
+  ctx.beginPath();
+  ctx.strokeStyle = '#facc15';
+  ctx.lineWidth = 3;
+  ctx.arc(organism.x, organism.y, radius + 3, 0, Math.PI * 2);
+  ctx.stroke();
+
   const visionRange = organism?.traits?.visionRange ?? 0;
 
   if (visionRange > 0) {

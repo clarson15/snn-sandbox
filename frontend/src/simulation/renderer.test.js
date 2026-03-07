@@ -97,9 +97,18 @@ describe('drawWorldSnapshot', () => {
     const unselectedVisionArcCount = withoutSelection.calls.filter(
       (call) => call[0] === 'arc' && call[3] === 12
     ).length;
+    const selectedHighlightRingCount = withSelection.calls.filter(
+      (call) => call[0] === 'arc' && call[1] === 10 && call[2] === 20 && call[3] === 9
+    ).length;
+    const unselectedHighlightRingCount = withoutSelection.calls.filter(
+      (call) => call[0] === 'arc' && call[1] === 10 && call[2] === 20 && call[3] === 9
+    ).length;
 
     expect(selectedVisionArcCount).toBe(1);
     expect(unselectedVisionArcCount).toBe(0);
+    expect(selectedHighlightRingCount).toBe(1);
+    expect(unselectedHighlightRingCount).toBe(0);
+    expect(withSelection.calls).toContainEqual(['strokeStyle', '#facc15']);
     expect(withSelection.calls.some((call) => call[0] === 'strokeRect')).toBe(true);
   });
 });
