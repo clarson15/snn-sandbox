@@ -391,7 +391,7 @@ function App() {
     }
   };
 
-  const onRestartWithSameSeed = () => {
+  const onRestartFromSeed = () => {
     if (!activeConfigRef.current) {
       return;
     }
@@ -1056,7 +1056,7 @@ function App() {
         <p>Active seed: {resolvedSeed || 'No active simulation'}</p>
         <button type="button" onClick={onCopyActiveSeed} disabled={!hasSimulation}>Copy seed</button>
         <button type="button" onClick={onRegenerateSeed} disabled={!hasSimulation}>Regenerate seed + restart</button>
-        <button type="button" onClick={onRestartWithSameSeed} disabled={!hasSimulation}>Restart with same seed</button>
+        <button type="button" onClick={onRestartFromSeed} disabled={!hasSimulation}>Restart from Seed</button>
         {seedControlStatus ? <p aria-live="polite">{seedControlStatus}</p> : null}
         <button
           type="button"
