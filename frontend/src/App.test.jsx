@@ -1556,7 +1556,10 @@ describe('App', () => {
     expect(inspector).toHaveTextContent(`Metabolism: ${firstTarget.traits.metabolism}`);
     expect(inspector).toHaveTextContent(`Neurons: ${firstTarget.brain.neurons.length}`);
     expect(inspector).toHaveTextContent(`Synapses: ${firstTarget.brain.synapses.length}`);
-    expect(screen.getByLabelText(/brain graph weight legend/i)).toHaveTextContent(/green = excitatory/i);
+    expect(screen.getByLabelText(/brain graph legend/i)).toHaveTextContent(/input neurons/i);
+    expect(screen.getByLabelText(/brain graph legend/i)).toHaveTextContent(/hidden neurons/i);
+    expect(screen.getByLabelText(/brain graph legend/i)).toHaveTextContent(/output neurons/i);
+    expect(screen.getByLabelText(/brain graph weight legend/i)).toHaveTextContent(/fixed scale -1.0 to \+1.0/i);
     expect(screen.getByRole('img', { name: /organism brain graph/i })).toBeInTheDocument();
 
     fireEvent.click(canvas, { clientX: secondTarget.x, clientY: secondTarget.y });

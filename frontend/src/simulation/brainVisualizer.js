@@ -1,4 +1,8 @@
 const LAYER_ORDER = ['input', 'hidden', 'output'];
+const SYNAPSE_WEIGHT_MIN = -1;
+const SYNAPSE_WEIGHT_MAX = 1;
+const SYNAPSE_STROKE_MIN = 1.25;
+const SYNAPSE_STROKE_MAX = 4;
 
 const NEURON_VALUE_KEYS = ['value', 'activation', 'state', 'signal'];
 
@@ -21,7 +25,7 @@ function resolveNeuronValue(neuron) {
 export function mapNeuronValueToColor(value) {
   const numericValue = Number(value);
   const clamped = Number.isFinite(numericValue)
-    ? Math.max(-1, Math.min(1, numericValue))
+    ? Math.max(SYNAPSE_WEIGHT_MIN, Math.min(SYNAPSE_WEIGHT_MAX, numericValue))
     : 0;
   const magnitude = Math.abs(clamped);
   const saturation = Number((20 + magnitude * 75).toFixed(3));
@@ -53,9 +57,26 @@ export function mapNeuronValueToColor(value) {
   };
 }
 
+export function mapSynapseWeightToCue(weight) {
+  const numericWeight = Number(weight);
+  const clampedWeight = Number.isFinite(numericWeight)
+    ? Math.max(SYNAPSE_WEIGHT_MIN, Math.min(SYNAPSE_WEIGHT_MAX, numericWeight))
+    : 0;
+  const magnitude = Math.abs(clampedWeight);
+  const strokeWidth = Number((SYNAPSE_STROKE_MIN + magnitude * (SYNAPSE_STROKE_MAX - SYNAPSE_STROKE_MIN)).toFixed(3));
+
+  return {
+    weight: clampedWeight,
+    magnitude,
+    strokeWidth,
+    color: clampedWeight >= 0 ? '#22c55e' : '#ef4444',
+    polarityLabel: clampedWeight >= 0 ? 'excitatory (+)' : 'inhibitory (-)'
+  };
+}
+
 /**
  * @param {unknown} brain
- * @returns {{nodes: {id:string,type:string,x:number,y:number,value:number,fillColor:string,labelColor:string}[], edges: {id:string,sourceId:string,targetId:string,weight:number,strokeWidth:number,color:string}[]} | null}
+ * @returns {{nodes: {id:string,type:string,x:number,y:number,value:number,fillColor:string,labelColor:string}[], edges: {id:string,sourceId:string,targetId:string,weight:number,strokeWidth:number,color:string,polarityLabel:string}[]} | null}
  */
 export function mapBrainToVisualizerModel(brain) {
   if (!brain || !Array.isArray(brain.neurons) || !Array.isArray(brain.synapses)) {
@@ -109,14 +130,15 @@ export function mapBrainToVisualizerModel(brain) {
     .filter((synapse) => synapse && typeof synapse.sourceId === 'string' && typeof synapse.targetId === 'string' && Number.isFinite(synapse.weight))
     .filter((synapse) => nodeById.has(synapse.sourceId) && nodeById.has(synapse.targetId))
     .map((synapse, index) => {
-      const weight = Number(synapse.weight);
+      const cue = mapSynapseWeightToCue(synapse.weight);
       return {
         id: typeof synapse.id === 'string' ? synapse.id : `synapse-${index}`,
         sourceId: synapse.sourceId,
         targetId: synapse.targetId,
-        weight,
-        strokeWidth: Number((1 + Math.abs(weight) * 2).toFixed(3)),
-        color: weight >= 0 ? '#22d3ee' : '#f97316'
+        weight: cue.weight,
+        strokeWidth: cue.strokeWidth,
+        color: cue.color,
+        polarityLabel: cue.polarityLabel
       };
     })
     .sort((a, b) => a.id.localeCompare(b.id));

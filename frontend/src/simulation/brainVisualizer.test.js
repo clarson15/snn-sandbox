@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { mapBrainToVisualizerModel, mapNeuronValueToColor } from './brainVisualizer';
+import { mapBrainToVisualizerModel, mapNeuronValueToColor, mapSynapseWeightToCue } from './brainVisualizer';
 
 describe('mapNeuronValueToColor', () => {
   it('maps negative to red, zero to neutral, and positive to green', () => {
@@ -19,6 +19,31 @@ describe('mapNeuronValueToColor', () => {
 
     expect(highMagnitude.saturation).toBeGreaterThan(lowMagnitude.saturation);
     expect(highMagnitude.lightness).toBeGreaterThan(lowMagnitude.lightness);
+  });
+});
+
+describe('mapSynapseWeightToCue', () => {
+  it('maps deterministic cue values for known weights', () => {
+    expect(mapSynapseWeightToCue(0.5)).toEqual({
+      weight: 0.5,
+      magnitude: 0.5,
+      strokeWidth: 2.625,
+      color: '#22c55e',
+      polarityLabel: 'excitatory (+)'
+    });
+
+    expect(mapSynapseWeightToCue(-0.35)).toEqual({
+      weight: -0.35,
+      magnitude: 0.35,
+      strokeWidth: 2.212,
+      color: '#ef4444',
+      polarityLabel: 'inhibitory (-)'
+    });
+  });
+
+  it('clamps out-of-range weights to fixed bounds', () => {
+    expect(mapSynapseWeightToCue(9).weight).toBe(1);
+    expect(mapSynapseWeightToCue(-9).weight).toBe(-1);
   });
 });
 
@@ -54,16 +79,18 @@ describe('mapBrainToVisualizerModel', () => {
         sourceId: 'in-1',
         targetId: 'out-2',
         weight: 0.5,
-        strokeWidth: 2,
-        color: '#22d3ee'
+        strokeWidth: 2.625,
+        color: '#22c55e',
+        polarityLabel: 'excitatory (+)'
       },
       {
         id: 's-b',
         sourceId: 'in-2',
         targetId: 'out-1',
         weight: -0.35,
-        strokeWidth: 1.7,
-        color: '#f97316'
+        strokeWidth: 2.212,
+        color: '#ef4444',
+        polarityLabel: 'inhibitory (-)'
       }
     ]);
   });
