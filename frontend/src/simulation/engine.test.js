@@ -158,4 +158,85 @@ describe('simulation engine skeleton', () => {
     const hash = (state) => JSON.stringify(state);
     expect(hash(resumedNext60)).toEqual(hash(baselineNext60));
   });
+
+  it('spawns exactly enough organisms to reach minimum population when below threshold', () => {
+    const state = createWorldState({
+      tick: 5,
+      organisms: [{ id: 'org-9', x: 1, y: 1, energy: 5 }],
+      food: []
+    });
+
+    const next = stepWorld(state, createSeededPrng('floor-spawn'), {
+      movementDelta: 0,
+      metabolismPerTick: 0,
+      foodSpawnChance: 0,
+      minimumPopulation: 4,
+      createFloorSpawnOrganism: (id, rng) => ({
+        id,
+        x: Number((rng.nextFloat() * 10).toFixed(4)),
+        y: Number((rng.nextFloat() * 10).toFixed(4)),
+        energy: 20,
+        age: 0,
+        generation: 1,
+        traits: { size: 1, speed: 1, visionRange: 25, turnRate: 0.05, metabolism: 0.05 },
+        brain: { neurons: [], synapses: [] }
+      })
+    });
+
+    expect(next.organisms).toHaveLength(4);
+    expect(next.organisms.map((organism) => organism.id)).toEqual(['org-9', 'org-10', 'org-11', 'org-12']);
+  });
+
+  it('does not spawn floor organisms when population meets or exceeds minimum', () => {
+    const state = createWorldState({
+      tick: 2,
+      organisms: [
+        { id: 'org-1', x: 0, y: 0, energy: 10 },
+        { id: 'org-2', x: 0, y: 0, energy: 10 }
+      ],
+      food: []
+    });
+
+    const next = stepWorld(state, createSeededPrng('floor-spawn-none'), {
+      movementDelta: 0,
+      metabolismPerTick: 0,
+      foodSpawnChance: 0,
+      minimumPopulation: 2,
+      createFloorSpawnOrganism: () => {
+        throw new Error('Should not be called when at floor');
+      }
+    });
+
+    expect(next.organisms).toHaveLength(2);
+  });
+
+  it('produces identical floor-spawn outputs for identical seed + params + state', () => {
+    const state = createWorldState({
+      tick: 0,
+      organisms: [{ id: 'org-4', x: 4, y: 4, energy: 2 }],
+      food: []
+    });
+
+    const params = {
+      movementDelta: 0,
+      metabolismPerTick: 0,
+      foodSpawnChance: 0,
+      minimumPopulation: 3,
+      createFloorSpawnOrganism: (id, rng) => ({
+        id,
+        x: Number((rng.nextFloat() * 100).toFixed(3)),
+        y: Number((rng.nextFloat() * 100).toFixed(3)),
+        energy: 20,
+        age: 0,
+        generation: 1,
+        traits: { size: 1, speed: 1, visionRange: 1, turnRate: 1, metabolism: 1 },
+        brain: { neurons: [], synapses: [] }
+      })
+    };
+
+    const runA = runTicks(state, createSeededPrng('floor-deterministic'), 3, params);
+    const runB = runTicks(state, createSeededPrng('floor-deterministic'), 3, params);
+
+    expect(runA).toEqual(runB);
+  });
 });

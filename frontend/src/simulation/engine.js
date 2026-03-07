@@ -50,6 +50,8 @@
  * @property {number} [worldWidth=100] world width used for spawn bounds
  * @property {number} [worldHeight=100] world height used for spawn bounds
  * @property {number} [maxFood=Infinity] maximum food entities in world
+ * @property {number} [minimumPopulation=0] minimum number of organisms to maintain
+ * @property {(id: string, rng: StepRng) => WorldOrganism} [createFloorSpawnOrganism] factory for floor-spawn organisms
  */
 
 /**
@@ -96,6 +98,20 @@ function squaredDistance(organism, food) {
   return dx * dx + dy * dy;
 }
 
+function deriveNextOrganismNumericId(organisms) {
+  const maxNumericId = organisms.reduce((max, organism) => {
+    const match = /^org-(\d+)$/.exec(String(organism.id));
+    if (!match) {
+      return max;
+    }
+
+    const numericId = Number.parseInt(match[1], 10);
+    return Number.isInteger(numericId) ? Math.max(max, numericId) : max;
+  }, 0);
+
+  return maxNumericId + 1;
+}
+
 /**
  * Advance the simulation by one deterministic tick.
  *
@@ -114,6 +130,8 @@ export function stepWorld(state, rng, params = {}) {
   const worldWidth = params.worldWidth ?? 100;
   const worldHeight = params.worldHeight ?? 100;
   const maxFood = params.maxFood ?? Number.POSITIVE_INFINITY;
+  const minimumPopulation = params.minimumPopulation ?? 0;
+  const createFloorSpawnOrganism = params.createFloorSpawnOrganism;
 
   const movedOrganisms = state.organisms.map((organism) => {
     const dx = (rng.nextFloat() * 2 - 1) * movementDelta;
@@ -161,12 +179,25 @@ export function stepWorld(state, rng, params = {}) {
     }
   }
 
-  const organisms = movedOrganisms
+  let organisms = movedOrganisms
     .map((organism) => ({
       ...organism,
       energy: organism.energy + (consumedEnergyByOrganismId.get(organism.id) ?? 0)
     }))
     .filter((organism) => organism.energy > 0);
+
+  if (minimumPopulation > 0 && organisms.length < minimumPopulation && typeof createFloorSpawnOrganism === 'function') {
+    const organismsToSpawn = minimumPopulation - organisms.length;
+    let nextNumericId = deriveNextOrganismNumericId(organisms);
+
+    const spawned = Array.from({ length: organismsToSpawn }, () => {
+      const organism = createFloorSpawnOrganism(`org-${nextNumericId}`, rng);
+      nextNumericId += 1;
+      return organism;
+    });
+
+    organisms = organisms.concat(spawned);
+  }
 
   const nextFood = Array.from(foodById.values()).sort((a, b) => a.id.localeCompare(b.id));
 

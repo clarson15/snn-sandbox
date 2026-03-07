@@ -33,6 +33,7 @@ export function deriveSimulationParametersSignature(parameters) {
     worldWidth: Number(parameters.worldWidth),
     worldHeight: Number(parameters.worldHeight),
     initialPopulation: Number(parameters.initialPopulation),
+    minimumPopulation: Number(parameters.minimumPopulation),
     initialFoodCount: Number(parameters.initialFoodCount),
     foodSpawnChance: Number(parameters.foodSpawnChance),
     foodEnergyValue: Number(parameters.foodEnergyValue),
