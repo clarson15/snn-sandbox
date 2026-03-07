@@ -204,12 +204,53 @@ describe('App', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: /restart with same seed/i }));
+    expect(window.confirm).toHaveBeenCalledWith(
+      'You have unsaved simulation progress. Restarting now will reset to tick 0 and keep the current seed. Continue?'
+    );
     expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: 1b207');
     expect(tickNode).toHaveTextContent('Tick count: 0');
 
+    await waitFor(() => {
+      expect(Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(0);
+    });
+
     fireEvent.click(screen.getByRole('button', { name: /regenerate seed \+ restart/i }));
+    expect(window.confirm).toHaveBeenCalledWith(
+      'You have unsaved simulation progress. Regenerating will create a new seed and reset to tick 0. Continue?'
+    );
     expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: 3640e');
     expect(tickNode).toHaveTextContent('Tick count: 0');
+  });
+
+  it('cancels restart and regenerate flows when unsaved-progress confirmation is declined', async () => {
+    let regenerateCounter = 0;
+
+    vi.spyOn(globalThis.crypto, 'getRandomValues').mockImplementation((array) => {
+      regenerateCounter += 1;
+      array[0] = regenerateCounter === 1 ? 333333 : 444444;
+      return array;
+    });
+
+    window.confirm.mockReturnValue(false);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+    const tickNode = screen.getByText(/^tick count:/i);
+
+    await waitFor(() => {
+      expect(Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(0);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /restart with same seed/i }));
+    expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: 51615');
+    expect(Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(0);
+    expect(screen.getByText(/restart cancelled\./i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /regenerate seed \+ restart/i }));
+    expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: 51615');
+    expect(Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(0);
+    expect(screen.getByText(/seed regeneration cancelled\./i)).toBeInTheDocument();
   });
 
   it('shows actionable validation errors for invalid ranges', () => {
