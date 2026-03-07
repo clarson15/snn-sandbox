@@ -439,6 +439,10 @@ function App() {
     };
   }, [replaySummaryStrip.firstMismatchTick, replaySummaryStrip.mismatchEvents, replayWorldState?.tick, replayActive]);
 
+  const onPause = () => {
+    setPaused(true);
+  };
+
   const onSpeedSelect = (multiplier) => {
     setSpeedMultiplier(multiplier);
     setPaused(false);
@@ -451,6 +455,63 @@ function App() {
 
     advanceOneTick();
   };
+
+  const onTogglePausePlay = () => {
+    if (pausedRef.current) {
+      onSpeedSelect(speedMultiplierRef.current || 1);
+      return;
+    }
+
+    onPause();
+  };
+
+  useEffect(() => {
+    const isTypingTarget = (target) => {
+      if (!(target instanceof HTMLElement)) {
+        return false;
+      }
+
+      const tagName = target.tagName;
+      if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT') {
+        return true;
+      }
+
+      return target.isContentEditable;
+    };
+
+    const onKeyDown = (event) => {
+      if (isTypingTarget(event.target) || replayContextRef.current || !worldRef.current || !rngRef.current) {
+        return;
+      }
+
+      if (event.key === ' ' || event.code === 'Space') {
+        event.preventDefault();
+        onTogglePausePlay();
+        return;
+      }
+
+      if (event.key === '.') {
+        event.preventDefault();
+        onStepTick();
+        return;
+      }
+
+      const speedByKey = {
+        '1': 1,
+        '2': 2,
+        '3': 5,
+        '4': 10
+      };
+      const speed = speedByKey[event.key];
+      if (speed) {
+        event.preventDefault();
+        onSpeedSelect(speed);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onStepTick, onTogglePausePlay, onSpeedSelect]);
 
   const onCanvasClick = (event) => {
     if (!canvasRef.current || !displayWorld) {
@@ -868,7 +929,7 @@ function App() {
       <section className="controls" aria-label="simulation controls">
         <button
           type="button"
-          onClick={() => setPaused(true)}
+          onClick={onPause}
           disabled={!hasSimulation || replayActive}
           aria-pressed={paused || replayActive}
         >
@@ -889,6 +950,7 @@ function App() {
           Step
         </button>
         <button type="button" onClick={onSaveSimulation} disabled={!hasSimulation}>Save snapshot</button>
+        <p className="shortcut-hints">Shortcuts: Space pause/play · . single-step (paused) · 1/2/3/4 set 1x/2x/5x/10x</p>
       </section>
 
 
