@@ -104,6 +104,7 @@ function App() {
   const replayInteractionRegionRef = useRef(null);
   const rngRef = useRef(null);
   const stepParamsRef = useRef(null);
+  const lastPersistedTickRef = useRef(0);
   const activeConfigRef = useRef(null);
   const viewportRef = useRef({ width: DEFAULT_CONFIG.worldWidth, height: DEFAULT_CONFIG.worldHeight });
   const replayContextRef = useRef(null);
@@ -274,6 +275,7 @@ function App() {
       width: loadedConfig.worldWidth,
       height: loadedConfig.worldHeight
     };
+    lastPersistedTickRef.current = loadedWorld.tick;
 
     saveSimulationConfig(loadedConfig);
     setFormState({
@@ -336,6 +338,7 @@ function App() {
       width: config.worldWidth,
       height: config.worldHeight
     };
+    lastPersistedTickRef.current = 0;
 
     setSelectedOrganismId(null);
     setResolvedSeed(config.resolvedSeed);
@@ -393,6 +396,17 @@ function App() {
       return;
     }
 
+    const hasUnsavedProgress = (worldRef.current?.tick ?? 0) > lastPersistedTickRef.current;
+    if (hasUnsavedProgress) {
+      const confirmed = window.confirm(
+        'You have unsaved simulation progress. Restarting now will reset to tick 0 and keep the current seed. Continue?'
+      );
+      if (!confirmed) {
+        setSeedControlStatus('Restart cancelled.');
+        return;
+      }
+    }
+
     const config = normalizeSimulationConfig(activeConfigRef.current, activeConfigRef.current.resolvedSeed);
     applySimulationConfig(config, { paused: false });
     setSeedControlStatus('Restarted simulation with the same seed.');
@@ -401,6 +415,17 @@ function App() {
   const onRegenerateSeed = () => {
     if (!activeConfigRef.current) {
       return;
+    }
+
+    const hasUnsavedProgress = (worldRef.current?.tick ?? 0) > lastPersistedTickRef.current;
+    if (hasUnsavedProgress) {
+      const confirmed = window.confirm(
+        'You have unsaved simulation progress. Regenerating will create a new seed and reset to tick 0. Continue?'
+      );
+      if (!confirmed) {
+        setSeedControlStatus('Seed regeneration cancelled.');
+        return;
+      }
     }
 
     const regeneratedSeed = resolveSeed('');
@@ -644,6 +669,7 @@ function App() {
         worldState: worldRef.current,
         rngState: rngRef.current?.getState?.() ?? null
       });
+      lastPersistedTickRef.current = worldRef.current.tick;
 
       const items = await listSimulationSnapshots();
       setSavedSimulations(items);
