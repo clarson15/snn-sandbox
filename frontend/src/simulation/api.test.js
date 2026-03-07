@@ -21,11 +21,15 @@ describe('mapSavedSimulationList', () => {
       {
         id: 'sim-2',
         name: 'Newest run',
+        seed: '',
+        tickCount: 0,
         updatedAt: '2026-03-06T12:00:01.000Z'
       },
       {
         id: 'sim-1',
         name: 'Older run',
+        seed: '',
+        tickCount: 0,
         updatedAt: '2026-03-06T12:00:00.000Z'
       }
     ]);
