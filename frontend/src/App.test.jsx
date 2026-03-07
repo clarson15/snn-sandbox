@@ -1445,6 +1445,66 @@ describe('App', () => {
     vi.useRealTimers();
   });
 
+  it('disables inspector next/previous controls when there are no alive organisms', () => {
+    render(<App />);
+
+    expect(screen.getByRole('button', { name: /previous organism/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /next organism/i })).toBeDisabled();
+  });
+
+  it('navigates organisms in deterministic id order with next/previous controls', () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'Fixture' } });
+    fireEvent.change(screen.getByLabelText(/seed/i), { target: { value: 'fixture-seed' } });
+    fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '800' } });
+    fireEvent.change(screen.getByLabelText(/world height/i), { target: { value: '480' } });
+    fireEvent.change(screen.getByLabelText(/initial population/i), { target: { value: '12' } });
+    fireEvent.change(screen.getByLabelText(/minimum population/i), { target: { value: '12' } });
+    fireEvent.change(screen.getByLabelText(/initial food count/i), { target: { value: '30' } });
+    fireEvent.change(screen.getByLabelText(/food spawn chance/i), { target: { value: '0.04' } });
+    fireEvent.change(screen.getByLabelText(/food energy value/i), { target: { value: '5' } });
+    fireEvent.change(screen.getByLabelText(/max food/i), { target: { value: '120' } });
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    const fixtureConfig = normalizeSimulationConfig(
+      {
+        name: 'Fixture',
+        seed: 'fixture-seed',
+        worldWidth: 800,
+        worldHeight: 480,
+        initialPopulation: 12,
+        minimumPopulation: 12,
+        initialFoodCount: 30,
+        foodSpawnChance: 0.04,
+        foodEnergyValue: 5,
+        maxFood: 120
+      },
+      'fixture-seed'
+    );
+    const fixtureWorld = createInitialWorldFromConfig(fixtureConfig);
+    const sortedIds = fixtureWorld.organisms.map((organism) => organism.id).sort((left, right) => left.localeCompare(right));
+
+    const nextButton = screen.getByRole('button', { name: /next organism/i });
+    const previousButton = screen.getByRole('button', { name: /previous organism/i });
+    const inspector = screen.getByRole('region', { name: /organism inspector/i });
+
+    expect(nextButton).toBeEnabled();
+    expect(previousButton).toBeEnabled();
+
+    fireEvent.click(nextButton);
+    expect(inspector).toHaveTextContent(`ID: ${sortedIds[0]}`);
+
+    fireEvent.click(nextButton);
+    expect(inspector).toHaveTextContent(`ID: ${sortedIds[1]}`);
+
+    fireEvent.click(previousButton);
+    expect(inspector).toHaveTextContent(`ID: ${sortedIds[0]}`);
+
+    fireEvent.click(previousButton);
+    expect(inspector).toHaveTextContent(`ID: ${sortedIds[sortedIds.length - 1]}`);
+  });
+
   it('renders deterministic inspector values from fixed seeded fixture', () => {
     render(<App />);
 
