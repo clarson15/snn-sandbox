@@ -1,13 +1,61 @@
 const LAYER_ORDER = ['input', 'hidden', 'output'];
 
+const NEURON_VALUE_KEYS = ['value', 'activation', 'state', 'signal'];
+
 function layerRank(type) {
   const rank = LAYER_ORDER.indexOf(type);
   return rank === -1 ? LAYER_ORDER.length : rank;
 }
 
+function resolveNeuronValue(neuron) {
+  for (const key of NEURON_VALUE_KEYS) {
+    const candidate = Number(neuron?.[key]);
+    if (Number.isFinite(candidate)) {
+      return candidate;
+    }
+  }
+
+  return 0;
+}
+
+export function mapNeuronValueToColor(value) {
+  const numericValue = Number(value);
+  const clamped = Number.isFinite(numericValue)
+    ? Math.max(-1, Math.min(1, numericValue))
+    : 0;
+  const magnitude = Math.abs(clamped);
+  const saturation = Number((20 + magnitude * 75).toFixed(3));
+  const lightness = Number((24 + magnitude * 24).toFixed(3));
+
+  if (clamped > 0) {
+    return {
+      hue: 145,
+      saturation,
+      lightness,
+      cssColor: `hsl(145 ${saturation}% ${lightness}%)`
+    };
+  }
+
+  if (clamped < 0) {
+    return {
+      hue: 0,
+      saturation,
+      lightness,
+      cssColor: `hsl(0 ${saturation}% ${lightness}%)`
+    };
+  }
+
+  return {
+    hue: 210,
+    saturation: 18,
+    lightness: 28,
+    cssColor: 'hsl(210 18% 28%)'
+  };
+}
+
 /**
  * @param {unknown} brain
- * @returns {{nodes: {id:string,type:string,x:number,y:number}[], edges: {id:string,sourceId:string,targetId:string,weight:number,strokeWidth:number,color:string}[]} | null}
+ * @returns {{nodes: {id:string,type:string,x:number,y:number,value:number,fillColor:string,labelColor:string}[], edges: {id:string,sourceId:string,targetId:string,weight:number,strokeWidth:number,color:string}[]} | null}
  */
 export function mapBrainToVisualizerModel(brain) {
   if (!brain || !Array.isArray(brain.neurons) || !Array.isArray(brain.synapses)) {
@@ -16,10 +64,18 @@ export function mapBrainToVisualizerModel(brain) {
 
   const neurons = brain.neurons
     .filter((neuron) => neuron && typeof neuron.id === 'string')
-    .map((neuron) => ({
-      id: neuron.id,
-      type: typeof neuron.type === 'string' ? neuron.type : 'unknown'
-    }))
+    .map((neuron) => {
+      const value = resolveNeuronValue(neuron);
+      const color = mapNeuronValueToColor(value);
+
+      return {
+        id: neuron.id,
+        type: typeof neuron.type === 'string' ? neuron.type : 'unknown',
+        value,
+        fillColor: color.cssColor,
+        labelColor: Math.abs(value) >= 0.65 ? '#f8fafc' : '#cbd5e1'
+      };
+    })
     .sort((a, b) => {
       const rankDelta = layerRank(a.type) - layerRank(b.type);
       if (rankDelta !== 0) {

@@ -1185,8 +1185,8 @@ function App() {
                   })}
                   {brainGraphModel.nodes.map((node) => (
                     <g key={node.id}>
-                      <circle cx={node.x} cy={node.y} r="10" fill="#0f172a" stroke="#94a3b8" strokeWidth="1.5" />
-                      <text x={node.x + 14} y={node.y + 4} fill="#cbd5e1" fontSize="12">{node.id}</text>
+                      <circle cx={node.x} cy={node.y} r="10" fill={node.fillColor} stroke="#94a3b8" strokeWidth="1.5" />
+                      <text x={node.x + 14} y={node.y + 4} fill={node.labelColor} fontSize="12">{node.id} ({node.value.toFixed(2)})</text>
                     </g>
                   ))}
                 </svg>
