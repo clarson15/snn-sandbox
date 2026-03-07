@@ -147,10 +147,49 @@ button:disabled {
   border: 0;
 }
 
+.simulation-stage {
+  position: relative;
+  width: min(100%, 820px);
+}
+
+.simulation-stats-hud {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 2;
+  display: grid;
+  gap: 0.35rem;
+  max-width: min(22rem, calc(100% - 1.5rem));
+  padding: 0.75rem;
+  border: 1px solid #334155;
+  border-radius: 0.5rem;
+  background: rgb(2 6 23 / 85%);
+  backdrop-filter: blur(2px);
+}
+
+.simulation-stats-hud h2 {
+  font-size: 1rem;
+}
+
+.simulation-stats-hud p {
+  margin: 0;
+  font-size: 0.88rem;
+}
+
 canvas {
+  width: 100%;
+  height: auto;
   border: 1px solid #334155;
   border-radius: 0.5rem;
   background: #020617;
+}
+
+@media (max-width: 640px) {
+  .simulation-stats-hud {
+    position: static;
+    max-width: 100%;
+    margin-bottom: 0.5rem;
+  }
 }
 
 .brain-graph {

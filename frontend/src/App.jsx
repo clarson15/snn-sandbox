@@ -873,14 +873,6 @@ function App() {
         <button type="button" onClick={onSaveSimulation} disabled={!hasSimulation}>Save snapshot</button>
       </section>
 
-      <section className="config-panel" aria-label="simulation stats">
-        <h2>Simulation stats</h2>
-        <p>Population: {formattedStats.population}</p>
-        <p>Food count: {formattedStats.foodCount}</p>
-        <p>Average generation: {formattedStats.averageGeneration}</p>
-        <p>Average organism energy: {formattedStats.averageEnergy}</p>
-        <p>Tick count: {formattedStats.tickCount}</p>
-      </section>
 
       <section className="config-panel" aria-label="run metadata panel">
         <h2>Run metadata</h2>
@@ -1130,13 +1122,27 @@ function App() {
         )}
       </section>
 
-      <canvas
-        ref={canvasRef}
-        width={Number(formState.worldWidth) || DEFAULT_CONFIG.worldWidth}
-        height={Number(formState.worldHeight) || DEFAULT_CONFIG.worldHeight}
-        aria-label="simulation world"
-        onClick={onCanvasClick}
-      />
+      <section className="simulation-stage" aria-label="simulation stage">
+        {(hasSimulation || replayActive) ? (
+          <section className="simulation-stats-hud" aria-label="simulation stats hud">
+            <h2>Simulation stats</h2>
+            <p>Population: {formattedStats.population}</p>
+            <p>Food count: {formattedStats.foodCount}</p>
+            <p>Average generation: {formattedStats.averageGeneration}</p>
+            <p>Average organism energy: {formattedStats.averageEnergy}</p>
+            <p>Tick count: {formattedStats.tickCount}</p>
+            <p>Time elapsed: {formattedStats.elapsedTime}</p>
+          </section>
+        ) : null}
+
+        <canvas
+          ref={canvasRef}
+          width={Number(formState.worldWidth) || DEFAULT_CONFIG.worldWidth}
+          height={Number(formState.worldHeight) || DEFAULT_CONFIG.worldHeight}
+          aria-label="simulation world"
+          onClick={onCanvasClick}
+        />
+      </section>
 
       <section className="config-panel" aria-label="organism inspector">
         <h2>Organism inspector</h2>

@@ -17,6 +17,7 @@ describe('simulation stats', () => {
 
     expect(stats).toEqual({
       tickCount: 42,
+      elapsedSeconds: 1.4,
       population: 2,
       foodCount: 3,
       averageGeneration: 3,
@@ -39,10 +40,11 @@ describe('simulation stats', () => {
 
     expect(formatted).toEqual({
       tickCount: '0',
+      elapsedTime: '0.0s',
       population: '0',
       foodCount: '0',
-      averageGeneration: '0.00',
-      averageEnergy: '0.000'
+      averageGeneration: '0.0',
+      averageEnergy: '0.0'
     });
   });
 });

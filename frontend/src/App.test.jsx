@@ -1042,8 +1042,9 @@ describe('App', () => {
     expect(tickNode).toHaveTextContent(`Tick count: ${pausedTick}`);
     expect(screen.getByText(/^population:/i)).toBeInTheDocument();
     expect(screen.getByText(/^food count:/i)).toBeInTheDocument();
-    expect(screen.getByText(/^average generation:/i).textContent).toMatch(/\d+\.\d{2}$/);
-    expect(screen.getByText(/^average organism energy:/i).textContent).toMatch(/\d+\.\d{3}$/);
+    expect(screen.getByText(/^average generation:/i).textContent).toMatch(/\d+\.\d$/);
+    expect(screen.getByText(/^average organism energy:/i).textContent).toMatch(/\d+\.\d$/);
+    expect(screen.getByText(/^time elapsed:/i).textContent).toMatch(/\d+\.\ds$/);
 
     vi.useRealTimers();
   });
