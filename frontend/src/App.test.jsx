@@ -203,7 +203,7 @@ describe('App', () => {
       expect(clipboardWriteText).toHaveBeenCalledWith('1b207');
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /restart with same seed/i }));
+    fireEvent.click(screen.getByRole('button', { name: /restart from seed/i }));
     expect(window.confirm).toHaveBeenCalledWith(
       'You have unsaved simulation progress. Restarting now will reset to tick 0 and keep the current seed. Continue?'
     );
@@ -242,7 +242,7 @@ describe('App', () => {
       expect(Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(0);
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /restart with same seed/i }));
+    fireEvent.click(screen.getByRole('button', { name: /restart from seed/i }));
     expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: 51615');
     expect(Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(0);
     expect(screen.getByText(/restart cancelled\./i)).toBeInTheDocument();
@@ -251,6 +251,62 @@ describe('App', () => {
     expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: 51615');
     expect(Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(0);
     expect(screen.getByText(/seed regeneration cancelled\./i)).toBeInTheDocument();
+  });
+
+  it('restart from seed clears selection and restores default playback controls', async () => {
+    vi.useFakeTimers();
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'restart-selection-seed' } });
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
+
+    const deterministicConfig = normalizeSimulationConfig(
+      {
+        name: 'Restart selection test',
+        seed: 'restart-selection-seed',
+        worldWidth: 800,
+        worldHeight: 480,
+        initialPopulation: 20,
+        minimumPopulation: 15,
+        initialFoodCount: 40,
+        foodSpawnChance: 0.03,
+        foodEnergyValue: 20,
+        maxFood: 250
+      },
+      'restart-selection-seed'
+    );
+
+    const initialWorld = createInitialWorldFromConfig(deterministicConfig);
+    const selectedFixture = initialWorld.organisms[0];
+    expect(selectedFixture).toBeTruthy();
+
+    const canvas = screen.getByLabelText(/simulation world/i);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 800,
+      height: 480,
+      right: 800,
+      bottom: 480,
+      toJSON: () => ({})
+    });
+
+    fireEvent.click(canvas, { clientX: selectedFixture.x, clientY: selectedFixture.y });
+    const inspector = screen.getByRole('region', { name: /organism inspector/i });
+    expect(inspector).toHaveTextContent(`ID: ${selectedFixture.id}`);
+
+    fireEvent.click(screen.getByRole('button', { name: /^5x$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /restart from seed/i }));
+
+    expect(screen.getByText(/click an organism to inspect it\./i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^pause$/i })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: /^1x$/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText(/^tick count:/i)).toHaveTextContent('Tick count: 0');
+
+    vi.useRealTimers();
   });
 
   it('shows actionable validation errors for invalid ranges', () => {
