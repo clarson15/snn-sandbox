@@ -44,6 +44,8 @@ describe('App', () => {
             {
               id: 'sim-fixture',
               name: 'Fixture snapshot',
+              seed: 'fixture-seed',
+              tickCount: 0,
               updatedAt: '2026-03-06T12:00:01.000Z'
             }
           ])
@@ -387,7 +389,9 @@ describe('App', () => {
     render(<App />);
 
     const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
-    fireEvent.click(within(savedRegion).getByRole('button', { name: /^load$/i }));
+    expect(within(savedRegion).getByText(/seed fixture-seed/i)).toBeInTheDocument();
+    expect(within(savedRegion).getByText(/tick 0/i)).toBeInTheDocument();
+    fireEvent.click(within(savedRegion).getByRole('button', { name: /^resume$/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/active snapshot:/i)).toHaveTextContent('Fixture snapshot');
@@ -403,7 +407,7 @@ describe('App', () => {
     render(<App />);
 
     const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
-    fireEvent.click(within(savedRegion).getByRole('button', { name: /^load$/i }));
+    fireEvent.click(within(savedRegion).getByRole('button', { name: /^resume$/i }));
 
     await waitFor(() => {
       const summaryRegion = screen.getByRole('region', { name: /replay session summary strip/i });
@@ -491,7 +495,7 @@ describe('App', () => {
     render(<App />);
 
     const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
-    fireEvent.click(within(savedRegion).getByRole('button', { name: /^load$/i }));
+    fireEvent.click(within(savedRegion).getByRole('button', { name: /^resume$/i }));
 
     const presetsRegion = await screen.findByRole('region', { name: /replay comparison presets/i });
 
@@ -576,7 +580,7 @@ describe('App', () => {
     render(<App />);
 
     const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
-    fireEvent.click(within(savedRegion).getByRole('button', { name: /^load$/i }));
+    fireEvent.click(within(savedRegion).getByRole('button', { name: /^resume$/i }));
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /jump to first mismatch/i })).toBeEnabled();
@@ -643,7 +647,7 @@ describe('App', () => {
     render(<App />);
 
     const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
-    fireEvent.click(within(savedRegion).getByRole('button', { name: /^load$/i }));
+    fireEvent.click(within(savedRegion).getByRole('button', { name: /^resume$/i }));
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /jump to first mismatch/i })).toBeDisabled();
@@ -713,7 +717,7 @@ describe('App', () => {
     render(<App />);
 
     const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
-    fireEvent.click(within(savedRegion).getByRole('button', { name: /^load$/i }));
+    fireEvent.click(within(savedRegion).getByRole('button', { name: /^resume$/i }));
 
     await waitFor(() => {
       expect(screen.getByRole('region', { name: /replay mismatch details/i })).toBeInTheDocument();
@@ -791,7 +795,7 @@ describe('App', () => {
     render(<App />);
 
     const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
-    fireEvent.click(within(savedRegion).getByRole('button', { name: /^load$/i }));
+    fireEvent.click(within(savedRegion).getByRole('button', { name: /^resume$/i }));
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /copy mismatch report/i })).toBeEnabled();
@@ -870,7 +874,7 @@ describe('App', () => {
     render(<App />);
 
     const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
-    fireEvent.click(within(savedRegion).getByRole('button', { name: /^load$/i }));
+    fireEvent.click(within(savedRegion).getByRole('button', { name: /^resume$/i }));
 
     await waitFor(() => {
       expect(screen.getByRole('region', { name: /replay mismatch details/i })).toBeInTheDocument();
@@ -970,7 +974,7 @@ describe('App', () => {
     render(<App />);
 
     const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
-    fireEvent.click(within(savedRegion).getByRole('button', { name: /^load$/i }));
+    fireEvent.click(within(savedRegion).getByRole('button', { name: /^resume$/i }));
 
     await screen.findByRole('region', { name: /replay mismatch details/i });
     expect(screen.getByText(/tick 11 · organisms\[0\]\.brain\.state/i)).toBeInTheDocument();
@@ -1048,7 +1052,7 @@ describe('App', () => {
     render(<App />);
 
     const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
-    fireEvent.click(within(savedRegion).getByRole('button', { name: /^load$/i }));
+    fireEvent.click(within(savedRegion).getByRole('button', { name: /^resume$/i }));
 
     const mismatchRegion = await screen.findByRole('region', { name: /replay mismatch details/i });
     expect(within(mismatchRegion).getByText(/no mismatch events available for this replay payload\./i)).toBeInTheDocument();
@@ -1059,7 +1063,7 @@ describe('App', () => {
     render(<App />);
 
     const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
-    fireEvent.click(within(savedRegion).getByRole('button', { name: /^load$/i }));
+    fireEvent.click(within(savedRegion).getByRole('button', { name: /^resume$/i }));
 
     await waitFor(() => {
       expect(screen.queryByRole('region', { name: /replay mismatch details/i })).not.toBeInTheDocument();
@@ -1089,7 +1093,7 @@ describe('App', () => {
 
     render(<App />);
     const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
-    fireEvent.click(within(savedRegion).getByRole('button', { name: /^load$/i }));
+    fireEvent.click(within(savedRegion).getByRole('button', { name: /^resume$/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/failed to load snapshot/i)).toBeInTheDocument();

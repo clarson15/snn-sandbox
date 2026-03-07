@@ -1,10 +1,16 @@
 export function mapSavedSimulationList(apiItems) {
   return [...apiItems]
-    .map((item) => ({
-      id: String(item.id),
-      name: String(item.name),
-      updatedAt: String(item.updatedAt)
-    }))
+    .map((item) => {
+      const parsedTickCount = Number.parseInt(item.tickCount, 10);
+
+      return {
+        id: String(item.id),
+        name: String(item.name),
+        seed: String(item.seed ?? ''),
+        tickCount: Number.isInteger(parsedTickCount) && parsedTickCount >= 0 ? parsedTickCount : 0,
+        updatedAt: String(item.updatedAt)
+      };
+    })
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
