@@ -15,9 +15,11 @@ export function deriveSimulationStats(worldState) {
   );
 
   const divisor = organisms.length || 1;
+  const tickCount = worldState?.tick ?? 0;
 
   return {
-    tickCount: worldState?.tick ?? 0,
+    tickCount,
+    elapsedSeconds: tickCount / 30,
     population: organisms.length,
     foodCount: food.length,
     averageGeneration: organisms.length ? totals.generation / divisor : 0,
@@ -28,9 +30,10 @@ export function deriveSimulationStats(worldState) {
 export function formatSimulationStats(stats) {
   return {
     tickCount: String(stats.tickCount),
+    elapsedTime: `${stats.elapsedSeconds.toFixed(1)}s`,
     population: String(stats.population),
     foodCount: String(stats.foodCount),
-    averageGeneration: stats.averageGeneration.toFixed(2),
-    averageEnergy: stats.averageEnergy.toFixed(3)
+    averageGeneration: stats.averageGeneration.toFixed(1),
+    averageEnergy: stats.averageEnergy.toFixed(1)
   };
 }
