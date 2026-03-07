@@ -1110,7 +1110,8 @@ describe('App', () => {
       'fixture-seed'
     );
     const fixtureWorld = createInitialWorldFromConfig(fixtureConfig);
-    const target = fixtureWorld.organisms[0];
+    const firstTarget = fixtureWorld.organisms[0];
+    const secondTarget = fixtureWorld.organisms[1];
 
     const canvas = screen.getByLabelText(/simulation world/i);
     vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
@@ -1125,20 +1126,30 @@ describe('App', () => {
       toJSON: () => ({})
     });
 
-    fireEvent.click(canvas, { clientX: target.x, clientY: target.y });
+    fireEvent.click(canvas, { clientX: firstTarget.x, clientY: firstTarget.y });
 
     const inspector = screen.getByRole('region', { name: /organism inspector/i });
 
-    expect(inspector).toHaveTextContent(`ID: ${target.id}`);
-    expect(inspector).toHaveTextContent(`Generation: ${target.generation}`);
-    expect(inspector).toHaveTextContent(`Age: ${target.age}`);
-    expect(inspector).toHaveTextContent(`Size: ${target.traits.size}`);
-    expect(inspector).toHaveTextContent(`Speed: ${target.traits.speed}`);
-    expect(inspector).toHaveTextContent(`Vision range: ${target.traits.visionRange}`);
-    expect(inspector).toHaveTextContent(`Turn rate: ${target.traits.turnRate}`);
-    expect(inspector).toHaveTextContent(`Metabolism: ${target.traits.metabolism}`);
-    expect(inspector).toHaveTextContent(`Neurons: ${target.brain.neurons.length}`);
-    expect(inspector).toHaveTextContent(`Synapses: ${target.brain.synapses.length}`);
+    expect(inspector).toHaveTextContent(`ID: ${firstTarget.id}`);
+    expect(inspector).toHaveTextContent(`Generation: ${firstTarget.generation}`);
+    expect(inspector).toHaveTextContent(`Age: ${firstTarget.age}`);
+    expect(inspector).toHaveTextContent(`Size: ${firstTarget.traits.size}`);
+    expect(inspector).toHaveTextContent(`Speed: ${firstTarget.traits.speed}`);
+    expect(inspector).toHaveTextContent(`Vision range: ${firstTarget.traits.visionRange}`);
+    expect(inspector).toHaveTextContent(`Turn rate: ${firstTarget.traits.turnRate}`);
+    expect(inspector).toHaveTextContent(`Metabolism: ${firstTarget.traits.metabolism}`);
+    expect(inspector).toHaveTextContent(`Neurons: ${firstTarget.brain.neurons.length}`);
+    expect(inspector).toHaveTextContent(`Synapses: ${firstTarget.brain.synapses.length}`);
     expect(screen.getByRole('img', { name: /organism brain graph/i })).toBeInTheDocument();
+
+    fireEvent.click(canvas, { clientX: secondTarget.x, clientY: secondTarget.y });
+    expect(inspector).toHaveTextContent(`ID: ${secondTarget.id}`);
+
+    fireEvent.click(canvas, { clientX: 799, clientY: 479 });
+    expect(inspector).toHaveTextContent(/click an organism to inspect it/i);
+
+    fireEvent.click(canvas, { clientX: firstTarget.x, clientY: firstTarget.y });
+    fireEvent.click(screen.getByRole('button', { name: /close organism inspector/i }));
+    expect(inspector).toHaveTextContent(/click an organism to inspect it/i);
   });
 });
