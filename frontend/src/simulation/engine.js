@@ -15,6 +15,7 @@
  * @property {number} energy
  * @property {number} age
  * @property {number} generation
+ * @property {number} [direction] heading in radians
  * @property {{size:number,speed:number,visionRange:number,turnRate:number,metabolism:number}} traits
  */
 
@@ -78,11 +79,14 @@ function moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMul
   const movementDistance = Math.hypot(dx, dy);
   const energySpent = metabolismPerTick + movementDistance * movementCostMultiplier;
 
+  const direction = movementDistance > 0 ? Math.atan2(dy, dx) : (organism.direction ?? 0);
+
   return {
     ...organism,
     x: organism.x + dx,
     y: organism.y + dy,
     age: organism.age + 1,
+    direction,
     energy: Math.max(0, organism.energy - energySpent)
   };
 }

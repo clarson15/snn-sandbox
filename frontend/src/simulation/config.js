@@ -133,6 +133,7 @@ function createRandomizedOrganism({ id, rng, worldWidth, worldHeight }) {
     energy: 20,
     age: 0,
     generation: 1,
+    direction: Number((rng.nextFloat() * Math.PI * 2).toFixed(6)),
     traits: {
       size: Number((0.8 + rng.nextFloat() * 0.8).toFixed(3)),
       speed: Number((0.8 + rng.nextFloat() * 1.6).toFixed(3)),

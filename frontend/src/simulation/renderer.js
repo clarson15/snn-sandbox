@@ -7,15 +7,69 @@
  * @typedef {import('./engine').WorldState} WorldState
  */
 
+const ORGANISM_BASE_RADIUS = 6;
+const DIRECTION_INDICATOR_LENGTH = 4;
+const MAX_ENERGY_FOR_BAR = 40;
+const HEALTH_DECAY_TICKS = 1000;
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function deriveOrganismRadius(organism) {
+  const sizeTrait = organism?.traits?.size ?? 1;
+  return clamp(ORGANISM_BASE_RADIUS * sizeTrait, 3, 18);
+}
+
+function drawBar(ctx, x, y, width, height, ratio, fillStyle) {
+  const clampedRatio = clamp(ratio, 0, 1);
+
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(x, y, width, height);
+
+  ctx.fillStyle = fillStyle;
+  ctx.fillRect(x, y, width * clampedRatio, height);
+
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x, y, width, height);
+}
+
+function drawSelectedOrganismOverlays(ctx, organism, radius) {
+  const visionRange = organism?.traits?.visionRange ?? 0;
+
+  if (visionRange > 0) {
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(59, 130, 246, 0.6)';
+    ctx.lineWidth = 1.5;
+    ctx.arc(organism.x, organism.y, visionRange, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  const barWidth = Math.max(16, radius * 2.2);
+  const barHeight = 4;
+  const barX = organism.x - barWidth / 2;
+  const energyBarY = organism.y - radius - 12;
+  const healthBarY = energyBarY - 6;
+
+  const energyRatio = clamp((organism.energy ?? 0) / MAX_ENERGY_FOR_BAR, 0, 1);
+  const healthRatio = clamp(1 - ((organism.age ?? 0) / HEALTH_DECAY_TICKS), 0, 1);
+
+  drawBar(ctx, barX, healthBarY, barWidth, barHeight, healthRatio, '#ef4444');
+  drawBar(ctx, barX, energyBarY, barWidth, barHeight, energyRatio, '#22c55e');
+}
+
 /**
  * Draw a world snapshot onto a 2D canvas context.
  *
  * @param {CanvasRenderingContext2D} ctx
  * @param {WorldState} snapshot
  * @param {{width: number, height: number}} viewport
+ * @param {{selectedOrganismId?: string|null}} [renderOptions]
  */
-export function drawWorldSnapshot(ctx, snapshot, viewport) {
+export function drawWorldSnapshot(ctx, snapshot, viewport, renderOptions = {}) {
   const { width, height } = viewport;
+  const selectedOrganismId = renderOptions.selectedOrganismId ?? null;
 
   ctx.clearRect(0, 0, width, height);
 
@@ -30,10 +84,26 @@ export function drawWorldSnapshot(ctx, snapshot, viewport) {
     ctx.fill();
   }
 
-  ctx.fillStyle = '#38bdf8';
   for (const organism of snapshot.organisms) {
+    const radius = deriveOrganismRadius(organism);
+    const direction = Number.isFinite(organism.direction) ? organism.direction : 0;
+    const headingX = organism.x + Math.cos(direction) * (radius + DIRECTION_INDICATOR_LENGTH);
+    const headingY = organism.y + Math.sin(direction) * (radius + DIRECTION_INDICATOR_LENGTH);
+
+    ctx.fillStyle = '#38bdf8';
     ctx.beginPath();
-    ctx.arc(organism.x, organism.y, 6, 0, Math.PI * 2);
+    ctx.arc(organism.x, organism.y, radius, 0, Math.PI * 2);
     ctx.fill();
+
+    ctx.beginPath();
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1.5;
+    ctx.moveTo(organism.x, organism.y);
+    ctx.lineTo(headingX, headingY);
+    ctx.stroke();
+
+    if (selectedOrganismId && organism.id === selectedOrganismId) {
+      drawSelectedOrganismOverlays(ctx, organism, radius);
+    }
   }
 }
