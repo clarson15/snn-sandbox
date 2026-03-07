@@ -254,6 +254,16 @@ function App() {
     return displayWorld.organisms.find((organism) => organism.id === selectedOrganismId) ?? null;
   }, [displayWorld, selectedOrganismId, tickDisplay]);
 
+  const deterministicOrganismIds = useMemo(() => {
+    if (!displayWorld) {
+      return [];
+    }
+
+    return [...displayWorld.organisms]
+      .map((organism) => organism.id)
+      .sort((left, right) => left.localeCompare(right));
+  }, [displayWorld, tickDisplay]);
+
   useEffect(() => {
     if (!selectedOrganismId) {
       if (selectedOrganismUnavailable) {
@@ -275,6 +285,35 @@ function App() {
   const clearSelection = () => {
     setSelectedOrganismId(null);
     setSelectedOrganismUnavailable(false);
+  };
+
+  const selectAdjacentOrganism = (offset) => {
+    if (deterministicOrganismIds.length === 0) {
+      return;
+    }
+
+    const currentIndex = selectedOrganismId
+      ? deterministicOrganismIds.indexOf(selectedOrganismId)
+      : -1;
+
+    if (currentIndex === -1) {
+      const fallbackIndex = offset >= 0 ? 0 : deterministicOrganismIds.length - 1;
+      setSelectedOrganismId(deterministicOrganismIds[fallbackIndex]);
+      setSelectedOrganismUnavailable(false);
+      return;
+    }
+
+    const nextIndex = (currentIndex + offset + deterministicOrganismIds.length) % deterministicOrganismIds.length;
+    setSelectedOrganismId(deterministicOrganismIds[nextIndex]);
+    setSelectedOrganismUnavailable(false);
+  };
+
+  const onSelectPreviousOrganism = () => {
+    selectAdjacentOrganism(-1);
+  };
+
+  const onSelectNextOrganism = () => {
+    selectAdjacentOrganism(1);
   };
 
   const acknowledgeUnavailableSelection = () => {
@@ -1549,6 +1588,22 @@ function App() {
 
       <section className="config-panel" aria-label="organism inspector">
         <h2>Organism inspector</h2>
+        <div className="field-row">
+          <button
+            type="button"
+            onClick={onSelectPreviousOrganism}
+            disabled={deterministicOrganismIds.length === 0}
+          >
+            Previous organism
+          </button>
+          <button
+            type="button"
+            onClick={onSelectNextOrganism}
+            disabled={deterministicOrganismIds.length === 0}
+          >
+            Next organism
+          </button>
+        </div>
         {selectedOrganism ? (
           <>
             <button type="button" onClick={clearSelection} aria-label="close organism inspector">Close inspector</button>
