@@ -73,6 +73,53 @@ input {
   gap: 0.75rem;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(2 6 23 / 70%);
+}
+
+.modal-panel {
+  width: min(100%, 34rem);
+  display: grid;
+  gap: 0.8rem;
+  border: 1px solid #334155;
+  border-radius: 0.6rem;
+  padding: 1rem;
+  background: #0b1220;
+}
+
+.modal-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.shortcut-list {
+  margin: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.shortcut-list div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.shortcut-list dt {
+  font-weight: 600;
+  color: #dbeafe;
+}
+
+.shortcut-list dd {
+  margin: 0;
+}
+
 button {
   border: 1px solid #334155;
   background: #1e293b;

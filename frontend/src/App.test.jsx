@@ -1224,6 +1224,45 @@ describe('App', () => {
     vi.useRealTimers();
   });
 
+  it('shows keyboard shortcuts modal and supports close interactions without mutating simulation state', () => {
+    vi.useFakeTimers();
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
+
+    const tickNode = screen.getByText(/^tick count:/i);
+    const pausedTick = Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10);
+
+    const speed5x = screen.getByRole('button', { name: /^5x$/i });
+    fireEvent.click(speed5x);
+    fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
+    expect(speed5x).toHaveAttribute('aria-pressed', 'false');
+
+    const trigger = screen.getByRole('button', { name: /keyboard shortcuts/i });
+    fireEvent.click(trigger);
+
+    const modal = screen.getByRole('dialog', { name: /keyboard shortcuts help/i });
+    expect(modal).toBeInTheDocument();
+    expect(within(modal).getByText(/^space$/i)).toBeInTheDocument();
+    expect(within(modal).getByText(/^\.$/i)).toBeInTheDocument();
+    expect(within(modal).getByText(/^1 \/ 2 \/ 3 \/ 4$/i)).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: /keyboard shortcuts help/i })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole('button', { name: /close keyboard shortcuts/i }));
+    expect(screen.queryByRole('dialog', { name: /keyboard shortcuts help/i })).not.toBeInTheDocument();
+
+    expect(Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10)).toBe(pausedTick);
+    expect(screen.getByRole('button', { name: /^pause$/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /^5x$/i })).toHaveAttribute('aria-pressed', 'false');
+
+    vi.useRealTimers();
+  });
+
   it('keeps selection stable across controls, then shows and clears stale-selection state after death', async () => {
     vi.useFakeTimers();
     render(<App />);

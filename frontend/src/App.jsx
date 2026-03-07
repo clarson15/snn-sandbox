@@ -57,6 +57,7 @@ function App() {
   const [deleteStatus, setDeleteStatus] = useState('');
   const [copyMetadataStatus, setCopyMetadataStatus] = useState('');
   const [seedControlStatus, setSeedControlStatus] = useState('');
+  const [keyboardShortcutsModalOpen, setKeyboardShortcutsModalOpen] = useState(false);
   const [activeLoadedMetadata, setActiveLoadedMetadata] = useState(null);
   const [replayTickInput, setReplayTickInput] = useState('');
   const [replayStatus, setReplayStatus] = useState('');
@@ -101,6 +102,8 @@ function App() {
   const pausedRef = useRef(paused);
   const speedMultiplierRef = useRef(speedMultiplier);
   const canvasRef = useRef(null);
+  const keyboardShortcutsTriggerRef = useRef(null);
+  const keyboardShortcutsCloseButtonRef = useRef(null);
   const replayInteractionRegionRef = useRef(null);
   const rngRef = useRef(null);
   const stepParamsRef = useRef(null);
@@ -580,6 +583,35 @@ function App() {
     onPause();
   };
 
+  const onOpenKeyboardShortcuts = () => {
+    setKeyboardShortcutsModalOpen(true);
+  };
+
+  const onCloseKeyboardShortcuts = () => {
+    setKeyboardShortcutsModalOpen(false);
+    keyboardShortcutsTriggerRef.current?.focus();
+  };
+
+  useEffect(() => {
+    if (!keyboardShortcutsModalOpen) {
+      return;
+    }
+
+    keyboardShortcutsCloseButtonRef.current?.focus();
+
+    const onModalKeyDown = (event) => {
+      if (event.key !== 'Escape') {
+        return;
+      }
+
+      event.preventDefault();
+      onCloseKeyboardShortcuts();
+    };
+
+    window.addEventListener('keydown', onModalKeyDown);
+    return () => window.removeEventListener('keydown', onModalKeyDown);
+  }, [keyboardShortcutsModalOpen]);
+
   useEffect(() => {
     const isTypingTarget = (target) => {
       if (!(target instanceof HTMLElement)) {
@@ -595,7 +627,7 @@ function App() {
     };
 
     const onKeyDown = (event) => {
-      if (isTypingTarget(event.target) || replayContextRef.current || !worldRef.current || !rngRef.current) {
+      if (keyboardShortcutsModalOpen || isTypingTarget(event.target) || replayContextRef.current || !worldRef.current || !rngRef.current) {
         return;
       }
 
@@ -626,7 +658,7 @@ function App() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onStepTick, onTogglePausePlay, onSpeedSelect]);
+  }, [keyboardShortcutsModalOpen, onStepTick, onTogglePausePlay, onSpeedSelect]);
 
   const onCanvasClick = (event) => {
     if (!canvasRef.current || !displayWorld) {
@@ -1081,9 +1113,46 @@ function App() {
           Step
         </button>
         <button type="button" onClick={onSaveSimulation} disabled={!hasSimulation}>Save snapshot</button>
+        <button
+          type="button"
+          onClick={onOpenKeyboardShortcuts}
+          ref={keyboardShortcutsTriggerRef}
+          aria-haspopup="dialog"
+          aria-expanded={keyboardShortcutsModalOpen}
+        >
+          Keyboard Shortcuts
+        </button>
         <p className="shortcut-hints">Shortcuts: Space pause/play · . single-step (paused) · 1/2/3/4 set 1x/2x/5x/10x</p>
       </section>
 
+      {keyboardShortcutsModalOpen ? (
+        <div className="modal-backdrop" role="presentation">
+          <section className="modal-panel" role="dialog" aria-modal="true" aria-label="keyboard shortcuts help">
+            <div className="modal-header-row">
+              <h2>Keyboard Shortcuts</h2>
+              <button type="button" onClick={onCloseKeyboardShortcuts} ref={keyboardShortcutsCloseButtonRef} aria-label="Close keyboard shortcuts">
+                Close
+              </button>
+            </div>
+            <p>These shortcuts control simulation playback without changing deterministic logic.</p>
+            <dl className="shortcut-list">
+              <div>
+                <dt>Space</dt>
+                <dd>Toggle pause/play.</dd>
+              </div>
+              <div>
+                <dt>.</dt>
+                <dd>Advance one tick while paused.</dd>
+              </div>
+              <div>
+                <dt>1 / 2 / 3 / 4</dt>
+                <dd>Set speed to 1x / 2x / 5x / 10x.</dd>
+              </div>
+            </dl>
+            <p>Press Escape to close this dialog.</p>
+          </section>
+        </div>
+      ) : null}
 
       <section className="config-panel" aria-label="run metadata panel">
         <h2>Run metadata</h2>
