@@ -791,16 +791,26 @@ function App() {
     setPaused(false);
   };
 
-  const onStepTick = () => {
+  const onStepTicks = (count) => {
     if (acknowledgeUnavailableSelection()) {
       return;
     }
 
-    if (!pausedRef.current || replayContextRef.current) {
+    if (!pausedRef.current || replayContextRef.current || !Number.isInteger(count) || count <= 0) {
       return;
     }
 
-    advanceOneTick();
+    for (let i = 0; i < count; i += 1) {
+      advanceOneTick();
+    }
+  };
+
+  const onStepTick = () => {
+    onStepTicks(1);
+  };
+
+  const onStepTenTicks = () => {
+    onStepTicks(10);
   };
 
   const onTogglePausePlay = () => {
@@ -1363,8 +1373,11 @@ function App() {
             {multiplier}x
           </ControlButtonWithHint>
         ))}
-        <ControlButtonWithHint name="step" onClick={onStepTick} reason={controlDisableReasons.step}>
-          Step
+        <ControlButtonWithHint name="step-plus-1" onClick={onStepTick} reason={controlDisableReasons.step}>
+          Step +1
+        </ControlButtonWithHint>
+        <ControlButtonWithHint name="step-plus-10" onClick={onStepTenTicks} reason={controlDisableReasons.step}>
+          Step +10
         </ControlButtonWithHint>
         <ControlButtonWithHint name="save-snapshot" onClick={onSaveSimulation} reason={controlDisableReasons.saveSnapshot}>
           Save snapshot
