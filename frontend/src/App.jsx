@@ -93,6 +93,8 @@ function App() {
   const [resolvedSeed, setResolvedSeed] = useState('');
   const [selectedOrganismId, setSelectedOrganismId] = useState(null);
   const [selectedOrganismUnavailable, setSelectedOrganismUnavailable] = useState(false);
+  const [inspectorPinned, setInspectorPinned] = useState(false);
+  const [pinnedOrganismSnapshot, setPinnedOrganismSnapshot] = useState(null);
   const [errors, setErrors] = useState({});
   const [savedSimulations, setSavedSimulations] = useState([]);
   const [saveStatus, setSaveStatus] = useState('');
@@ -265,6 +267,14 @@ function App() {
   }, [displayWorld, tickDisplay]);
 
   useEffect(() => {
+    if (!selectedOrganism) {
+      return;
+    }
+
+    setPinnedOrganismSnapshot(selectedOrganism);
+  }, [selectedOrganism]);
+
+  useEffect(() => {
     if (!selectedOrganismId) {
       if (selectedOrganismUnavailable) {
         setSelectedOrganismUnavailable(false);
@@ -285,6 +295,18 @@ function App() {
   const clearSelection = () => {
     setSelectedOrganismId(null);
     setSelectedOrganismUnavailable(false);
+    setPinnedOrganismSnapshot(null);
+  };
+
+  const onToggleInspectorPin = () => {
+    setInspectorPinned((previous) => {
+      const nextPinned = !previous;
+      if (!nextPinned && selectedOrganismId && !selectedOrganism) {
+        clearSelection();
+      }
+
+      return nextPinned;
+    });
   };
 
   const selectAdjacentOrganism = (offset) => {
@@ -317,7 +339,7 @@ function App() {
   };
 
   const acknowledgeUnavailableSelection = () => {
-    if (!selectedOrganismUnavailable) {
+    if (!selectedOrganismUnavailable || inspectorPinned) {
       return false;
     }
 
@@ -325,12 +347,14 @@ function App() {
     return true;
   };
 
+  const inspectorOrganism = selectedOrganism ?? (inspectorPinned ? pinnedOrganismSnapshot : null);
+
   const brainGraphModel = useMemo(() => {
-    if (!selectedOrganism) {
+    if (!inspectorOrganism) {
       return null;
     }
-    return mapBrainToVisualizerModel(selectedOrganism.brain);
-  }, [selectedOrganism]);
+    return mapBrainToVisualizerModel(inspectorOrganism.brain);
+  }, [inspectorOrganism]);
 
   const onFieldChange = (field) => (event) => {
     const nextValue = event.target.value;
@@ -457,6 +481,9 @@ function App() {
     setSelectedMismatchEventKey(null);
     setMismatchEventFilters({ types: [], severities: [] });
     setSelectedOrganismId(null);
+    setSelectedOrganismUnavailable(false);
+    setInspectorPinned(false);
+    setPinnedOrganismSnapshot(null);
     setResolvedSeed(loadedConfig.resolvedSeed);
     setTickDisplay(loadedWorld.tick);
     setSpeedMultiplier(1);
@@ -476,6 +503,9 @@ function App() {
     lastPersistedTickRef.current = 0;
 
     setSelectedOrganismId(null);
+    setSelectedOrganismUnavailable(false);
+    setInspectorPinned(false);
+    setPinnedOrganismSnapshot(null);
     setResolvedSeed(config.resolvedSeed);
     setTickDisplay(0);
     setSpeedMultiplier(1);
@@ -814,7 +844,9 @@ function App() {
 
     const selected = pickOrganismAtPoint(displayWorld.organisms, x, y);
     if (!selected) {
-      clearSelection();
+      if (!inspectorPinned) {
+        clearSelection();
+      }
       return;
     }
 
@@ -1603,22 +1635,33 @@ function App() {
           >
             Next organism
           </button>
+          <button
+            type="button"
+            onClick={onToggleInspectorPin}
+            aria-pressed={inspectorPinned}
+            aria-label={inspectorPinned ? 'Unpin organism inspector' : 'Pin organism inspector'}
+          >
+            {inspectorPinned ? 'Unpin inspector' : 'Pin inspector'}
+          </button>
         </div>
-        {selectedOrganism ? (
+        {inspectorOrganism ? (
           <>
             <button type="button" onClick={clearSelection} aria-label="close organism inspector">Close inspector</button>
-            <p><strong>ID:</strong> {selectedOrganism.id}</p>
-            <p><strong>Generation:</strong> {selectedOrganism.generation}</p>
-            <p><strong>Age:</strong> {selectedOrganism.age}</p>
-            <p><strong>Energy:</strong> {selectedOrganism.energy.toFixed(3)}</p>
-            <p><strong>Position:</strong> ({selectedOrganism.x.toFixed(3)}, {selectedOrganism.y.toFixed(3)})</p>
+            {selectedOrganismUnavailable && inspectorPinned ? (
+              <p role="status"><strong>Organism no longer alive.</strong> Showing last known values.</p>
+            ) : null}
+            <p><strong>ID:</strong> {inspectorOrganism.id}</p>
+            <p><strong>Generation:</strong> {inspectorOrganism.generation}</p>
+            <p><strong>Age:</strong> {inspectorOrganism.age}</p>
+            <p><strong>Energy:</strong> {inspectorOrganism.energy.toFixed(3)}</p>
+            <p><strong>Position:</strong> ({inspectorOrganism.x.toFixed(3)}, {inspectorOrganism.y.toFixed(3)})</p>
             <h3>Physical traits</h3>
             <ul>
-              <li>Size: {selectedOrganism.traits.size}</li>
-              <li>Speed: {selectedOrganism.traits.speed}</li>
-              <li>Vision range: {selectedOrganism.traits.visionRange}</li>
-              <li>Turn rate: {selectedOrganism.traits.turnRate}</li>
-              <li>Metabolism: {selectedOrganism.traits.metabolism}</li>
+              <li>Size: {inspectorOrganism.traits.size}</li>
+              <li>Speed: {inspectorOrganism.traits.speed}</li>
+              <li>Vision range: {inspectorOrganism.traits.visionRange}</li>
+              <li>Turn rate: {inspectorOrganism.traits.turnRate}</li>
+              <li>Metabolism: {inspectorOrganism.traits.metabolism}</li>
             </ul>
 
             <h3>Brain visualizer (read-only)</h3>
