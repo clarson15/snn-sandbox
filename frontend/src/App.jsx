@@ -822,6 +822,33 @@ function App() {
     onPause();
   };
 
+  const onAdjustSpeedByStep = (delta) => {
+    if (acknowledgeUnavailableSelection() || replayContextRef.current || !Number.isInteger(delta) || delta === 0) {
+      return;
+    }
+
+    const speedState = pausedRef.current ? 0 : speedMultiplierRef.current || 1;
+    const speedStates = [0, ...SPEED_OPTIONS];
+    const currentIndex = speedStates.indexOf(speedState);
+    if (currentIndex < 0) {
+      return;
+    }
+
+    const nextIndex = Math.min(speedStates.length - 1, Math.max(0, currentIndex + delta));
+    const nextState = speedStates[nextIndex];
+
+    if (nextState === speedState) {
+      return;
+    }
+
+    if (nextState === 0) {
+      onPause();
+      return;
+    }
+
+    onSpeedSelect(nextState);
+  };
+
   const onOpenKeyboardShortcuts = () => {
     setKeyboardShortcutsModalOpen(true);
   };
@@ -900,6 +927,18 @@ function App() {
         return;
       }
 
+      if (event.key === '[') {
+        event.preventDefault();
+        onAdjustSpeedByStep(-1);
+        return;
+      }
+
+      if (event.key === ']') {
+        event.preventDefault();
+        onAdjustSpeedByStep(1);
+        return;
+      }
+
       const speedByKey = {
         '1': 1,
         '2': 2,
@@ -917,6 +956,7 @@ function App() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [
     keyboardShortcutsModalOpen,
+    onAdjustSpeedByStep,
     onSelectNextOrganism,
     onSelectPreviousOrganism,
     onStepTick,
@@ -1417,7 +1457,7 @@ function App() {
         >
           Keyboard Shortcuts
         </button>
-        <p className="shortcut-hints">Shortcuts: Space pause/play · . single-step (paused) · 1/2/3/4 set 1x/2x/5x/10x</p>
+        <p className="shortcut-hints">Shortcuts: Space pause/play · [ / ] step speed down/up (Pause/1x/2x/5x/10x) · . single-step (paused)</p>
       </section>
 
       {keyboardShortcutsModalOpen ? (
@@ -1440,8 +1480,12 @@ function App() {
                 <dd>Advance one tick while paused.</dd>
               </div>
               <div>
+                <dt>[ / ]</dt>
+                <dd>Step speed down / up through Pause, 1x, 2x, 5x, 10x.</dd>
+              </div>
+              <div>
                 <dt>1 / 2 / 3 / 4</dt>
-                <dd>Set speed to 1x / 2x / 5x / 10x.</dd>
+                <dd>Set speed to 1x / 2x / 5x / 10x directly.</dd>
               </div>
               <div>
                 <dt>← / →</dt>

@@ -1221,13 +1221,25 @@ describe('App', () => {
     const tickNode = screen.getByText(/^tick count:/i);
     const readTick = () => Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10);
 
-    expect(screen.getByText(/shortcuts: space pause\/play/i)).toBeInTheDocument();
+    expect(screen.getByText(/shortcuts: space pause\/play · \[ \/ \] step speed down\/up/i)).toBeInTheDocument();
     expect(screen.getByText(/inspector shortcuts: ←\/→ previous\/next organism · p pin\/unpin inspector/i)).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: '3', code: 'Digit3' });
     expect(screen.getByRole('button', { name: /^5x$/i })).toHaveAttribute('aria-pressed', 'true');
 
+    fireEvent.keyDown(window, { key: '[', code: 'BracketLeft' });
+    expect(screen.getByRole('button', { name: /^2x$/i })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
+    expect(screen.getByRole('button', { name: /^5x$/i })).toHaveAttribute('aria-pressed', 'true');
+
     fireEvent.keyDown(window, { key: ' ', code: 'Space' });
+    expect(screen.getByRole('button', { name: /^pause$/i })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
+    expect(screen.getByRole('button', { name: /^1x$/i })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.keyDown(window, { key: '[', code: 'BracketLeft' });
     expect(screen.getByRole('button', { name: /^pause$/i })).toHaveAttribute('aria-pressed', 'true');
 
     const pausedTick = readTick();
@@ -1259,7 +1271,7 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: /pin organism inspector/i })).toHaveAttribute('aria-pressed', 'false');
 
     fireEvent.keyDown(window, { key: ' ', code: 'Space' });
-    expect(screen.getByRole('button', { name: /^5x$/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /^1x$/i })).toHaveAttribute('aria-pressed', 'true');
 
     fireEvent.keyDown(window, { key: ' ', code: 'Space' });
     const seedInput = screen.getByLabelText(/seed/i);
@@ -1269,6 +1281,8 @@ describe('App', () => {
     const focusedInspectorId = readInspectorId();
     fireEvent.keyDown(seedInput, { key: '.', code: 'Period' });
     fireEvent.keyDown(seedInput, { key: '4', code: 'Digit4' });
+    fireEvent.keyDown(seedInput, { key: '[', code: 'BracketLeft' });
+    fireEvent.keyDown(seedInput, { key: ']', code: 'BracketRight' });
     fireEvent.keyDown(seedInput, { key: 'ArrowRight', code: 'ArrowRight' });
     fireEvent.keyDown(seedInput, { key: 'p', code: 'KeyP' });
 
@@ -1302,6 +1316,7 @@ describe('App', () => {
     expect(modal).toBeInTheDocument();
     expect(within(modal).getByText(/^space$/i)).toBeInTheDocument();
     expect(within(modal).getByText(/^\.$/i)).toBeInTheDocument();
+    expect(within(modal).getByText(/^\[ \/ \]$/i)).toBeInTheDocument();
     expect(within(modal).getByText(/^1 \/ 2 \/ 3 \/ 4$/i)).toBeInTheDocument();
     expect(within(modal).getByText(/^← \/ →$/i)).toBeInTheDocument();
     expect(within(modal).getByText(/^p$/i)).toBeInTheDocument();
