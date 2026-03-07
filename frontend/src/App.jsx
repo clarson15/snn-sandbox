@@ -49,6 +49,7 @@ function App() {
   const [tickDisplay, setTickDisplay] = useState(0);
   const [resolvedSeed, setResolvedSeed] = useState('');
   const [selectedOrganismId, setSelectedOrganismId] = useState(null);
+  const [selectedOrganismUnavailable, setSelectedOrganismUnavailable] = useState(false);
   const [errors, setErrors] = useState({});
   const [savedSimulations, setSavedSimulations] = useState([]);
   const [saveStatus, setSaveStatus] = useState('');
@@ -184,10 +185,36 @@ function App() {
   }, [displayWorld, selectedOrganismId, tickDisplay]);
 
   useEffect(() => {
-    if (selectedOrganismId && !selectedOrganism) {
-      setSelectedOrganismId(null);
+    if (!selectedOrganismId) {
+      if (selectedOrganismUnavailable) {
+        setSelectedOrganismUnavailable(false);
+      }
+      return;
     }
-  }, [selectedOrganismId, selectedOrganism]);
+
+    if (!selectedOrganism) {
+      setSelectedOrganismUnavailable(true);
+      return;
+    }
+
+    if (selectedOrganismUnavailable) {
+      setSelectedOrganismUnavailable(false);
+    }
+  }, [selectedOrganismId, selectedOrganism, selectedOrganismUnavailable]);
+
+  const clearSelection = () => {
+    setSelectedOrganismId(null);
+    setSelectedOrganismUnavailable(false);
+  };
+
+  const acknowledgeUnavailableSelection = () => {
+    if (!selectedOrganismUnavailable) {
+      return false;
+    }
+
+    clearSelection();
+    return true;
+  };
 
   const brainGraphModel = useMemo(() => {
     if (!selectedOrganism) {
@@ -440,15 +467,27 @@ function App() {
   }, [replaySummaryStrip.firstMismatchTick, replaySummaryStrip.mismatchEvents, replayWorldState?.tick, replayActive]);
 
   const onPause = () => {
+    if (acknowledgeUnavailableSelection()) {
+      return;
+    }
+
     setPaused(true);
   };
 
   const onSpeedSelect = (multiplier) => {
+    if (acknowledgeUnavailableSelection()) {
+      return;
+    }
+
     setSpeedMultiplier(multiplier);
     setPaused(false);
   };
 
   const onStepTick = () => {
+    if (acknowledgeUnavailableSelection()) {
+      return;
+    }
+
     if (!pausedRef.current || replayContextRef.current) {
       return;
     }
@@ -518,6 +557,10 @@ function App() {
       return;
     }
 
+    if (acknowledgeUnavailableSelection()) {
+      return;
+    }
+
     const rect = canvasRef.current.getBoundingClientRect();
     const scaleX = canvasRef.current.width / rect.width;
     const scaleY = canvasRef.current.height / rect.height;
@@ -525,7 +568,13 @@ function App() {
     const y = (event.clientY - rect.top) * scaleY;
 
     const selected = pickOrganismAtPoint(displayWorld.organisms, x, y);
-    setSelectedOrganismId(selected?.id ?? null);
+    if (!selected) {
+      clearSelection();
+      return;
+    }
+
+    setSelectedOrganismId(selected.id);
+    setSelectedOrganismUnavailable(false);
   };
 
   const onSaveSimulation = async () => {
@@ -1228,7 +1277,7 @@ function App() {
         <h2>Organism inspector</h2>
         {selectedOrganism ? (
           <>
-            <button type="button" onClick={() => setSelectedOrganismId(null)} aria-label="close organism inspector">Close inspector</button>
+            <button type="button" onClick={clearSelection} aria-label="close organism inspector">Close inspector</button>
             <p><strong>ID:</strong> {selectedOrganism.id}</p>
             <p><strong>Generation:</strong> {selectedOrganism.generation}</p>
             <p><strong>Age:</strong> {selectedOrganism.age}</p>
@@ -1285,6 +1334,12 @@ function App() {
             ) : (
               <p>Brain data unavailable for this organism.</p>
             )}
+          </>
+        ) : selectedOrganismUnavailable ? (
+          <>
+            <button type="button" onClick={clearSelection} aria-label="close organism inspector">Close inspector</button>
+            <p>Selected organism is no longer available.</p>
+            <p>Inspector will close on your next interaction.</p>
           </>
         ) : (
           <p>Click an organism to inspect it.</p>
