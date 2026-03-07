@@ -1148,6 +1148,7 @@ function App() {
         <h2>Organism inspector</h2>
         {selectedOrganism ? (
           <>
+            <button type="button" onClick={() => setSelectedOrganismId(null)} aria-label="close organism inspector">Close inspector</button>
             <p><strong>ID:</strong> {selectedOrganism.id}</p>
             <p><strong>Generation:</strong> {selectedOrganism.generation}</p>
             <p><strong>Age:</strong> {selectedOrganism.age}</p>
