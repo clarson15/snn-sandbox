@@ -1169,6 +1169,10 @@ function App() {
                 <p>
                   <strong>Neurons:</strong> {brainGraphModel.nodes.length} | <strong>Synapses:</strong> {brainGraphModel.edges.length}
                 </p>
+                <p aria-label="brain graph weight legend">
+                  Synapse weights: <span style={{ color: '#22c55e' }}>green = excitatory (+)</span>,{' '}
+                  <span style={{ color: '#ef4444' }}>red = inhibitory (-)</span>, thicker edge = stronger magnitude.
+                </p>
                 <svg viewBox="0 0 640 300" role="img" aria-label="organism brain graph" className="brain-graph">
                   {brainGraphModel.edges.map((edge) => {
                     const source = brainGraphModel.nodes.find((node) => node.id === edge.sourceId);
