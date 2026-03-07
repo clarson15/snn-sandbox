@@ -28,6 +28,11 @@ import {
 import { deriveReplaySnapshotBundle, downloadReplaySnapshotBundle } from './simulation/replaySnapshotExport';
 import { formatReplayMismatchReport } from './simulation/replayMismatchReport';
 import {
+  loadReplayComparisonPresets,
+  saveReplayComparisonPresets,
+  validateReplayComparisonPreset
+} from './simulation/replayComparisonPresets';
+import {
   deleteSimulationSnapshot,
   getSimulationSnapshot,
   listSimulationSnapshots,
@@ -55,6 +60,9 @@ function App() {
   const [replayStatus, setReplayStatus] = useState('');
   const [replayWorldState, setReplayWorldState] = useState(null);
   const [replaySnapshotMetadata, setReplaySnapshotMetadata] = useState(null);
+  const [replayPresetName, setReplayPresetName] = useState('');
+  const [replayPresetStatus, setReplayPresetStatus] = useState('');
+  const [replayComparisonPresets, setReplayComparisonPresets] = useState(() => loadReplayComparisonPresets());
   const [selectedMismatchEventKey, setSelectedMismatchEventKey] = useState(null);
   const [mismatchEventFilters, setMismatchEventFilters] = useState({ types: [], severities: [] });
   const [activeMismatchAnnouncement, setActiveMismatchAnnouncement] = useState('');
@@ -700,6 +708,55 @@ function App() {
     setReplayStatus('Replay snapshot exported.');
   };
 
+  const onSaveReplayPreset = () => {
+    const presetPayload = validateReplayComparisonPreset({
+      name: replayPresetName,
+      seed: replayContextRef.current?.resolvedSeed,
+      parameters: activeConfigRef.current
+    });
+
+    if (!presetPayload) {
+      setReplayPresetStatus('Unable to save preset. Ensure replay context and deterministic parameters are valid.');
+      return;
+    }
+
+    const deduplicated = replayComparisonPresets.filter((preset) => preset.name.toLowerCase() !== presetPayload.name.toLowerCase());
+    const nextPresets = [...deduplicated, presetPayload];
+    saveReplayComparisonPresets(nextPresets);
+    setReplayComparisonPresets(nextPresets);
+    setReplayPresetName('');
+    setReplayPresetStatus('Replay comparison preset saved.');
+  };
+
+  const onApplyReplayPreset = (preset) => {
+    const validatedPreset = validateReplayComparisonPreset(preset);
+    if (!validatedPreset) {
+      setReplayPresetStatus('Preset payload is invalid and cannot be applied.');
+      return;
+    }
+
+    setFormState((previous) => ({
+      ...previous,
+      seed: validatedPreset.seed,
+      worldWidth: String(validatedPreset.parameters.worldWidth),
+      worldHeight: String(validatedPreset.parameters.worldHeight),
+      initialPopulation: String(validatedPreset.parameters.initialPopulation),
+      initialFoodCount: String(validatedPreset.parameters.initialFoodCount),
+      foodSpawnChance: String(validatedPreset.parameters.foodSpawnChance),
+      foodEnergyValue: String(validatedPreset.parameters.foodEnergyValue),
+      maxFood: String(validatedPreset.parameters.maxFood)
+    }));
+
+    setReplayPresetStatus(`Applied preset: ${validatedPreset.name}.`);
+  };
+
+  const onDeleteReplayPreset = (presetName) => {
+    const nextPresets = replayComparisonPresets.filter((preset) => preset.name !== presetName);
+    saveReplayComparisonPresets(nextPresets);
+    setReplayComparisonPresets(nextPresets);
+    setReplayPresetStatus(`Deleted preset: ${presetName}.`);
+  };
+
   const formatTimestamp = (value) => {
     const parsed = new Date(value);
     if (Number.isNaN(parsed.valueOf())) {
@@ -937,6 +994,35 @@ function App() {
               ) : null}
             </section>
           ) : null}
+          <section className="config-panel" aria-label="replay comparison presets">
+            <h2>Replay comparison presets</h2>
+            <p>Save deterministic seed + parameter payloads for quick replay comparison reruns.</p>
+            <div className="field-row">
+              <label>
+                Preset name
+                <input
+                  value={replayPresetName}
+                  onChange={(event) => setReplayPresetName(event.target.value)}
+                  placeholder="e.g. mismatch regression seed"
+                />
+              </label>
+              <button type="button" onClick={onSaveReplayPreset}>Save preset</button>
+            </div>
+            {replayComparisonPresets.length > 0 ? (
+              <ul>
+                {replayComparisonPresets.map((preset) => (
+                  <li key={preset.name}>
+                    {preset.name} — seed {preset.seed}
+                    <button type="button" onClick={() => onApplyReplayPreset(preset)}>Apply</button>{' '}
+                    <button type="button" onClick={() => onDeleteReplayPreset(preset.name)}>Delete</button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p>No replay comparison presets saved yet.</p>
+            )}
+            {replayPresetStatus ? <p>{replayPresetStatus}</p> : null}
+          </section>
           <section className="config-panel" aria-label="replay timeline controls">
             <h2>Replay timeline</h2>
             <p>Loaded tick floor: {replayContextRef.current?.baseWorldState?.tick ?? 0}</p>
