@@ -76,7 +76,7 @@ function serializePresets(presets) {
 }
 
 export function loadReplayComparisonPresets(storage = globalThis.localStorage) {
-  if (!storage) {
+  if (!storage || typeof storage.getItem !== 'function') {
     return [];
   }
 
@@ -100,7 +100,7 @@ export function loadReplayComparisonPresets(storage = globalThis.localStorage) {
 }
 
 export function saveReplayComparisonPresets(presets, storage = globalThis.localStorage) {
-  if (!storage) {
+  if (!storage || typeof storage.setItem !== 'function') {
     return;
   }
 
