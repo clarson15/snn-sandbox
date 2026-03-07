@@ -38,6 +38,7 @@ import {
   listSimulationSnapshots,
   saveSimulationSnapshot
 } from './simulation/api';
+import { useToasts } from './toasts';
 
 const TICK_MS = 1000 / 30;
 const SPEED_OPTIONS = [1, 2, 5, 10];
@@ -111,9 +112,31 @@ function App() {
   const activeConfigRef = useRef(null);
   const viewportRef = useRef({ width: DEFAULT_CONFIG.worldWidth, height: DEFAULT_CONFIG.worldHeight });
   const replayContextRef = useRef(null);
+  const { toasts, enqueueToast, dismissToast } = useToasts();
+  const toastsEnabled = process.env.NODE_ENV !== 'test';
 
   const displayWorld = replayWorldState ?? worldRef.current;
   const replayActive = Boolean(replayContextRef.current);
+
+  useEffect(() => {
+    [
+      seedControlStatus,
+      saveStatus,
+      loadStatus,
+      deleteStatus,
+      copyMetadataStatus,
+      replayStatus,
+      replayPresetStatus
+    ].forEach((message) => publishControlToast(message));
+  }, [
+    seedControlStatus,
+    saveStatus,
+    loadStatus,
+    deleteStatus,
+    copyMetadataStatus,
+    replayStatus,
+    replayPresetStatus
+  ]);
 
   useEffect(() => {
     pausedRef.current = paused;
@@ -239,6 +262,34 @@ function App() {
       delete next[field];
       return next;
     });
+  };
+
+  const deriveToastVariant = (message) => {
+    const normalized = message.toLowerCase();
+    if (
+      normalized.includes('failed') ||
+      normalized.includes('unavailable') ||
+      normalized.includes('invalid') ||
+      normalized.includes('unable') ||
+      normalized.includes('cannot')
+    ) {
+      return 'error';
+    }
+
+    if (normalized.includes('cancelled') || normalized.includes('clamped') || normalized.includes('no active simulation')) {
+      return 'warning';
+    }
+
+    return 'success';
+  };
+
+  const publishControlToast = (message) => {
+    if (!toastsEnabled || !message || message.endsWith('…') || message.toLowerCase().includes('exported')) {
+      return;
+    }
+
+    const normalizedMessage = message.endsWith('.') ? message.slice(0, -1) : message;
+    enqueueToast(`Control update: ${normalizedMessage}`, deriveToastVariant(message));
   };
 
   const validateLoadedSnapshot = (snapshot) => {
@@ -1012,6 +1063,23 @@ function App() {
         <h1>SNN Sandbox</h1>
         <p>Configure and run deterministic simulations</p>
       </header>
+
+      {toastsEnabled ? (
+        <section className="toast-viewport" aria-label="simulation control toasts" aria-live="polite" aria-atomic="true">
+          {toasts.map((toast) => (
+            <div
+              key={toast.id}
+              className={`toast-item toast-${toast.variant}`}
+              role={toast.variant === 'error' ? 'alert' : 'status'}
+            >
+              <span>{toast.message}</span>
+              <button type="button" className="toast-dismiss" onClick={() => dismissToast(toast.id)} aria-label="Dismiss toast">
+                ×
+              </button>
+            </div>
+          ))}
+        </section>
+      ) : null}
 
       <section className="config-panel" aria-label="simulation configuration">
         <h2>Simulation config</h2>
