@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { deleteSimulationSnapshot, getSimulationSnapshot, mapSavedSimulationList } from './api';
+import { deleteSimulationSnapshot, getSimulationSnapshot, mapSavedSimulationList, saveSimulationSnapshot } from './api';
 
 describe('mapSavedSimulationList', () => {
   it('maps API fields and orders by updatedAt descending', () => {
@@ -49,6 +49,36 @@ describe('getSimulationSnapshot', () => {
 
     expect(fetchMock).toHaveBeenCalledWith('/api/simulations/snapshots/sim-1', expect.any(Object));
     expect(result).toEqual({ id: 'sim-1' });
+  });
+});
+
+describe('saveSimulationSnapshot', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('surfaces backend error details for actionable retries', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: 'Snapshot payload missing world_state.' })
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(saveSimulationSnapshot({})).rejects.toThrow('Snapshot payload missing world_state.');
+  });
+
+  it('falls back to status code when backend error payload is unavailable', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: false,
+      status: 500,
+      json: async () => {
+        throw new Error('invalid json');
+      }
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(saveSimulationSnapshot({})).rejects.toThrow('Failed to save snapshot (500)');
   });
 });
 

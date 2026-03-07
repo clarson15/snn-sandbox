@@ -39,6 +39,20 @@ export async function getSimulationSnapshot(snapshotId) {
   return response.json();
 }
 
+async function getResponseErrorMessage(response, fallbackMessage) {
+  try {
+    const payload = await response.json();
+    const errorMessage = typeof payload?.error === 'string' ? payload.error.trim() : '';
+    if (errorMessage) {
+      return errorMessage;
+    }
+  } catch {
+    // Ignore non-JSON responses and use fallback.
+  }
+
+  return `${fallbackMessage} (${response.status})`;
+}
+
 export async function saveSimulationSnapshot(snapshot) {
   const response = await fetch('/api/simulations/snapshots', {
     method: 'POST',
@@ -50,7 +64,8 @@ export async function saveSimulationSnapshot(snapshot) {
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to save snapshot (${response.status})`);
+    const errorMessage = await getResponseErrorMessage(response, 'Failed to save snapshot');
+    throw new Error(errorMessage);
   }
 
   return response.json();

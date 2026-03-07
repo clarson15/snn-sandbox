@@ -98,6 +98,7 @@ function App() {
   const [errors, setErrors] = useState({});
   const [savedSimulations, setSavedSimulations] = useState([]);
   const [saveStatus, setSaveStatus] = useState('');
+  const [saveErrorDetail, setSaveErrorDetail] = useState('');
   const [loadStatus, setLoadStatus] = useState('');
   const [deleteStatus, setDeleteStatus] = useState('');
   const [copyMetadataStatus, setCopyMetadataStatus] = useState('');
@@ -997,6 +998,7 @@ function App() {
       return;
     }
 
+    setSaveErrorDetail('');
     setSaveStatus('Saving…');
 
     try {
@@ -1013,8 +1015,10 @@ function App() {
       const items = await listSimulationSnapshots();
       setSavedSimulations(items);
       setSaveStatus('Saved.');
-    } catch {
-      setSaveStatus('Failed to save.');
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'Unknown save error.';
+      setSaveErrorDetail(detail);
+      setSaveStatus('Failed to save snapshot. Retry when ready.');
     }
   };
 
@@ -1722,6 +1726,11 @@ function App() {
       ) : null}
 
       {saveStatus ? <p>{saveStatus}</p> : null}
+      {saveErrorDetail ? (
+        <p role="alert">
+          Save error: {saveErrorDetail} <button type="button" onClick={onSaveSimulation}>Retry save</button>
+        </p>
+      ) : null}
       {loadStatus ? <p>{loadStatus}</p> : null}
       {deleteStatus ? <p>{deleteStatus}</p> : null}
       {copyMetadataStatus ? <p>{copyMetadataStatus}</p> : null}
