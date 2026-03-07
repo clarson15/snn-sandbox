@@ -383,7 +383,7 @@ describe('App', () => {
       expect(screen.getByText(/no replay comparison presets saved yet\./i)).toBeInTheDocument();
     });
 
-    expect(localStorage.getItem('snnSandbox.replayComparisonPresets.v1')).toBe('[]');
+    expect(window.localStorage.getItem('snnSandbox.replayComparisonPresets.v1')).toBe('[]');
   });
 
   it('shows first-mismatch jump control when mismatch location is available and jumps deterministically', async () => {
