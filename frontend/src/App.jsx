@@ -882,6 +882,24 @@ function App() {
         return;
       }
 
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        onSelectPreviousOrganism();
+        return;
+      }
+
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        onSelectNextOrganism();
+        return;
+      }
+
+      if (event.key.toLowerCase() === 'p') {
+        event.preventDefault();
+        onToggleInspectorPin();
+        return;
+      }
+
       const speedByKey = {
         '1': 1,
         '2': 2,
@@ -897,7 +915,15 @@ function App() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [keyboardShortcutsModalOpen, onStepTick, onTogglePausePlay, onSpeedSelect]);
+  }, [
+    keyboardShortcutsModalOpen,
+    onSelectNextOrganism,
+    onSelectPreviousOrganism,
+    onStepTick,
+    onToggleInspectorPin,
+    onTogglePausePlay,
+    onSpeedSelect
+  ]);
 
   const onCanvasClick = (event) => {
     if (!canvasRef.current || !displayWorld) {
@@ -1403,7 +1429,7 @@ function App() {
                 Close
               </button>
             </div>
-            <p>These shortcuts control simulation playback without changing deterministic logic.</p>
+            <p>These shortcuts control simulation playback and inspector actions without changing deterministic logic.</p>
             <dl className="shortcut-list">
               <div>
                 <dt>Space</dt>
@@ -1416,6 +1442,14 @@ function App() {
               <div>
                 <dt>1 / 2 / 3 / 4</dt>
                 <dd>Set speed to 1x / 2x / 5x / 10x.</dd>
+              </div>
+              <div>
+                <dt>← / →</dt>
+                <dd>Select previous / next organism in deterministic order.</dd>
+              </div>
+              <div>
+                <dt>P</dt>
+                <dd>Pin or unpin the organism inspector.</dd>
               </div>
             </dl>
             <p>Press Escape to close this dialog.</p>
@@ -1719,6 +1753,7 @@ function App() {
             {inspectorPinned ? 'Unpin inspector' : 'Pin inspector'}
           </button>
         </div>
+        <p className="shortcut-hints">Inspector shortcuts: ←/→ previous/next organism · P pin/unpin inspector</p>
         {inspectorOrganism ? (
           <>
             <button type="button" onClick={clearSelection} aria-label="close organism inspector">Close inspector</button>

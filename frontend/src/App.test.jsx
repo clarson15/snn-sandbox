@@ -1212,7 +1212,7 @@ describe('App', () => {
     expect(enabledRestartButton.closest('.control-with-hint')).not.toHaveClass('is-disabled');
   });
 
-  it('supports keyboard shortcuts for pause/play, step, speed presets, and ignores keys while typing', () => {
+  it('supports playback + inspector keyboard shortcuts and ignores keys while typing', () => {
     vi.useFakeTimers();
     render(<App />);
 
@@ -1222,6 +1222,7 @@ describe('App', () => {
     const readTick = () => Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10);
 
     expect(screen.getByText(/shortcuts: space pause\/play/i)).toBeInTheDocument();
+    expect(screen.getByText(/inspector shortcuts: ←\/→ previous\/next organism · p pin\/unpin inspector/i)).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: '3', code: 'Digit3' });
     expect(screen.getByRole('button', { name: /^5x$/i })).toHaveAttribute('aria-pressed', 'true');
@@ -1233,6 +1234,30 @@ describe('App', () => {
     fireEvent.keyDown(window, { key: '.', code: 'Period' });
     expect(readTick()).toBe(pausedTick + 1);
 
+    const inspectorPanel = screen.getByRole('heading', { name: /organism inspector/i }).closest('section');
+    expect(inspectorPanel).toBeTruthy();
+
+    const readInspectorId = () => inspectorPanel?.textContent?.match(/ID:\s*(org-\d+)/i)?.[1];
+
+    fireEvent.keyDown(window, { key: 'ArrowRight', code: 'ArrowRight' });
+    const firstSelectedId = readInspectorId();
+    expect(firstSelectedId).toBeTruthy();
+
+    fireEvent.keyDown(window, { key: 'ArrowRight', code: 'ArrowRight' });
+    const secondSelectedId = readInspectorId();
+    expect(secondSelectedId).toBeTruthy();
+    expect(secondSelectedId).not.toBe(firstSelectedId);
+
+    fireEvent.keyDown(window, { key: 'ArrowLeft', code: 'ArrowLeft' });
+    const restoredSelectedId = readInspectorId();
+    expect(restoredSelectedId).toBe(firstSelectedId);
+
+    fireEvent.keyDown(window, { key: 'p', code: 'KeyP' });
+    expect(screen.getByRole('button', { name: /unpin organism inspector/i })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.keyDown(window, { key: 'P', code: 'KeyP' });
+    expect(screen.getByRole('button', { name: /pin organism inspector/i })).toHaveAttribute('aria-pressed', 'false');
+
     fireEvent.keyDown(window, { key: ' ', code: 'Space' });
     expect(screen.getByRole('button', { name: /^5x$/i })).toHaveAttribute('aria-pressed', 'true');
 
@@ -1241,11 +1266,16 @@ describe('App', () => {
     seedInput.focus();
 
     const focusedPauseTick = readTick();
+    const focusedInspectorId = readInspectorId();
     fireEvent.keyDown(seedInput, { key: '.', code: 'Period' });
     fireEvent.keyDown(seedInput, { key: '4', code: 'Digit4' });
+    fireEvent.keyDown(seedInput, { key: 'ArrowRight', code: 'ArrowRight' });
+    fireEvent.keyDown(seedInput, { key: 'p', code: 'KeyP' });
 
     expect(readTick()).toBe(focusedPauseTick);
     expect(screen.getByRole('button', { name: /^10x$/i })).toHaveAttribute('aria-pressed', 'false');
+    expect(inspectorPanel.textContent.match(/ID:\s*(org-\d+)/i)?.[1]).toBe(focusedInspectorId);
+    expect(screen.getByRole('button', { name: /pin organism inspector/i })).toHaveAttribute('aria-pressed', 'false');
 
     vi.useRealTimers();
   });
@@ -1273,6 +1303,8 @@ describe('App', () => {
     expect(within(modal).getByText(/^space$/i)).toBeInTheDocument();
     expect(within(modal).getByText(/^\.$/i)).toBeInTheDocument();
     expect(within(modal).getByText(/^1 \/ 2 \/ 3 \/ 4$/i)).toBeInTheDocument();
+    expect(within(modal).getByText(/^← \/ →$/i)).toBeInTheDocument();
+    expect(within(modal).getByText(/^p$/i)).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
     expect(screen.queryByRole('dialog', { name: /keyboard shortcuts help/i })).not.toBeInTheDocument();
