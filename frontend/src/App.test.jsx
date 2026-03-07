@@ -1467,6 +1467,68 @@ describe('App', () => {
     vi.useRealTimers();
   });
 
+  it('renders selected vs pinned side-by-side comparison for key inspector fields', () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/seed/i), { target: { value: 'comparison-seed' } });
+    fireEvent.change(screen.getByLabelText(/initial population/i), { target: { value: '4' } });
+    fireEvent.change(screen.getByLabelText(/minimum population/i), { target: { value: '4' } });
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
+
+    const nextButton = screen.getByRole('button', { name: /next organism/i });
+    fireEvent.click(nextButton);
+
+    const pinButton = screen.getByRole('button', { name: /pin organism inspector/i });
+    fireEvent.click(pinButton);
+
+    fireEvent.click(nextButton);
+
+    expect(screen.getByRole('heading', { name: /selected vs pinned comparison/i })).toBeInTheDocument();
+    const comparisonTable = screen.getByRole('table');
+    expect(comparisonTable).toBeInTheDocument();
+    expect(within(comparisonTable).getByText(/^generation$/i)).toBeInTheDocument();
+    expect(within(comparisonTable).getByText(/^vision range$/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/vs pinned/i).length).toBeGreaterThan(0);
+  });
+
+  it('shows comparison unavailable fallback when selected organism dies while pinned comparison is active', () => {
+    vi.useFakeTimers();
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'comparison-fallback-seed' } });
+    fireEvent.change(screen.getByLabelText(/^initial population$/i), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText(/^minimum population$/i), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText(/^initial food count$/i), { target: { value: '0' } });
+    fireEvent.change(screen.getByLabelText(/food spawn chance/i), { target: { value: '0' } });
+    fireEvent.change(screen.getByLabelText(/^max food$/i), { target: { value: '1' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
+
+    const nextButton = screen.getByRole('button', { name: /next organism/i });
+    fireEvent.click(nextButton);
+    fireEvent.click(screen.getByRole('button', { name: /pin organism inspector/i }));
+    fireEvent.click(nextButton);
+
+    fireEvent.click(screen.getByRole('button', { name: /^1x$/i }));
+
+    for (let i = 0; i < 15; i += 1) {
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      if (screen.queryByText(/comparison unavailable: selected organism is no longer alive/i)) {
+        break;
+      }
+    }
+
+    expect(screen.getByText(/comparison unavailable: selected organism is no longer alive/i)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /selected vs pinned comparison/i })).not.toBeInTheDocument();
+
+    vi.useRealTimers();
+  });
+
   it('updates stats while running and keeps tick-derived metrics stable while paused', () => {
     vi.useFakeTimers();
     render(<App />);

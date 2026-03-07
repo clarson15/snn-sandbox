@@ -267,12 +267,12 @@ function App() {
   }, [displayWorld, tickDisplay]);
 
   useEffect(() => {
-    if (!selectedOrganism) {
+    if (!selectedOrganism || inspectorPinned) {
       return;
     }
 
     setPinnedOrganismSnapshot(selectedOrganism);
-  }, [selectedOrganism]);
+  }, [selectedOrganism, inspectorPinned]);
 
   useEffect(() => {
     if (!selectedOrganismId) {
@@ -301,6 +301,11 @@ function App() {
   const onToggleInspectorPin = () => {
     setInspectorPinned((previous) => {
       const nextPinned = !previous;
+
+      if (nextPinned && selectedOrganism) {
+        setPinnedOrganismSnapshot(selectedOrganism);
+      }
+
       if (!nextPinned && selectedOrganismId && !selectedOrganism) {
         clearSelection();
       }
@@ -355,6 +360,63 @@ function App() {
     }
     return mapBrainToVisualizerModel(inspectorOrganism.brain);
   }, [inspectorOrganism]);
+
+  const pinnedComparisonCandidate = inspectorPinned ? pinnedOrganismSnapshot : null;
+  const hasComparisonPair = Boolean(
+    selectedOrganism &&
+    pinnedComparisonCandidate &&
+    selectedOrganism.id !== pinnedComparisonCandidate.id
+  );
+  const comparisonUnavailableReason = hasComparisonPair
+    ? null
+    : selectedOrganismUnavailable && pinnedComparisonCandidate
+      ? 'Comparison unavailable: selected organism is no longer alive. Showing pinned snapshot only.'
+      : null;
+
+  const comparisonRows = useMemo(() => {
+    if (!hasComparisonPair) {
+      return [];
+    }
+
+    const selected = selectedOrganism;
+    const pinned = pinnedComparisonCandidate;
+    const fields = [
+      { key: 'generation', label: 'Generation', selectedValue: selected.generation, pinnedValue: pinned.generation },
+      { key: 'age', label: 'Age', selectedValue: selected.age, pinnedValue: pinned.age },
+      { key: 'energy', label: 'Energy', selectedValue: selected.energy, pinnedValue: pinned.energy, precision: 3 },
+      { key: 'size', label: 'Size', selectedValue: selected.traits.size, pinnedValue: pinned.traits.size },
+      { key: 'speed', label: 'Speed', selectedValue: selected.traits.speed, pinnedValue: pinned.traits.speed },
+      { key: 'visionRange', label: 'Vision range', selectedValue: selected.traits.visionRange, pinnedValue: pinned.traits.visionRange },
+      { key: 'turnRate', label: 'Turn rate', selectedValue: selected.traits.turnRate, pinnedValue: pinned.traits.turnRate },
+      { key: 'metabolism', label: 'Metabolism', selectedValue: selected.traits.metabolism, pinnedValue: pinned.traits.metabolism }
+    ];
+
+    return fields.map((field) => {
+      const numericSelected = typeof field.selectedValue === 'number' ? field.selectedValue : null;
+      const numericPinned = typeof field.pinnedValue === 'number' ? field.pinnedValue : null;
+      const delta = numericSelected !== null && numericPinned !== null
+        ? numericSelected - numericPinned
+        : null;
+      const precision = field.precision ?? 2;
+      const formatValue = (value) => (typeof value === 'number' ? value.toFixed(precision) : String(value));
+
+      let deltaLabel = 'No numeric difference';
+      if (delta !== null && delta !== 0) {
+        const sign = delta > 0 ? '+' : '-';
+        deltaLabel = `${sign}${Math.abs(delta).toFixed(precision)} vs pinned`;
+      } else if (delta === 0) {
+        deltaLabel = 'No change vs pinned';
+      }
+
+      return {
+        key: field.key,
+        label: field.label,
+        selectedDisplay: formatValue(field.selectedValue),
+        pinnedDisplay: formatValue(field.pinnedValue),
+        deltaLabel
+      };
+    });
+  }, [hasComparisonPair, selectedOrganism, pinnedComparisonCandidate]);
 
   const onFieldChange = (field) => (event) => {
     const nextValue = event.target.value;
@@ -1649,6 +1711,39 @@ function App() {
             <button type="button" onClick={clearSelection} aria-label="close organism inspector">Close inspector</button>
             {selectedOrganismUnavailable && inspectorPinned ? (
               <p role="status"><strong>Organism no longer alive.</strong> Showing last known values.</p>
+            ) : null}
+            {hasComparisonPair ? (
+              <section aria-label="organism comparison">
+                <h3>Selected vs pinned comparison</h3>
+                <p>
+                  Live selected organism <strong>{selectedOrganism.id}</strong> compared with pinned organism <strong>{pinnedComparisonCandidate.id}</strong>.
+                </p>
+                <table>
+                  <caption>Selected and pinned organism comparison</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Field</th>
+                      <th scope="col">Selected ({selectedOrganism.id})</th>
+                      <th scope="col">Pinned ({pinnedComparisonCandidate.id})</th>
+                      <th scope="col">Difference</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {comparisonRows.map((row) => (
+                      <tr key={row.key}>
+                        <th scope="row">{row.label}</th>
+                        <td>{row.selectedDisplay}</td>
+                        <td>{row.pinnedDisplay}</td>
+                        <td>
+                          <span aria-label={`${row.label} difference`}>{row.deltaLabel}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+            ) : comparisonUnavailableReason ? (
+              <p role="status">{comparisonUnavailableReason}</p>
             ) : null}
             <p><strong>ID:</strong> {inspectorOrganism.id}</p>
             <p><strong>Generation:</strong> {inspectorOrganism.generation}</p>
