@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import App from './App';
 import { createInitialWorldFromConfig, loadSimulationConfig, normalizeSimulationConfig, STORAGE_KEY } from './simulation/config';
+import { loadReplayComparisonPresets } from './simulation/replayComparisonPresets';
 
 describe('App', () => {
   let clipboardWriteText;
@@ -383,7 +384,7 @@ describe('App', () => {
       expect(screen.getByText(/no replay comparison presets saved yet\./i)).toBeInTheDocument();
     });
 
-    expect(window.localStorage.getItem('snnSandbox.replayComparisonPresets.v1')).toBe('[]');
+    expect(loadReplayComparisonPresets(window.localStorage)).toEqual([]);
   });
 
   it('shows first-mismatch jump control when mismatch location is available and jumps deterministically', async () => {
