@@ -1375,6 +1375,98 @@ describe('App', () => {
     vi.useRealTimers();
   });
 
+  it('keeps pinned inspector open on deselection and shows stale banner after organism death', () => {
+    vi.useFakeTimers();
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'pin-mode-seed' } });
+    fireEvent.change(screen.getByLabelText(/^initial population$/i), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText(/^minimum population$/i), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText(/^initial food count$/i), { target: { value: '0' } });
+    fireEvent.change(screen.getByLabelText(/food spawn chance/i), { target: { value: '0' } });
+    fireEvent.change(screen.getByLabelText(/^max food$/i), { target: { value: '1' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
+
+    const deterministicConfig = normalizeSimulationConfig(
+      {
+        name: 'Pin mode stale test',
+        seed: 'pin-mode-seed',
+        worldWidth: 800,
+        worldHeight: 480,
+        initialPopulation: 2,
+        minimumPopulation: 1,
+        initialFoodCount: 0,
+        foodSpawnChance: 0,
+        foodEnergyValue: 5,
+        maxFood: 1
+      },
+      'pin-mode-seed'
+    );
+
+    const initialWorld = createInitialWorldFromConfig(deterministicConfig);
+    const rng = createSeededPrng(deterministicConfig.resolvedSeed);
+    const stepParams = toEngineStepParams(deterministicConfig);
+    const initialIds = initialWorld.organisms.map((organism) => organism.id);
+
+    let projected = initialWorld;
+    let firstDiedId = null;
+    for (let i = 0; i < 800 && !firstDiedId; i += 1) {
+      projected = stepWorld(projected, rng, stepParams);
+      firstDiedId = initialIds.find((id) => !projected.organisms.some((organism) => organism.id === id)) ?? null;
+    }
+
+    expect(firstDiedId).toBeTruthy();
+    const selectedFixture = initialWorld.organisms.find((organism) => organism.id === firstDiedId);
+    expect(selectedFixture).toBeTruthy();
+
+    const canvas = screen.getByLabelText(/simulation world/i);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 800,
+      height: 480,
+      right: 800,
+      bottom: 480,
+      toJSON: () => ({})
+    });
+
+    fireEvent.click(canvas, { clientX: selectedFixture.x, clientY: selectedFixture.y });
+    const inspector = screen.getByRole('region', { name: /organism inspector/i });
+    expect(inspector).toHaveTextContent(`ID: ${selectedFixture.id}`);
+
+    const pinButton = screen.getByRole('button', { name: /pin organism inspector/i });
+    fireEvent.click(pinButton);
+    expect(screen.getByRole('button', { name: /unpin organism inspector/i })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(canvas, { clientX: 799, clientY: 479 });
+    expect(inspector).toHaveTextContent(`ID: ${selectedFixture.id}`);
+
+    fireEvent.click(screen.getByRole('button', { name: /^1x$/i }));
+
+    for (let i = 0; i < 12; i += 1) {
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      if (screen.queryByText(/organism no longer alive\./i)) {
+        break;
+      }
+    }
+
+    expect(screen.getByText(/organism no longer alive\./i)).toBeInTheDocument();
+    expect(screen.getByText(/showing last known values\./i)).toBeInTheDocument();
+    expect(inspector).toHaveTextContent(`ID: ${selectedFixture.id}`);
+
+    fireEvent.click(screen.getByRole('button', { name: /unpin organism inspector/i }));
+    expect(inspector).toHaveTextContent(/click an organism to inspect it\./i);
+
+    vi.useRealTimers();
+  });
+
   it('updates stats while running and keeps tick-derived metrics stable while paused', () => {
     vi.useFakeTimers();
     render(<App />);
