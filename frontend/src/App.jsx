@@ -1749,8 +1749,8 @@ function App() {
           <ul>
             {savedSimulations.map((snapshot) => (
               <li key={snapshot.id}>
-                {snapshot.name} — {formatTimestamp(snapshot.updatedAt)}{' '}
-                <button type="button" onClick={() => onLoadSimulation(snapshot)}>Load</button>{' '}
+                <strong>{snapshot.name}</strong> — updated {formatTimestamp(snapshot.updatedAt)} · seed {snapshot.seed || 'unknown'} · tick {snapshot.tickCount}{' '}
+                <button type="button" onClick={() => onLoadSimulation(snapshot)}>Resume</button>{' '}
                 <button type="button" onClick={() => onDeleteSimulation(snapshot)}>Delete</button>
               </li>
             ))}
