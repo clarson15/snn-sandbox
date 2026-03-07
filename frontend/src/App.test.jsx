@@ -1165,8 +1165,13 @@ describe('App', () => {
 
     expect(stepButton).toBeDisabled();
 
+    const stepControl = stepButton.closest('.control-with-hint');
+    stepControl.focus();
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Pause the simulation to step one tick at a time.');
+
     fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
     expect(stepButton).toBeEnabled();
+    expect(stepButton.closest('.control-with-hint')).not.toHaveClass('is-disabled');
 
     const pausedTick = readTick();
     fireEvent.click(stepButton);
@@ -1184,6 +1189,23 @@ describe('App', () => {
     expect(stepButton).toBeDisabled();
 
     vi.useRealTimers();
+  });
+
+  it('shows disable hints for seeded controls when simulation is unavailable', () => {
+    render(<App />);
+
+    const restartButton = screen.getByRole('button', { name: /restart from seed/i });
+    expect(restartButton).toBeDisabled();
+
+    const restartControl = restartButton.closest('.control-with-hint');
+    restartControl.focus();
+    const restartHintId = restartControl.getAttribute('aria-describedby');
+    expect(document.getElementById(restartHintId)).toHaveTextContent('Start a simulation to enable this control.');
+
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+    const enabledRestartButton = screen.getByRole('button', { name: /restart from seed/i });
+    expect(enabledRestartButton).toBeEnabled();
+    expect(enabledRestartButton.closest('.control-with-hint')).not.toHaveClass('is-disabled');
   });
 
   it('supports keyboard shortcuts for pause/play, step, speed presets, and ignores keys while typing', () => {

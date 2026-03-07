@@ -44,6 +44,48 @@ const TICK_MS = 1000 / 30;
 const SPEED_OPTIONS = [1, 2, 5, 10];
 const SIMULATION_VERSION = 'snn-sandbox-v1';
 
+function getControlDisableReasons({ hasSimulation, replayActive, paused }) {
+  const simulationRequiredReason = 'Start a simulation to enable this control.';
+
+  return {
+    copySeed: hasSimulation ? '' : simulationRequiredReason,
+    regenerateSeed: hasSimulation ? '' : simulationRequiredReason,
+    restartFromSeed: hasSimulation ? '' : simulationRequiredReason,
+    pause: !hasSimulation ? simulationRequiredReason : replayActive ? 'Replay mode is active. Resume live simulation to pause playback.' : '',
+    speed: !hasSimulation ? simulationRequiredReason : replayActive ? 'Replay mode is active. Resume live simulation to change speed.' : '',
+    step: !hasSimulation
+      ? simulationRequiredReason
+      : replayActive
+        ? 'Replay mode is active. Resume live simulation to step ticks.'
+        : !paused
+          ? 'Pause the simulation to step one tick at a time.'
+          : '',
+    saveSnapshot: hasSimulation ? '' : simulationRequiredReason
+  };
+}
+
+function ControlButtonWithHint({ name, onClick, reason, children, ...buttonProps }) {
+  const reasonId = `control-hint-${name}`;
+  const isDisabled = Boolean(reason);
+
+  return (
+    <span
+      className={`control-with-hint${isDisabled ? ' is-disabled' : ''}`}
+      tabIndex={isDisabled ? 0 : undefined}
+      aria-describedby={isDisabled ? reasonId : undefined}
+    >
+      <button type="button" onClick={onClick} disabled={isDisabled} title={reason || undefined} {...buttonProps}>
+        {children}
+      </button>
+      {isDisabled ? (
+        <span id={reasonId} className="control-disable-hint" role="tooltip">
+          {reason}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 function App() {
   const [paused, setPaused] = useState(false);
   const [speedMultiplier, setSpeedMultiplier] = useState(1);
@@ -495,6 +537,11 @@ function App() {
   };
 
   const hasSimulation = useMemo(() => Boolean(worldRef.current && rngRef.current), [tickDisplay, resolvedSeed]);
+
+  const controlDisableReasons = useMemo(
+    () => getControlDisableReasons({ hasSimulation, replayActive, paused }),
+    [hasSimulation, replayActive, paused]
+  );
 
   const formattedStats = useMemo(() => {
     const stats = deriveSimulationStats(displayWorld);
@@ -1154,33 +1201,41 @@ function App() {
 
       <section className="controls" aria-label="simulation controls">
         <p>Active seed: {resolvedSeed || 'No active simulation'}</p>
-        <button type="button" onClick={onCopyActiveSeed} disabled={!hasSimulation}>Copy seed</button>
-        <button type="button" onClick={onRegenerateSeed} disabled={!hasSimulation}>Regenerate seed + restart</button>
-        <button type="button" onClick={onRestartFromSeed} disabled={!hasSimulation}>Restart from Seed</button>
+        <ControlButtonWithHint name="copy-seed" onClick={onCopyActiveSeed} reason={controlDisableReasons.copySeed}>
+          Copy seed
+        </ControlButtonWithHint>
+        <ControlButtonWithHint name="regenerate-seed" onClick={onRegenerateSeed} reason={controlDisableReasons.regenerateSeed}>
+          Regenerate seed + restart
+        </ControlButtonWithHint>
+        <ControlButtonWithHint name="restart-seed" onClick={onRestartFromSeed} reason={controlDisableReasons.restartFromSeed}>
+          Restart from Seed
+        </ControlButtonWithHint>
         {seedControlStatus ? <p aria-live="polite">{seedControlStatus}</p> : null}
-        <button
-          type="button"
+        <ControlButtonWithHint
+          name="pause"
           onClick={onPause}
-          disabled={!hasSimulation || replayActive}
+          reason={controlDisableReasons.pause}
           aria-pressed={paused || replayActive}
         >
           Pause
-        </button>
+        </ControlButtonWithHint>
         {SPEED_OPTIONS.map((multiplier) => (
-          <button
+          <ControlButtonWithHint
             key={multiplier}
-            type="button"
+            name={`speed-${multiplier}`}
             onClick={() => onSpeedSelect(multiplier)}
-            disabled={!hasSimulation || replayActive}
+            reason={controlDisableReasons.speed}
             aria-pressed={!paused && !replayActive && speedMultiplier === multiplier}
           >
             {multiplier}x
-          </button>
+          </ControlButtonWithHint>
         ))}
-        <button type="button" onClick={onStepTick} disabled={!hasSimulation || replayActive || !paused}>
+        <ControlButtonWithHint name="step" onClick={onStepTick} reason={controlDisableReasons.step}>
           Step
-        </button>
-        <button type="button" onClick={onSaveSimulation} disabled={!hasSimulation}>Save snapshot</button>
+        </ControlButtonWithHint>
+        <ControlButtonWithHint name="save-snapshot" onClick={onSaveSimulation} reason={controlDisableReasons.saveSnapshot}>
+          Save snapshot
+        </ControlButtonWithHint>
         <button
           type="button"
           onClick={onOpenKeyboardShortcuts}
