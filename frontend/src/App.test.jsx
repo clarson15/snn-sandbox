@@ -208,7 +208,7 @@ describe('App', () => {
     expect(speed1x).toHaveAttribute('aria-pressed', 'false');
 
     fireEvent.click(pauseButton);
-    expect(screen.getByRole('button', { name: /^resume$/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /^pause$/i })).toHaveAttribute('aria-pressed', 'true');
     expect(speed5x).toHaveAttribute('aria-pressed', 'false');
 
     fireEvent.click(speed2x);

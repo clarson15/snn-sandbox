@@ -853,11 +853,11 @@ function App() {
       <section className="controls" aria-label="simulation controls">
         <button
           type="button"
-          onClick={() => setPaused((value) => !value)}
+          onClick={() => setPaused(true)}
           disabled={!hasSimulation || replayActive}
           aria-pressed={paused || replayActive}
         >
-          {paused || replayActive ? 'Resume' : 'Pause'}
+          Pause
         </button>
         {SPEED_OPTIONS.map((multiplier) => (
           <button
