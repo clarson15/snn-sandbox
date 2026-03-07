@@ -74,6 +74,7 @@ function App() {
         worldWidth: String(DEFAULT_CONFIG.worldWidth),
         worldHeight: String(DEFAULT_CONFIG.worldHeight),
         initialPopulation: String(DEFAULT_CONFIG.initialPopulation),
+        minimumPopulation: String(DEFAULT_CONFIG.minimumPopulation),
         initialFoodCount: String(DEFAULT_CONFIG.initialFoodCount),
         foodSpawnChance: String(DEFAULT_CONFIG.foodSpawnChance),
         foodEnergyValue: String(DEFAULT_CONFIG.foodEnergyValue),
@@ -86,6 +87,7 @@ function App() {
       worldWidth: String(saved.worldWidth),
       worldHeight: String(saved.worldHeight),
       initialPopulation: String(saved.initialPopulation),
+      minimumPopulation: String(saved.minimumPopulation ?? saved.initialPopulation),
       initialFoodCount: String(saved.initialFoodCount),
       foodSpawnChance: String(saved.foodSpawnChance),
       foodEnergyValue: String(saved.foodEnergyValue),
@@ -242,6 +244,7 @@ function App() {
       worldWidth: String(loadedConfig.worldWidth),
       worldHeight: String(loadedConfig.worldHeight),
       initialPopulation: String(loadedConfig.initialPopulation),
+      minimumPopulation: String(loadedConfig.minimumPopulation),
       initialFoodCount: String(loadedConfig.initialFoodCount),
       foodSpawnChance: String(loadedConfig.foodSpawnChance),
       foodEnergyValue: String(loadedConfig.foodEnergyValue),
@@ -741,6 +744,7 @@ function App() {
       worldWidth: String(validatedPreset.parameters.worldWidth),
       worldHeight: String(validatedPreset.parameters.worldHeight),
       initialPopulation: String(validatedPreset.parameters.initialPopulation),
+      minimumPopulation: String(validatedPreset.parameters.minimumPopulation),
       initialFoodCount: String(validatedPreset.parameters.initialFoodCount),
       foodSpawnChance: String(validatedPreset.parameters.foodSpawnChance),
       foodEnergyValue: String(validatedPreset.parameters.foodEnergyValue),
@@ -805,6 +809,11 @@ function App() {
             Initial population
             <input type="number" value={formState.initialPopulation} onChange={onFieldChange('initialPopulation')} />
             {errors.initialPopulation ? <span className="error-text">{errors.initialPopulation}</span> : null}
+          </label>
+          <label>
+            Minimum population
+            <input type="number" value={formState.minimumPopulation} onChange={onFieldChange('minimumPopulation')} />
+            {errors.minimumPopulation ? <span className="error-text">{errors.minimumPopulation}</span> : null}
           </label>
           <label>
             Initial food count

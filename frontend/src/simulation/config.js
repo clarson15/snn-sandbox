@@ -9,6 +9,7 @@ export const DEFAULT_CONFIG = {
   worldWidth: 800,
   worldHeight: 480,
   initialPopulation: 12,
+  minimumPopulation: 12,
   initialFoodCount: 30,
   foodSpawnChance: 0.04,
   foodEnergyValue: 5,
@@ -41,6 +42,7 @@ export function validateSimulationConfig(input) {
     ['worldWidth', 100, 3000, 'World width must be between 100 and 3000.'],
     ['worldHeight', 100, 3000, 'World height must be between 100 and 3000.'],
     ['initialPopulation', 1, 500, 'Initial population must be between 1 and 500.'],
+    ['minimumPopulation', 1, 500, 'Minimum population must be between 1 and 500.'],
     ['initialFoodCount', 0, 1000, 'Initial food count must be between 0 and 1000.'],
     ['foodSpawnChance', 0, 1, 'Food spawn chance must be between 0 and 1.'],
     ['foodEnergyValue', 1, 100, 'Food energy value must be between 1 and 100.'],
@@ -73,6 +75,7 @@ export function normalizeSimulationConfig(input, resolvedSeed) {
     worldWidth: Number(input.worldWidth),
     worldHeight: Number(input.worldHeight),
     initialPopulation: Number(input.initialPopulation),
+    minimumPopulation: Number(input.minimumPopulation ?? input.initialPopulation),
     initialFoodCount: Number(input.initialFoodCount),
     foodSpawnChance: Number(input.foodSpawnChance),
     foodEnergyValue: Number(input.foodEnergyValue),
@@ -122,13 +125,11 @@ function createInitialBrain(rng) {
   };
 }
 
-export function createInitialWorldFromConfig(config) {
-  const rng = createSeededPrng(`${config.resolvedSeed}:initial-world`);
-
-  const organisms = Array.from({ length: config.initialPopulation }, (_, index) => ({
-    id: `org-${index + 1}`,
-    x: rng.nextFloat() * config.worldWidth,
-    y: rng.nextFloat() * config.worldHeight,
+function createRandomizedOrganism({ id, rng, worldWidth, worldHeight }) {
+  return {
+    id,
+    x: rng.nextFloat() * worldWidth,
+    y: rng.nextFloat() * worldHeight,
     energy: 20,
     age: 0,
     generation: 1,
@@ -140,6 +141,17 @@ export function createInitialWorldFromConfig(config) {
       metabolism: Number((0.02 + rng.nextFloat() * 0.1).toFixed(3))
     },
     brain: createInitialBrain(rng)
+  };
+}
+
+export function createInitialWorldFromConfig(config) {
+  const rng = createSeededPrng(`${config.resolvedSeed}:initial-world`);
+
+  const organisms = Array.from({ length: config.initialPopulation }, (_, index) => createRandomizedOrganism({
+    id: `org-${index + 1}`,
+    rng,
+    worldWidth: config.worldWidth,
+    worldHeight: config.worldHeight
   }));
 
   const food = Array.from({ length: config.initialFoodCount }, (_, index) => ({
@@ -164,7 +176,14 @@ export function toEngineStepParams(config) {
     foodEnergyValue: config.foodEnergyValue,
     worldWidth: config.worldWidth,
     worldHeight: config.worldHeight,
-    maxFood: config.maxFood
+    maxFood: config.maxFood,
+    minimumPopulation: config.minimumPopulation,
+    createFloorSpawnOrganism: (id, rng) => createRandomizedOrganism({
+      id,
+      rng,
+      worldWidth: config.worldWidth,
+      worldHeight: config.worldHeight
+    })
   };
 }
 
