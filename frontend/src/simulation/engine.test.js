@@ -78,6 +78,30 @@ describe('simulation engine skeleton', () => {
     expect(runA).toEqual(runB);
   });
 
+  it('matches tick-by-tick world state checkpoints for repeated runs with same seed + params', () => {
+    const params = {
+      movementDelta: 2,
+      metabolismPerTick: 0.25,
+      movementCostMultiplier: 0.1,
+      consumeRadius: 2,
+      foodSpawnChance: 0.2,
+      foodEnergyValue: 7,
+      maxFood: 200
+    };
+
+    const rngA = createSeededPrng('same-seed-checkpoints');
+    const rngB = createSeededPrng('same-seed-checkpoints');
+    let stateA = baseState;
+    let stateB = baseState;
+
+    for (let tick = 0; tick < 40; tick += 1) {
+      stateA = stepWorld(stateA, rngA, params);
+      stateB = stepWorld(stateB, rngB, params);
+      expect(stateA).toEqual(stateB);
+      expect(stateA.tick).toBe(tick + 1);
+    }
+  });
+
   it('diverges for different seeds with same params + initial state', () => {
     const params = {
       movementDelta: 2,

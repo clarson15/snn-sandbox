@@ -56,6 +56,7 @@ function App() {
   const [loadStatus, setLoadStatus] = useState('');
   const [deleteStatus, setDeleteStatus] = useState('');
   const [copyMetadataStatus, setCopyMetadataStatus] = useState('');
+  const [seedControlStatus, setSeedControlStatus] = useState('');
   const [activeLoadedMetadata, setActiveLoadedMetadata] = useState(null);
   const [replayTickInput, setReplayTickInput] = useState('');
   const [replayStatus, setReplayStatus] = useState('');
@@ -325,16 +326,7 @@ function App() {
     setPaused(true);
   };
 
-  const startSimulation = () => {
-    const nextErrors = validateSimulationConfig(formState);
-    if (Object.keys(nextErrors).length > 0) {
-      setErrors(nextErrors);
-      return;
-    }
-
-    const seedToUse = resolveSeed(formState.seed);
-    const config = normalizeSimulationConfig(formState, seedToUse);
-
+  const applySimulationConfig = (config, { paused: pausedNext = false } = {}) => {
     const initialWorld = createInitialWorldFromConfig(config);
     worldRef.current = initialWorld;
     rngRef.current = createSeededPrng(config.resolvedSeed);
@@ -349,7 +341,7 @@ function App() {
     setResolvedSeed(config.resolvedSeed);
     setTickDisplay(0);
     setSpeedMultiplier(1);
-    setPaused(false);
+    setPaused(pausedNext);
     replayContextRef.current = null;
     setReplayWorldState(null);
     setReplayTickInput('');
@@ -362,6 +354,65 @@ function App() {
     setCopyMetadataStatus('');
     saveSimulationConfig(config);
     setFormState((prev) => ({ ...prev, seed: config.seed || config.resolvedSeed }));
+  };
+
+  const startSimulation = () => {
+    const nextErrors = validateSimulationConfig(formState);
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
+      return;
+    }
+
+    const seedToUse = resolveSeed(formState.seed);
+    const config = normalizeSimulationConfig(formState, seedToUse);
+    applySimulationConfig(config, { paused: false });
+    setSeedControlStatus('');
+  };
+
+  const onCopyActiveSeed = async () => {
+    if (!resolvedSeed) {
+      return;
+    }
+
+    const writeText = globalThis?.navigator?.clipboard?.writeText;
+    if (typeof writeText !== 'function') {
+      setSeedControlStatus('Clipboard is unavailable.');
+      return;
+    }
+
+    try {
+      await writeText(resolvedSeed);
+      setSeedControlStatus('Seed copied.');
+    } catch {
+      setSeedControlStatus('Failed to copy seed.');
+    }
+  };
+
+  const onRestartWithSameSeed = () => {
+    if (!activeConfigRef.current) {
+      return;
+    }
+
+    const config = normalizeSimulationConfig(activeConfigRef.current, activeConfigRef.current.resolvedSeed);
+    applySimulationConfig(config, { paused: false });
+    setSeedControlStatus('Restarted simulation with the same seed.');
+  };
+
+  const onRegenerateSeed = () => {
+    if (!activeConfigRef.current) {
+      return;
+    }
+
+    const regeneratedSeed = resolveSeed('');
+    const config = normalizeSimulationConfig(
+      {
+        ...activeConfigRef.current,
+        seed: regeneratedSeed
+      },
+      regeneratedSeed
+    );
+    applySimulationConfig(config, { paused: false });
+    setSeedControlStatus('Generated a new seed and restarted from tick 0.');
   };
 
   const hasSimulation = useMemo(() => Boolean(worldRef.current && rngRef.current), [tickDisplay, resolvedSeed]);
@@ -976,6 +1027,11 @@ function App() {
       {resolvedSeed ? <p className="seed-banner">Resolved seed: {resolvedSeed}</p> : null}
 
       <section className="controls" aria-label="simulation controls">
+        <p>Active seed: {resolvedSeed || 'No active simulation'}</p>
+        <button type="button" onClick={onCopyActiveSeed} disabled={!hasSimulation}>Copy seed</button>
+        <button type="button" onClick={onRegenerateSeed} disabled={!hasSimulation}>Regenerate seed + restart</button>
+        <button type="button" onClick={onRestartWithSameSeed} disabled={!hasSimulation}>Restart with same seed</button>
+        {seedControlStatus ? <p aria-live="polite">{seedControlStatus}</p> : null}
         <button
           type="button"
           onClick={onPause}

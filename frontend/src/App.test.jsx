@@ -177,6 +177,41 @@ describe('App', () => {
     });
   });
 
+  it('shows active seed controls and supports copy/regenerate/restart interactions', async () => {
+    let regenerateCounter = 0;
+
+    vi.spyOn(globalThis.crypto, 'getRandomValues').mockImplementation((array) => {
+      regenerateCounter += 1;
+      array[0] = regenerateCounter === 1 ? 111111 : 222222;
+      return array;
+    });
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: 1b207');
+
+    const tickNode = screen.getByText(/^tick count:/i);
+    await waitFor(() => {
+      expect(Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(0);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /copy seed/i }));
+
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith('1b207');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /restart with same seed/i }));
+    expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: 1b207');
+    expect(tickNode).toHaveTextContent('Tick count: 0');
+
+    fireEvent.click(screen.getByRole('button', { name: /regenerate seed \+ restart/i }));
+    expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: 3640e');
+    expect(tickNode).toHaveTextContent('Tick count: 0');
+  });
+
   it('shows actionable validation errors for invalid ranges', () => {
     render(<App />);
 
