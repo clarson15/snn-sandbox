@@ -1153,40 +1153,44 @@ describe('App', () => {
     });
   });
 
-  it('steps exactly one tick while paused and keeps step disabled while running', () => {
+  it('steps exactly +1 or +10 ticks while paused and keeps step controls disabled while running', () => {
     vi.useFakeTimers();
     render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
 
     const tickNode = screen.getByText(/^tick count:/i);
-    const stepButton = screen.getByRole('button', { name: /^step$/i });
+    const stepPlusOneButton = screen.getByRole('button', { name: /^step \+1$/i });
+    const stepPlusTenButton = screen.getByRole('button', { name: /^step \+10$/i });
     const readTick = () => Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10);
 
-    expect(stepButton).toBeDisabled();
+    expect(stepPlusOneButton).toBeDisabled();
+    expect(stepPlusTenButton).toBeDisabled();
 
-    const stepControl = stepButton.closest('.control-with-hint');
+    const stepControl = stepPlusOneButton.closest('.control-with-hint');
     stepControl.focus();
-    expect(screen.getByRole('tooltip')).toHaveTextContent('Pause the simulation to step one tick at a time.');
+    expect(within(stepControl).getByRole('tooltip')).toHaveTextContent('Pause the simulation to step one tick at a time.');
 
     fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
-    expect(stepButton).toBeEnabled();
-    expect(stepButton.closest('.control-with-hint')).not.toHaveClass('is-disabled');
+    expect(stepPlusOneButton).toBeEnabled();
+    expect(stepPlusTenButton).toBeEnabled();
+    expect(stepPlusOneButton.closest('.control-with-hint')).not.toHaveClass('is-disabled');
 
     const pausedTick = readTick();
-    fireEvent.click(stepButton);
+    fireEvent.click(stepPlusOneButton);
     expect(readTick()).toBe(pausedTick + 1);
 
-    fireEvent.click(stepButton);
-    expect(readTick()).toBe(pausedTick + 2);
+    fireEvent.click(stepPlusTenButton);
+    expect(readTick()).toBe(pausedTick + 11);
 
     act(() => {
       vi.advanceTimersByTime(200);
     });
-    expect(readTick()).toBe(pausedTick + 2);
+    expect(readTick()).toBe(pausedTick + 11);
 
     fireEvent.click(screen.getByRole('button', { name: /^1x$/i }));
-    expect(stepButton).toBeDisabled();
+    expect(stepPlusOneButton).toBeDisabled();
+    expect(stepPlusTenButton).toBeDisabled();
 
     vi.useRealTimers();
   });
