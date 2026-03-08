@@ -64,8 +64,32 @@ public class Program
                 return Results.BadRequest(new { error = "Tick count must be greater than or equal to 0." });
             }
 
-            var saved = store.Save(request);
-            return Results.Created($"/api/simulations/snapshots/{saved.Id}", saved);
+            var saveResult = store.Save(request);
+            if (!saveResult.Succeeded)
+            {
+                if (string.Equals(saveResult.ErrorCode, "SNAPSHOT_NAME_CONFLICT", StringComparison.Ordinal))
+                {
+                    return Results.Conflict(new
+                    {
+                        error = saveResult.ErrorMessage,
+                        errorCode = saveResult.ErrorCode,
+                        conflictSnapshot = saveResult.ConflictSnapshot
+                    });
+                }
+
+                return Results.BadRequest(new
+                {
+                    error = saveResult.ErrorMessage ?? "Unable to save snapshot.",
+                    errorCode = saveResult.ErrorCode
+                });
+            }
+
+            if (saveResult.WasOverwrite)
+            {
+                return Results.Ok(saveResult.Record);
+            }
+
+            return Results.Created($"/api/simulations/snapshots/{saveResult.Record.Id}", saveResult.Record);
         });
 
         app.MapGet("/api/simulations/snapshots", (ISimulationSnapshotStore store) => Results.Ok(store.List()));
