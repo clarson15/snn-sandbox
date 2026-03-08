@@ -78,11 +78,47 @@ export function createWorldState(initial = {}) {
  * @param {number} movementCostMultiplier
  * @returns {WorldOrganism}
  */
+function normalizeAngle(angle) {
+  const fullTurn = Math.PI * 2;
+  const normalized = angle % fullTurn;
+  return normalized < 0 ? normalized + fullTurn : normalized;
+}
+
+function deriveRotationDelta(organism) {
+  const turnRate = Number(organism?.traits?.turnRate ?? 0);
+  if (!Number.isFinite(turnRate) || turnRate === 0) {
+    return 0;
+  }
+
+  const synapses = Array.isArray(organism?.brain?.synapses) ? organism.brain.synapses : [];
+  if (synapses.length === 0) {
+    return 0;
+  }
+
+  let leftSignal = 0;
+  let rightSignal = 0;
+
+  for (const synapse of synapses) {
+    if (!synapse || !Number.isFinite(synapse.weight)) {
+      continue;
+    }
+
+    if (synapse.targetId === 'out-turn-left') {
+      leftSignal += synapse.weight;
+    } else if (synapse.targetId === 'out-turn-right') {
+      rightSignal += synapse.weight;
+    }
+  }
+
+  return (rightSignal - leftSignal) * turnRate;
+}
+
 function moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMultiplier) {
   const movementDistance = Math.hypot(dx, dy);
   const energySpent = metabolismPerTick + movementDistance * movementCostMultiplier;
-
-  const direction = movementDistance > 0 ? Math.atan2(dy, dx) : (organism.direction ?? 0);
+  const baseDirection = organism.direction ?? 0;
+  const rotationDelta = deriveRotationDelta(organism);
+  const direction = normalizeAngle(baseDirection + rotationDelta);
 
   return {
     ...organism,
