@@ -274,6 +274,91 @@ export function mapBrainEmphasisChecksum(model, settings = {}) {
   return `${settingsKey}::${edgeKey}`;
 }
 
+function normalizeNeuronFilterSettings(settings = {}) {
+  const minActivationThresholdCandidate = Number(settings.minActivationThreshold);
+  const minActivationThreshold = Number.isFinite(minActivationThresholdCandidate)
+    ? Math.max(0, Math.min(1, minActivationThresholdCandidate))
+    : 0;
+  const visibleNeuronTypes = new Set(
+    Array.isArray(settings.visibleNeuronTypes)
+      ? settings.visibleNeuronTypes
+          .filter((type) => typeof type === 'string')
+          .map((type) => type.toLowerCase())
+      : LAYER_ORDER
+  );
+
+  return {
+    minActivationThreshold,
+    visibleNeuronTypes
+  };
+}
+
+export function deriveFilteredBrainGraphModel(model, settings = {}) {
+  if (!model || !Array.isArray(model.nodes) || !Array.isArray(model.edges)) {
+    return null;
+  }
+
+  const normalized = normalizeNeuronFilterSettings(settings);
+  const filteredNodes = model.nodes
+    .filter((node) => normalized.visibleNeuronTypes.has(String(node.type || '').toLowerCase()))
+    .filter((node) => Math.abs(Number(node.value) || 0) >= normalized.minActivationThreshold)
+    .sort((a, b) => a.id.localeCompare(b.id));
+  const visibleNodeIds = new Set(filteredNodes.map((node) => node.id));
+
+  const filteredEdges = model.edges
+    .filter((edge) => visibleNodeIds.has(edge.sourceId) && visibleNodeIds.has(edge.targetId))
+    .sort((a, b) => a.id.localeCompare(b.id));
+
+  const pinnedNeuronId = typeof settings.pinnedNeuronId === 'string' && visibleNodeIds.has(settings.pinnedNeuronId)
+    ? settings.pinnedNeuronId
+    : null;
+
+  const pinnedNeuron = pinnedNeuronId ? filteredNodes.find((node) => node.id === pinnedNeuronId) ?? null : null;
+  const inboundDegree = pinnedNeuronId
+    ? filteredEdges.filter((edge) => edge.targetId === pinnedNeuronId).length
+    : 0;
+  const outboundDegree = pinnedNeuronId
+    ? filteredEdges.filter((edge) => edge.sourceId === pinnedNeuronId).length
+    : 0;
+
+  const edges = filteredEdges.map((edge) => {
+    const isInboundToPinned = pinnedNeuronId !== null && edge.targetId === pinnedNeuronId;
+    const isOutboundFromPinned = pinnedNeuronId !== null && edge.sourceId === pinnedNeuronId;
+    const isPinnedPath = isInboundToPinned || isOutboundFromPinned;
+
+    return {
+      ...edge,
+      isInboundToPinned,
+      isOutboundFromPinned,
+      isPinnedPath,
+      emphasisOpacity: pinnedNeuronId === null ? edge.emphasisOpacity : isPinnedPath ? 1 : 0.2,
+      emphasisStrokeWidth: isPinnedPath ? Number((edge.emphasisStrokeWidth + 1).toFixed(3)) : edge.emphasisStrokeWidth,
+      color: isInboundToPinned ? '#38bdf8' : isOutboundFromPinned ? '#f59e0b' : edge.color
+    };
+  });
+
+  return {
+    ...model,
+    nodes: filteredNodes,
+    edges,
+    pinnedNeuron,
+    pinnedNeuronId,
+    pinnedNeuronMetadata: pinnedNeuron
+      ? {
+          id: pinnedNeuron.id,
+          type: pinnedNeuron.type,
+          activation: Number(pinnedNeuron.value.toFixed(3)),
+          inboundDegree,
+          outboundDegree
+        }
+      : null,
+    filterSettings: {
+      minActivationThreshold: normalized.minActivationThreshold,
+      visibleNeuronTypes: [...normalized.visibleNeuronTypes].sort((left, right) => left.localeCompare(right))
+    }
+  };
+}
+
 export function mapBrainToVisualizerModel(brain) {
   if (!brain || !Array.isArray(brain.neurons) || !Array.isArray(brain.synapses)) {
     return null;

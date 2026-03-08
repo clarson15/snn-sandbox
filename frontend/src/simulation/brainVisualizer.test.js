@@ -4,6 +4,7 @@ import {
   applyBrainViewportZoom,
   createBrainViewportFitTransform,
   deriveEmphasizedBrainGraphModel,
+  deriveFilteredBrainGraphModel,
   mapBrainEmphasisChecksum,
   mapBrainLayoutChecksum,
   mapBrainToVisualizerModel,
@@ -185,6 +186,49 @@ describe('deriveEmphasizedBrainGraphModel', () => {
     expect(first.edges.find((edge) => edge.id === 's-strong')?.isStrongest).toBe(true);
     expect(first.edges.find((edge) => edge.id === 's-mid')?.emphasisOpacity).toBe(0.25);
     expect(mapBrainEmphasisChecksum(first, settings)).toBe(mapBrainEmphasisChecksum(second, settings));
+  });
+});
+
+describe('deriveFilteredBrainGraphModel', () => {
+  it('deterministically filters neuron classes + activation threshold and annotates pinned paths', () => {
+    const base = mapBrainToVisualizerModel({
+      neurons: [
+        { id: 'in-a', type: 'input', value: 0.9 },
+        { id: 'h-a', type: 'hidden', value: 0.45 },
+        { id: 'out-a', type: 'output', value: 0.7 },
+        { id: 'out-b', type: 'output', value: 0.02 }
+      ],
+      synapses: [
+        { id: 's-1', sourceId: 'in-a', targetId: 'h-a', weight: 0.4 },
+        { id: 's-2', sourceId: 'h-a', targetId: 'out-a', weight: -0.3 },
+        { id: 's-3', sourceId: 'in-a', targetId: 'out-b', weight: 0.2 }
+      ]
+    });
+
+    const first = deriveFilteredBrainGraphModel(base, {
+      visibleNeuronTypes: ['input', 'hidden', 'output'],
+      minActivationThreshold: 0.1,
+      pinnedNeuronId: 'h-a'
+    });
+    const second = deriveFilteredBrainGraphModel(structuredClone(base), {
+      visibleNeuronTypes: ['output', 'input', 'hidden'],
+      minActivationThreshold: 0.1,
+      pinnedNeuronId: 'h-a'
+    });
+
+    expect(first.nodes.map((node) => node.id)).toEqual(['h-a', 'in-a', 'out-a']);
+    expect(first.edges.map((edge) => edge.id)).toEqual(['s-1', 's-2']);
+    expect(first.edges.find((edge) => edge.id === 's-1')?.isInboundToPinned).toBe(true);
+    expect(first.edges.find((edge) => edge.id === 's-2')?.isOutboundFromPinned).toBe(true);
+    expect(first.pinnedNeuronMetadata).toEqual({
+      id: 'h-a',
+      type: 'hidden',
+      activation: 0.45,
+      inboundDegree: 1,
+      outboundDegree: 1
+    });
+    expect(first.filterSettings).toEqual(second.filterSettings);
+    expect(mapBrainLayoutChecksum(first)).toBe(mapBrainLayoutChecksum(second));
   });
 });
 
