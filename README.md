@@ -80,6 +80,15 @@ cd frontend
 npm test
 ```
 
+### Deterministic performance benchmark
+
+```bash
+cd frontend
+npm run benchmark
+```
+
+Detailed benchmark scenario and interpretation docs: `docs/deterministic-performance-benchmarks.md`.
+
 ### Backend tests
 
 ```bash
