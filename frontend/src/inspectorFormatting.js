@@ -35,9 +35,39 @@ function formatFoodDistance(value) {
   return formatFixed(value, 3);
 }
 
+function resolveParentId(organism) {
+  const parentId = organism?.lineage?.parentId ?? organism?.parentId;
+  if (typeof parentId === 'string' && parentId.trim().length > 0) {
+    return parentId;
+  }
+
+  return INSPECTOR_PLACEHOLDER;
+}
+
+function resolveOffspringCount(organism) {
+  const lineageCount = organism?.lineage?.offspringCount;
+  if (Number.isInteger(lineageCount) && lineageCount >= 0) {
+    return String(lineageCount);
+  }
+
+  const directCount = organism?.offspringCount;
+  if (Number.isInteger(directCount) && directCount >= 0) {
+    return String(directCount);
+  }
+
+  const offspringIds = organism?.offspringIds;
+  if (Array.isArray(offspringIds)) {
+    return String(offspringIds.length);
+  }
+
+  return INSPECTOR_PLACEHOLDER;
+}
+
 function formatInspectorSnapshot(organism, nearestFoodDistance) {
   return {
     generation: formatInteger(organism?.generation),
+    parentId: resolveParentId(organism),
+    offspringCount: resolveOffspringCount(organism),
     age: formatInteger(organism?.age),
     energy: formatFixed(organism?.energy, 3),
     position: formatPosition(organism?.x, organism?.y),

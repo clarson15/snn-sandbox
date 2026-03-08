@@ -2381,6 +2381,13 @@ function App() {
               Selected organism details
             </h3>
             <p><strong>ID:</strong> {inspectorOrganism.id}</p>
+            <section className="inspector-lineage-row" aria-label="inspector lineage row">
+              <h4>Lineage</h4>
+              <p>
+                <strong>Generation:</strong> {formattedInspector.generation} · <strong>Parent:</strong> {formattedInspector.parentId} · <strong>Offspring:</strong>{' '}
+                {formattedInspector.offspringCount}
+              </p>
+            </section>
             <section className="inspector-critical-stats" aria-label="inspector critical stats">
               <h4>Critical stats</h4>
               <p><strong>Energy:</strong> {formattedInspector.energy}</p>

@@ -502,6 +502,13 @@ describe('App', () => {
 
     fireEvent.click(canvas, { clientX: selectedFixture.x, clientY: selectedFixture.y });
 
+    const lineageRow = screen.getByRole('region', { name: /inspector lineage row/i });
+    expect(lineageRow).toHaveTextContent(/generation:/i);
+    expect(lineageRow).toHaveTextContent(/parent:/i);
+    expect(lineageRow).toHaveTextContent(/offspring:/i);
+    expect(lineageRow).toHaveTextContent(/parent:\s*—/i);
+    expect(lineageRow).toHaveTextContent(/offspring:\s*—/i);
+
     const criticalStats = screen.getByRole('region', { name: /inspector critical stats/i });
     expect(criticalStats).toHaveTextContent(/energy:/i);
     expect(criticalStats).toHaveTextContent(/age:/i);
