@@ -2781,14 +2781,19 @@ function App() {
             })}
             </div>
           </>
-        ) : selectedOrganismUnavailable ? (
-          <>
-            <button type="button" onClick={clearSelection} aria-label="close organism inspector">Close inspector</button>
-            <p>Selected organism is no longer available.</p>
-            <p>Inspector will close on your next interaction.</p>
-          </>
         ) : (
-          <p>Click an organism to inspect it.</p>
+          <section className="inspector-empty-state" aria-label="inspector empty state">
+            {selectedOrganismUnavailable ? (
+              <p role="status"><strong>Selected organism is no longer available.</strong></p>
+            ) : null}
+            <h3>No organism selected</h3>
+            <p>Select an organism to view deterministic inspector details.</p>
+            <ul>
+              <li>Click any organism in the simulation world.</li>
+              <li>Use Previous/Next organism controls (or ←/↑ and →/↓).</li>
+              <li>If an organism dies and no fallback exists, this empty state remains until you select another.</li>
+            </ul>
+          </section>
         )}
       </section>
     </main>
