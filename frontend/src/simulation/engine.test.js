@@ -15,6 +15,97 @@ const baseState = createWorldState({
   ]
 });
 
+function squaredDistance(organism, food) {
+  const dx = organism.x - food.x;
+  const dy = organism.y - food.y;
+  return dx * dx + dy * dy;
+}
+
+function stepWorldWithLegacyFoodLookup(state, rng, params = {}) {
+  const movementDelta = params.movementDelta ?? 1;
+  const metabolismPerTick = params.metabolismPerTick ?? 0.1;
+  const movementCostMultiplier = params.movementCostMultiplier ?? 0.05;
+  const consumeRadius = params.consumeRadius ?? 2;
+  const foodSpawnChance = params.foodSpawnChance ?? 0.05;
+  const foodEnergyValue = params.foodEnergyValue ?? 5;
+  const worldWidth = params.worldWidth ?? 100;
+  const worldHeight = params.worldHeight ?? 100;
+  const maxFood = params.maxFood ?? Number.POSITIVE_INFINITY;
+
+  const movedOrganisms = state.organisms.map((organism) => {
+    const dx = (rng.nextFloat() * 2 - 1) * movementDelta;
+    const dy = (rng.nextFloat() * 2 - 1) * movementDelta;
+    const movementDistance = Math.hypot(dx, dy);
+    const energySpent = metabolismPerTick + movementDistance * movementCostMultiplier;
+    const direction = movementDistance > 0 ? Math.atan2(dy, dx) : (organism.direction ?? 0);
+
+    return {
+      ...organism,
+      x: organism.x + dx,
+      y: organism.y + dy,
+      age: organism.age + 1,
+      direction,
+      energy: Math.max(0, organism.energy - energySpent)
+    };
+  });
+
+  const foodById = new Map(state.food.map((item) => [item.id, { ...item }]));
+  const consumeRadiusSquared = consumeRadius * consumeRadius;
+  const consumedEnergyByOrganismId = new Map();
+  const organismsByStableOrder = [...movedOrganisms].sort((a, b) => a.id.localeCompare(b.id));
+
+  for (const organism of organismsByStableOrder) {
+    if (foodById.size === 0) {
+      break;
+    }
+
+    let chosenFoodId = null;
+    let chosenDistance = Number.POSITIVE_INFINITY;
+
+    for (const [foodId, food] of foodById.entries()) {
+      const distance = squaredDistance(organism, food);
+      if (distance > consumeRadiusSquared) {
+        continue;
+      }
+
+      if (distance < chosenDistance || (distance === chosenDistance && (chosenFoodId === null || foodId < chosenFoodId))) {
+        chosenDistance = distance;
+        chosenFoodId = foodId;
+      }
+    }
+
+    if (chosenFoodId !== null) {
+      const food = foodById.get(chosenFoodId);
+      consumedEnergyByOrganismId.set(organism.id, (consumedEnergyByOrganismId.get(organism.id) ?? 0) + food.energyValue);
+      foodById.delete(chosenFoodId);
+    }
+  }
+
+  const organisms = movedOrganisms
+    .map((organism) => ({
+      ...organism,
+      energy: organism.energy + (consumedEnergyByOrganismId.get(organism.id) ?? 0)
+    }))
+    .filter((organism) => organism.energy > 0);
+
+  const nextFood = Array.from(foodById.values()).sort((a, b) => a.id.localeCompare(b.id));
+
+  if (nextFood.length < maxFood && rng.nextFloat() < foodSpawnChance) {
+    nextFood.push({
+      id: `food-${state.tick + 1}-${nextFood.length}`,
+      x: rng.nextFloat() * worldWidth,
+      y: rng.nextFloat() * worldHeight,
+      energyValue: foodEnergyValue
+    });
+  }
+
+  return {
+    tick: state.tick + 1,
+    organisms,
+    food: nextFood
+  };
+}
+
 describe('simulation engine skeleton', () => {
   it('advances tick and returns a new world state object', () => {
     const rng = createSeededPrng('tick-advance');
@@ -99,6 +190,33 @@ describe('simulation engine skeleton', () => {
       stateB = stepWorld(stateB, rngB, params);
       expect(stateA).toEqual(stateB);
       expect(stateA.tick).toBe(tick + 1);
+    }
+  });
+
+  it('preserves seeded fixed-tick snapshots compared with the legacy O(n*m) food lookup implementation', () => {
+    const params = {
+      movementDelta: 2,
+      metabolismPerTick: 0.25,
+      movementCostMultiplier: 0.1,
+      consumeRadius: 2,
+      foodSpawnChance: 0.2,
+      foodEnergyValue: 7,
+      maxFood: 200
+    };
+
+    let optimizedState = baseState;
+    let legacyState = baseState;
+    const optimizedRng = createSeededPrng('legacy-parity');
+    const legacyRng = createSeededPrng('legacy-parity');
+    const checkpoints = new Set([1, 5, 25, 50, 100]);
+
+    for (let tick = 1; tick <= 100; tick += 1) {
+      optimizedState = stepWorld(optimizedState, optimizedRng, params);
+      legacyState = stepWorldWithLegacyFoodLookup(legacyState, legacyRng, params);
+
+      if (checkpoints.has(tick)) {
+        expect(optimizedState).toEqual(legacyState);
+      }
     }
   });
 
