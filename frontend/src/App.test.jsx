@@ -401,7 +401,8 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: /^5x$/i }));
     fireEvent.click(screen.getByRole('button', { name: /restart from seed/i }));
 
-    expect(screen.getByText(/click an organism to inspect it\./i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /no organism selected/i })).toBeInTheDocument();
+    expect(screen.getByText(/select an organism to view deterministic inspector details\./i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^pause$/i })).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByRole('button', { name: /^1x$/i })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText(/^tick count:/i)).toHaveTextContent('Tick count: 0');
@@ -2277,6 +2278,7 @@ describe('App', () => {
     const inspector = screen.getByRole('region', { name: /organism inspector/i });
 
     expect(inspector).toHaveTextContent(`ID: ${firstTarget.id}`);
+    expect(within(inspector).queryByRole('heading', { name: /no organism selected/i })).not.toBeInTheDocument();
     expect(inspector).toHaveTextContent(`Generation: ${firstTarget.generation}`);
     expect(inspector).toHaveTextContent(`Age: ${firstTarget.age}`);
     expect(inspector).toHaveTextContent(`Size: ${firstTarget.traits.size.toFixed(3)}`);
@@ -2296,11 +2298,13 @@ describe('App', () => {
     expect(inspector).toHaveTextContent(`ID: ${secondTarget.id}`);
 
     fireEvent.click(canvas, { clientX: 799, clientY: 479 });
-    expect(inspector).toHaveTextContent(/click an organism to inspect it/i);
+    expect(inspector).toHaveTextContent(/no organism selected/i);
+    expect(inspector).toHaveTextContent(/select an organism to view deterministic inspector details/i);
 
     fireEvent.click(canvas, { clientX: firstTarget.x, clientY: firstTarget.y });
     fireEvent.click(screen.getByRole('button', { name: /close organism inspector/i }));
-    expect(inspector).toHaveTextContent(/click an organism to inspect it/i);
+    expect(inspector).toHaveTextContent(/no organism selected/i);
+    expect(inspector).toHaveTextContent(/select an organism to view deterministic inspector details/i);
   });
 
   it('keeps signal emphasis controls deterministic for fixture brain data', () => {
