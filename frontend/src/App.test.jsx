@@ -8,6 +8,7 @@ import { loadReplayComparisonPresets } from './simulation/replayComparisonPreset
 import { stepWorld } from './simulation/engine';
 import { createSeededPrng } from './simulation/prng';
 import { mapBrainEmphasisChecksum, mapBrainToVisualizerModel } from './simulation/brainVisualizer';
+import { INSPECTOR_TRAIT_SECTION_SCHEMA } from './inspectorTraitSchema';
 
 function ensureWritableLocalStorage() {
   const storage = window.localStorage;
@@ -1700,20 +1701,26 @@ describe('App', () => {
     expect(wrappedSelectedId).toBeTruthy();
     expect(wrappedSelectedId).not.toBe(restoredSelectedId);
 
+    const identityToggle = screen.getByRole('button', { name: /^identity$/i });
     const lifecycleToggle = screen.getByRole('button', { name: /^lifecycle$/i });
     const energyToggle = screen.getByRole('button', { name: /^energy$/i });
-    const movementToggle = screen.getByRole('button', { name: /^movement$/i });
+    const locomotionToggle = screen.getByRole('button', { name: /^locomotion$/i });
+    const sensesToggle = screen.getByRole('button', { name: /^senses$/i });
     const brainToggle = screen.getByRole('button', { name: /^brain$/i });
 
-    expect(lifecycleToggle).toHaveAttribute('aria-expanded', 'true');
+    expect(identityToggle).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
+    expect(lifecycleToggle).toHaveFocus();
     fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
     expect(energyToggle).toHaveFocus();
     fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
-    expect(movementToggle).toHaveFocus();
+    expect(locomotionToggle).toHaveFocus();
+    fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
+    expect(sensesToggle).toHaveFocus();
     fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
     expect(brainToggle).toHaveFocus();
     fireEvent.keyDown(window, { key: '[', code: 'BracketLeft' });
-    expect(movementToggle).toHaveFocus();
+    expect(sensesToggle).toHaveFocus();
 
     fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
     expect(brainToggle).toHaveFocus();
@@ -2502,9 +2509,21 @@ describe('App', () => {
     fireEvent.click(canvas, { clientX: firstTarget.x, clientY: firstTarget.y });
 
     const sectionLabels = screen.getAllByRole('button', {
-      name: /^(Lifecycle|Energy|Movement|Brain)$/i
+      name: /^(Identity|Lifecycle|Energy|Locomotion|Senses|Brain)$/i
     }).map((element) => element.textContent);
-    expect(sectionLabels).toEqual(['Lifecycle', 'Energy', 'Movement', 'Brain']);
+    expect(sectionLabels).toEqual([
+      ...INSPECTOR_TRAIT_SECTION_SCHEMA.map((section) => section.label),
+      'Brain'
+    ]);
+
+    const traitSectionRows = INSPECTOR_TRAIT_SECTION_SCHEMA.map((section) => {
+      const region = screen.getByRole('region', { name: section.label });
+      return Array.from(region.querySelectorAll('p strong')).map((node) => node.textContent);
+    });
+
+    expect(traitSectionRows).toEqual(
+      INSPECTOR_TRAIT_SECTION_SCHEMA.map((section) => section.fields.map((field) => `${field.label}:`))
+    );
   });
 
   it('keeps inspector and synapse controls keyboard-operable with deterministic focus after selection changes', async () => {
