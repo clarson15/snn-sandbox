@@ -53,6 +53,9 @@
  * @property {number} [maxFood=Infinity] maximum food entities in world
  * @property {number} [minimumPopulation=0] minimum number of organisms to maintain
  * @property {(id: string, rng: StepRng) => WorldOrganism} [createFloorSpawnOrganism] factory for floor-spawn organisms
+ * @property {number} [interactionRadius=0] radius used for organism-to-organism proximity checks
+ * @property {number} [interactionCostPerNeighbor=0] deterministic energy cost per nearby organism
+ * @property {'spatial'|'legacy'} [interactionLookupMode='spatial'] query strategy used for organism proximity checks
  */
 
 /**
@@ -144,6 +147,81 @@ function buildFoodSpatialIndex(foodItems, cellSize) {
   return { cells, foodIdToCellKey };
 }
 
+function buildOrganismSpatialIndex(organisms, cellSize) {
+  const cells = new Map();
+
+  for (const organism of organisms) {
+    const cellX = toCellIndex(organism.x, cellSize);
+    const cellY = toCellIndex(organism.y, cellSize);
+    const key = toCellKey(cellX, cellY);
+
+    if (!cells.has(key)) {
+      cells.set(key, []);
+    }
+
+    cells.get(key).push(organism);
+  }
+
+  for (const [, cellOrganisms] of cells) {
+    cellOrganisms.sort((a, b) => a.id.localeCompare(b.id));
+  }
+
+  return cells;
+}
+
+function countNeighborsWithSpatialLookup(organism, cellsByKey, radius, radiusSquared, cellSize) {
+  let neighborCount = 0;
+  const minCellX = toCellIndex(organism.x - radius, cellSize);
+  const maxCellX = toCellIndex(organism.x + radius, cellSize);
+  const minCellY = toCellIndex(organism.y - radius, cellSize);
+  const maxCellY = toCellIndex(organism.y + radius, cellSize);
+
+  for (let cellX = minCellX; cellX <= maxCellX; cellX += 1) {
+    for (let cellY = minCellY; cellY <= maxCellY; cellY += 1) {
+      const cellOrganisms = cellsByKey.get(toCellKey(cellX, cellY));
+      if (!cellOrganisms || cellOrganisms.length === 0) {
+        continue;
+      }
+
+      for (const candidate of cellOrganisms) {
+        if (candidate.id === organism.id) {
+          continue;
+        }
+
+        const dx = organism.x - candidate.x;
+        const dy = organism.y - candidate.y;
+        const distanceSquared = dx * dx + dy * dy;
+
+        if (distanceSquared <= radiusSquared) {
+          neighborCount += 1;
+        }
+      }
+    }
+  }
+
+  return neighborCount;
+}
+
+function countNeighborsWithLegacyLookup(organism, organismsByStableOrder, radiusSquared) {
+  let neighborCount = 0;
+
+  for (const candidate of organismsByStableOrder) {
+    if (candidate.id === organism.id) {
+      continue;
+    }
+
+    const dx = organism.x - candidate.x;
+    const dy = organism.y - candidate.y;
+    const distanceSquared = dx * dx + dy * dy;
+
+    if (distanceSquared <= radiusSquared) {
+      neighborCount += 1;
+    }
+  }
+
+  return neighborCount;
+}
+
 /**
  * Advance the simulation by one deterministic tick.
  *
@@ -164,6 +242,9 @@ export function stepWorld(state, rng, params = {}) {
   const maxFood = params.maxFood ?? Number.POSITIVE_INFINITY;
   const minimumPopulation = params.minimumPopulation ?? 0;
   const createFloorSpawnOrganism = params.createFloorSpawnOrganism;
+  const interactionRadius = params.interactionRadius ?? 0;
+  const interactionCostPerNeighbor = params.interactionCostPerNeighbor ?? 0;
+  const interactionLookupMode = params.interactionLookupMode ?? 'spatial';
 
   const movedOrganisms = state.organisms.map((organism) => {
     const dx = (rng.nextFloat() * 2 - 1) * movementDelta;
@@ -247,11 +328,43 @@ export function stepWorld(state, rng, params = {}) {
     }
   }
 
+  const shouldApplyInteractionCost = interactionRadius > 0 && interactionCostPerNeighbor > 0;
+  const interactionRadiusSquared = interactionRadius * interactionRadius;
+  const interactionCellSize = Math.max(interactionRadius, 1);
+  const organismInteractionCells = shouldApplyInteractionCost && interactionLookupMode === 'spatial'
+    ? buildOrganismSpatialIndex(movedOrganisms, interactionCellSize)
+    : null;
+
   let organisms = movedOrganisms
     .map((organism) => ({
       ...organism,
       energy: organism.energy + (consumedEnergyByOrganismId.get(organism.id) ?? 0)
     }))
+    .map((organism) => {
+      if (!shouldApplyInteractionCost) {
+        return organism;
+      }
+
+      const neighborCount = interactionLookupMode === 'legacy'
+        ? countNeighborsWithLegacyLookup(organism, organismsByStableOrder, interactionRadiusSquared)
+        : countNeighborsWithSpatialLookup(
+          organism,
+          organismInteractionCells,
+          interactionRadius,
+          interactionRadiusSquared,
+          interactionCellSize
+        );
+
+      if (neighborCount === 0) {
+        return organism;
+      }
+
+      const interactionCost = neighborCount * interactionCostPerNeighbor;
+      return {
+        ...organism,
+        energy: Math.max(0, organism.energy - interactionCost)
+      };
+    })
     .filter((organism) => organism.energy > 0);
 
   if (minimumPopulation > 0 && organisms.length < minimumPopulation && typeof createFloorSpawnOrganism === 'function') {
