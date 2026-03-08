@@ -59,6 +59,7 @@ import {
   INSPECTOR_TREND_WINDOW_TICKS,
   reduceInspectorTrendState
 } from './inspectorTrend';
+import { formatInspectorSnapshot } from './inspectorFormatting';
 
 const TICK_MS = 1000 / 30;
 const SPEED_OPTIONS = [1, 2, 5, 10];
@@ -66,12 +67,12 @@ const SIMULATION_VERSION = 'snn-sandbox-v1';
 const INSPECTOR_COMPACT_BREAKPOINT_PX = 980;
 const INSPECTOR_TREND_STRIP_WIDTH = 280;
 const INSPECTOR_TREND_STRIP_HEIGHT = 72;
-const INSPECTOR_SECTION_ORDER = ['lifecycle', 'traits', 'genome', 'brainSummary'];
+const INSPECTOR_SECTION_ORDER = ['lifecycle', 'energy', 'movement', 'brain'];
 const INSPECTOR_SECTION_LABELS = {
   lifecycle: 'Lifecycle',
-  traits: 'Traits',
-  genome: 'Genome',
-  brainSummary: 'Brain Summary'
+  energy: 'Energy',
+  movement: 'Movement',
+  brain: 'Brain'
 };
 const FORM_FIELDS = [
   'name',
@@ -156,9 +157,9 @@ function App() {
   const [inspectorPinned, setInspectorPinned] = useState(false);
   const [inspectorSectionExpanded, setInspectorSectionExpanded] = useState(() => ({
     lifecycle: true,
-    traits: true,
-    genome: true,
-    brainSummary: true
+    energy: true,
+    movement: true,
+    brain: true
   }));
   const [activeInspectorSectionIndex, setActiveInspectorSectionIndex] = useState(0);
   const [pinnedOrganismSnapshot, setPinnedOrganismSnapshot] = useState(null);
@@ -594,6 +595,10 @@ function App() {
 
     return Number.isFinite(nearestDistance) ? nearestDistance : null;
   }, [displayWorld, inspectorOrganism]);
+  const formattedInspector = useMemo(
+    () => formatInspectorSnapshot(inspectorOrganism, inspectorNearestFoodDistance),
+    [inspectorOrganism, inspectorNearestFoodDistance]
+  );
 
   const baseBrainGraphModel = useMemo(() => {
     if (!inspectorOrganism) {
@@ -1968,7 +1973,7 @@ function App() {
               </div>
               <div>
                 <dt>[ / ]</dt>
-                <dd>Move focus between inspector sections (Lifecycle, Traits, Genome, Brain Summary).</dd>
+                <dd>Move focus between inspector sections (Lifecycle, Energy, Movement, Brain).</dd>
               </div>
               <div>
                 <dt>Enter</dt>
@@ -2378,10 +2383,10 @@ function App() {
             <p><strong>ID:</strong> {inspectorOrganism.id}</p>
             <section className="inspector-critical-stats" aria-label="inspector critical stats">
               <h4>Critical stats</h4>
-              <p><strong>Energy:</strong> {inspectorOrganism.energy.toFixed(3)}</p>
-              <p><strong>Age:</strong> {inspectorOrganism.age}</p>
-              <p><strong>Generation:</strong> {inspectorOrganism.generation}</p>
-              <p><strong>Food distance:</strong> {inspectorNearestFoodDistance === null ? 'Unavailable' : inspectorNearestFoodDistance.toFixed(3)}</p>
+              <p><strong>Energy:</strong> {formattedInspector.energy}</p>
+              <p><strong>Age:</strong> {formattedInspector.age}</p>
+              <p><strong>Generation:</strong> {formattedInspector.generation}</p>
+              <p><strong>Food distance:</strong> {formattedInspector.nearestFoodDistance}</p>
             </section>
             {selectedOrganismId && inspectorTrendState.samples.length > 1 ? (
               <section className="inspector-trend-strip" aria-label="selected organism trend strip">
@@ -2424,7 +2429,7 @@ function App() {
                 const regionId = `inspector-${sectionKey}-region`;
 
                 return (
-                  <div key={sectionKey} className={`inspector-section${sectionKey === 'brainSummary' ? ' inspector-section-brain' : ''}`}>
+                  <div key={sectionKey} className={`inspector-section${sectionKey === 'brain' ? ' inspector-section-brain' : ''}`}>
                     <h3>
                       <button
                         id={buttonId}
@@ -2454,34 +2459,35 @@ function App() {
                     <div id={regionId} role="region" aria-labelledby={buttonId} hidden={!expanded}>
                       {sectionKey === 'lifecycle' ? (
                         <>
-                          <p><strong>Generation:</strong> {inspectorOrganism.generation}</p>
-                          <p><strong>Age:</strong> {inspectorOrganism.age}</p>
-                          <p><strong>Energy:</strong> {inspectorOrganism.energy.toFixed(3)}</p>
-                          <p><strong>Position:</strong> ({inspectorOrganism.x.toFixed(3)}, {inspectorOrganism.y.toFixed(3)})</p>
+                          <p><strong>Generation:</strong> {formattedInspector.generation}</p>
+                          <p><strong>Age:</strong> {formattedInspector.age}</p>
                         </>
                       ) : null}
-                    {sectionKey === 'traits' ? (
-                      <ul>
-                        <li>Size: {inspectorOrganism.traits.size}</li>
-                        <li>Speed: {inspectorOrganism.traits.speed}</li>
-                        <li>Vision range: {inspectorOrganism.traits.visionRange}</li>
-                        <li>Turn rate: {inspectorOrganism.traits.turnRate}</li>
-                        <li>Metabolism: {inspectorOrganism.traits.metabolism}</li>
-                      </ul>
-                    ) : null}
-                    {sectionKey === 'genome' ? (
+                      {sectionKey === 'energy' ? (
+                        <>
+                          <p><strong>Energy:</strong> {formattedInspector.energy}</p>
+                          <p><strong>Food distance:</strong> {formattedInspector.nearestFoodDistance}</p>
+                          <p><strong>Metabolism:</strong> {formattedInspector.metabolism}</p>
+                        </>
+                      ) : null}
+                      {sectionKey === 'movement' ? (
+                        <>
+                          <p><strong>Position:</strong> {formattedInspector.position}</p>
+                          <p><strong>Speed:</strong> {formattedInspector.speed}</p>
+                          <p><strong>Turn rate:</strong> {formattedInspector.turnRate}</p>
+                          <p><strong>Vision range:</strong> {formattedInspector.visionRange}</p>
+                          <p><strong>Size:</strong> {formattedInspector.size}</p>
+                        </>
+                      ) : null}
+                      {sectionKey === 'brain' ? (
                       <>
-                        <p><strong>Genome signature:</strong> {(inspectorOrganism.brain?.neurons?.length ?? 0)}N-{(inspectorOrganism.brain?.synapses?.length ?? 0)}S</p>
+                        <p><strong>Genome signature:</strong> {formattedInspector.neuronCount}N-{formattedInspector.synapseCount}S</p>
                         <p>
                           <strong>Neuron IDs:</strong>{' '}
                           {(inspectorOrganism.brain?.neurons ?? [])
                             .map((neuron, neuronIndex) => neuron?.id ?? `n${neuronIndex + 1}`)
-                            .join(', ') || 'n/a'}
+                            .join(', ') || '—'}
                         </p>
-                      </>
-                    ) : null}
-                    {sectionKey === 'brainSummary' ? (
-                      <>
                         <h4>Brain visualizer (read-only)</h4>
                         {brainGraphModel ? (
                           <>

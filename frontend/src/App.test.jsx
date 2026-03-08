@@ -1688,26 +1688,28 @@ describe('App', () => {
     expect(restoredSelectedId).toBe(firstSelectedId);
 
     const lifecycleToggle = screen.getByRole('button', { name: /^lifecycle$/i });
-    const traitsToggle = screen.getByRole('button', { name: /^traits$/i });
-    const genomeToggle = screen.getByRole('button', { name: /^genome$/i });
-    const brainSummaryToggle = screen.getByRole('button', { name: /^brain summary$/i });
+    const energyToggle = screen.getByRole('button', { name: /^energy$/i });
+    const movementToggle = screen.getByRole('button', { name: /^movement$/i });
+    const brainToggle = screen.getByRole('button', { name: /^brain$/i });
 
     expect(lifecycleToggle).toHaveAttribute('aria-expanded', 'true');
     fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
-    expect(traitsToggle).toHaveFocus();
+    expect(energyToggle).toHaveFocus();
     fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
-    expect(genomeToggle).toHaveFocus();
+    expect(movementToggle).toHaveFocus();
     fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
-    expect(brainSummaryToggle).toHaveFocus();
+    expect(brainToggle).toHaveFocus();
     fireEvent.keyDown(window, { key: '[', code: 'BracketLeft' });
-    expect(genomeToggle).toHaveFocus();
+    expect(movementToggle).toHaveFocus();
 
+    fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
+    expect(brainToggle).toHaveFocus();
     fireEvent.keyDown(window, { key: 'Enter', code: 'Enter' });
-    expect(genomeToggle).toHaveAttribute('aria-expanded', 'false');
+    expect(brainToggle).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByText(/genome signature:/i)).not.toBeVisible();
 
     fireEvent.keyDown(window, { key: 'Enter', code: 'Enter' });
-    expect(genomeToggle).toHaveAttribute('aria-expanded', 'true');
+    expect(brainToggle).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByText(/genome signature:/i)).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: 'p', code: 'KeyP' });
@@ -2265,11 +2267,11 @@ describe('App', () => {
     expect(inspector).toHaveTextContent(`ID: ${firstTarget.id}`);
     expect(inspector).toHaveTextContent(`Generation: ${firstTarget.generation}`);
     expect(inspector).toHaveTextContent(`Age: ${firstTarget.age}`);
-    expect(inspector).toHaveTextContent(`Size: ${firstTarget.traits.size}`);
-    expect(inspector).toHaveTextContent(`Speed: ${firstTarget.traits.speed}`);
-    expect(inspector).toHaveTextContent(`Vision range: ${firstTarget.traits.visionRange}`);
-    expect(inspector).toHaveTextContent(`Turn rate: ${firstTarget.traits.turnRate}`);
-    expect(inspector).toHaveTextContent(`Metabolism: ${firstTarget.traits.metabolism}`);
+    expect(inspector).toHaveTextContent(`Size: ${firstTarget.traits.size.toFixed(3)}`);
+    expect(inspector).toHaveTextContent(`Speed: ${firstTarget.traits.speed.toFixed(3)}`);
+    expect(inspector).toHaveTextContent(`Vision range: ${firstTarget.traits.visionRange.toFixed(3)}`);
+    expect(inspector).toHaveTextContent(`Turn rate: ${firstTarget.traits.turnRate.toFixed(3)}`);
+    expect(inspector).toHaveTextContent(`Metabolism: ${firstTarget.traits.metabolism.toFixed(3)}`);
     expect(inspector).toHaveTextContent(`Neurons: ${firstTarget.brain.neurons.length}`);
     expect(inspector).toHaveTextContent(`Synapses: ${firstTarget.brain.synapses.length}`);
     expect(screen.getByLabelText(/brain graph legend/i)).toHaveTextContent(/input neurons/i);
@@ -2443,6 +2445,50 @@ describe('App', () => {
 
     expect(screen.getByText(/focus mode:/i)).toHaveTextContent(/full/i);
     expect(screen.getByText(/selected neuron:/i)).toHaveTextContent(/none/i);
+  });
+
+  it('renders inspector sections in deterministic order and uses placeholder for missing values', () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/seed/i), { target: { value: 'fixture-seed' } });
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    const fixtureConfig = normalizeSimulationConfig(
+      {
+        name: 'Fixture',
+        seed: 'fixture-seed',
+        worldWidth: 800,
+        worldHeight: 480,
+        initialPopulation: 12,
+        initialFoodCount: 30,
+        foodSpawnChance: 0.04,
+        foodEnergyValue: 5,
+        maxFood: 120
+      },
+      'fixture-seed'
+    );
+    const fixtureWorld = createInitialWorldFromConfig(fixtureConfig);
+    const firstTarget = fixtureWorld.organisms[0];
+
+    const canvas = screen.getByLabelText(/simulation world/i);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 800,
+      height: 480,
+      right: 800,
+      bottom: 480,
+      toJSON: () => ({})
+    });
+
+    fireEvent.click(canvas, { clientX: firstTarget.x, clientY: firstTarget.y });
+
+    const sectionLabels = screen.getAllByRole('button', {
+      name: /^(Lifecycle|Energy|Movement|Brain)$/i
+    }).map((element) => element.textContent);
+    expect(sectionLabels).toEqual(['Lifecycle', 'Energy', 'Movement', 'Brain']);
   });
 
   it('keeps inspector and synapse controls keyboard-operable with deterministic focus after selection changes', async () => {
