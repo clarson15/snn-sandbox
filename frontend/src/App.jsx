@@ -101,6 +101,7 @@ function App() {
   const [saveStatus, setSaveStatus] = useState('');
   const [saveErrorDetail, setSaveErrorDetail] = useState('');
   const [loadStatus, setLoadStatus] = useState('');
+  const [loadRecoveryBySnapshotId, setLoadRecoveryBySnapshotId] = useState({});
   const [deleteStatus, setDeleteStatus] = useState('');
   const [copyMetadataStatus, setCopyMetadataStatus] = useState('');
   const [seedControlStatus, setSeedControlStatus] = useState('');
@@ -1045,6 +1046,15 @@ function App() {
 
   const onLoadSimulation = async (snapshotSummary) => {
     setLoadStatus('Loading…');
+    setLoadRecoveryBySnapshotId((previous) => {
+      if (!previous[snapshotSummary.id]) {
+        return previous;
+      }
+
+      const next = { ...previous };
+      delete next[snapshotSummary.id];
+      return next;
+    });
 
     try {
       const snapshot = await getSimulationSnapshot(snapshotSummary.id);
@@ -1058,6 +1068,10 @@ function App() {
       setLoadStatus('Loaded.');
     } catch {
       setLoadStatus('Failed to load snapshot.');
+      setLoadRecoveryBySnapshotId((previous) => ({
+        ...previous,
+        [snapshotSummary.id]: 'Snapshot could not be resumed. Retry or delete this save.'
+      }));
     }
   };
 
@@ -1073,6 +1087,15 @@ function App() {
     try {
       await deleteSimulationSnapshot(snapshotSummary.id);
       setSavedSimulations((previous) => previous.filter((snapshot) => snapshot.id !== snapshotSummary.id));
+      setLoadRecoveryBySnapshotId((previous) => {
+        if (!previous[snapshotSummary.id]) {
+          return previous;
+        }
+
+        const next = { ...previous };
+        delete next[snapshotSummary.id];
+        return next;
+      });
 
       if (activeLoadedMetadata?.id === snapshotSummary.id) {
         setActiveLoadedMetadata(null);
@@ -1773,6 +1796,13 @@ function App() {
                 <strong>{snapshot.name}</strong> — updated {formatTimestamp(snapshot.updatedAt)} · seed {snapshot.seed || 'unknown'} · tick {snapshot.tickCount} · population {snapshot.populationCount ?? 'metadata unavailable'}{' '}
                 <button type="button" onClick={() => onLoadSimulation(snapshot)}>Resume</button>{' '}
                 <button type="button" onClick={() => onDeleteSimulation(snapshot)}>Delete</button>
+                {loadRecoveryBySnapshotId[snapshot.id] ? (
+                  <p role="alert">
+                    {loadRecoveryBySnapshotId[snapshot.id]}{' '}
+                    <button type="button" onClick={() => onLoadSimulation(snapshot)}>Retry</button>{' '}
+                    <button type="button" onClick={() => onDeleteSimulation(snapshot)}>Delete broken save</button>
+                  </p>
+                ) : null}
               </li>
             ))}
           </ul>

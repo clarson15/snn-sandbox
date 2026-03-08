@@ -1109,7 +1109,8 @@ describe('App', () => {
     });
   });
 
-  it('surfaces load failures for invalid/corrupt snapshots', async () => {
+  it('surfaces per-save recovery actions for invalid/corrupt snapshots and supports retry', async () => {
+    let loadAttempts = 0;
     vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
       if (url === '/api/simulations/snapshots' && (!options.method || options.method === 'GET')) {
         return {
@@ -1119,11 +1120,51 @@ describe('App', () => {
         };
       }
 
-      if (String(url).startsWith('/api/simulations/snapshots/')) {
+      if (String(url).startsWith('/api/simulations/snapshots/') && (!options.method || options.method === 'GET')) {
+        loadAttempts += 1;
+        if (loadAttempts === 1) {
+          return {
+            ok: false,
+            status: 404,
+            json: async () => ({})
+          };
+        }
+
         return {
           ok: true,
           status: 200,
-          json: async () => ({ id: 'sim-bad', tickCount: 10, worldState: { tick: 9 } })
+          json: async () => ({
+            id: 'sim-bad',
+            name: 'Bad snapshot',
+            seed: 'fixture-seed',
+            parameters: {
+              name: 'Fixture',
+              seed: 'fixture-seed',
+              resolvedSeed: 'fixture-seed',
+              worldWidth: 800,
+              worldHeight: 480,
+              initialPopulation: 12,
+              minimumPopulation: 12,
+              initialFoodCount: 30,
+              foodSpawnChance: 0.04,
+              foodEnergyValue: 5,
+              maxFood: 120
+            },
+            tickCount: 0,
+            rngState: 123,
+            worldState: createInitialWorldFromConfig(normalizeSimulationConfig({
+              name: 'Fixture',
+              seed: 'fixture-seed',
+              worldWidth: 800,
+              worldHeight: 480,
+              initialPopulation: 12,
+              minimumPopulation: 12,
+              initialFoodCount: 30,
+              foodSpawnChance: 0.04,
+              foodEnergyValue: 5,
+              maxFood: 120
+            }, 'fixture-seed'))
+          })
         };
       }
 
@@ -1134,8 +1175,55 @@ describe('App', () => {
     const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
     fireEvent.click(within(savedRegion).getByRole('button', { name: /^resume$/i }));
 
+    const recoveryAlert = await screen.findByRole('alert');
+    expect(recoveryAlert).toHaveTextContent(/snapshot could not be resumed\. retry or delete this save\./i);
+    expect(within(recoveryAlert).getByRole('button', { name: /retry/i })).toBeInTheDocument();
+    expect(within(recoveryAlert).getByRole('button', { name: /delete broken save/i })).toBeInTheDocument();
+
+    fireEvent.click(within(recoveryAlert).getByRole('button', { name: /retry/i }));
+
     await waitFor(() => {
-      expect(screen.getByText(/failed to load snapshot/i)).toBeInTheDocument();
+      expect(screen.getByText(/loaded\./i)).toBeInTheDocument();
+      expect(screen.queryByText(/snapshot could not be resumed\. retry or delete this save\./i)).not.toBeInTheDocument();
+    });
+  });
+
+  it('allows deleting a broken save from recovery actions', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
+      if (url === '/api/simulations/snapshots' && (!options.method || options.method === 'GET')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ([{ id: 'sim-bad', name: 'Bad snapshot', updatedAt: '2026-03-06T12:00:01.000Z' }])
+        };
+      }
+
+      if (String(url).startsWith('/api/simulations/snapshots/') && (!options.method || options.method === 'GET')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ id: 'sim-bad', tickCount: 10, worldState: { tick: 9 } })
+        };
+      }
+
+      if (String(url).startsWith('/api/simulations/snapshots/') && options.method === 'DELETE') {
+        return { ok: true, status: 204, json: async () => ({}) };
+      }
+
+      return { ok: false, status: 404, json: async () => ({}) };
+    }));
+
+    render(<App />);
+
+    const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
+    fireEvent.click(within(savedRegion).getByRole('button', { name: /^resume$/i }));
+
+    const recoveryAlert = await screen.findByRole('alert');
+    fireEvent.click(within(recoveryAlert).getByRole('button', { name: /delete broken save/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/deleted\./i)).toBeInTheDocument();
+      expect(screen.queryByText(/bad snapshot/i)).not.toBeInTheDocument();
     });
   });
 
