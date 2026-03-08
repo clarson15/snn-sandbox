@@ -404,6 +404,89 @@ describe('App', () => {
     });
   });
 
+  it('locks per-save resume actions while a snapshot load request is in flight', async () => {
+    let resolveSnapshot;
+    const snapshotPromise = new Promise((resolve) => {
+      resolveSnapshot = resolve;
+    });
+
+    globalThis.fetch.mockImplementation(async (url, options = {}) => {
+      if (url === '/api/simulations/snapshots' && (!options.method || options.method === 'GET')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ([{ id: 'sim-fixture', name: 'Fixture snapshot', updatedAt: '2026-03-06T12:00:01.000Z' }])
+        };
+      }
+
+      if (String(url).startsWith('/api/simulations/snapshots/sim-fixture') && (!options.method || options.method === 'GET')) {
+        const snapshot = await snapshotPromise;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => snapshot
+        };
+      }
+
+      return { ok: false, status: 404, json: async () => ({}) };
+    });
+
+    render(<App />);
+
+    const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
+    const resumeButton = within(savedRegion).getByRole('button', { name: /^resume$/i });
+
+    fireEvent.click(resumeButton);
+
+    expect(within(savedRegion).getByRole('button', { name: /loading…/i })).toBeDisabled();
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      '/api/simulations/snapshots/sim-fixture',
+      expect.objectContaining({ method: 'GET' })
+    );
+
+    fireEvent.click(within(savedRegion).getByRole('button', { name: /loading…/i }));
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+
+    resolveSnapshot({
+      id: 'sim-fixture',
+      name: 'Fixture snapshot',
+      updatedAt: '2026-03-06T12:00:01.000Z',
+      seed: 'fixture-seed',
+      tickCount: 0,
+      rngState: createSeededPrng('fixture-seed').state,
+      worldState: createInitialWorldFromConfig(normalizeSimulationConfig({
+        name: 'Fixture snapshot',
+        seed: 'fixture-seed',
+        worldWidth: 800,
+        worldHeight: 600,
+        initialPopulation: 12,
+        minimumPopulation: 12,
+        initialFoodCount: 30,
+        foodSpawnChance: 0.04,
+        foodEnergyValue: 5,
+        maxFood: 120
+      }, 'fixture-seed')),
+      parameters: toEngineStepParams(normalizeSimulationConfig({
+        name: 'Fixture snapshot',
+        seed: 'fixture-seed',
+        worldWidth: 800,
+        worldHeight: 600,
+        initialPopulation: 12,
+        minimumPopulation: 12,
+        initialFoodCount: 30,
+        foodSpawnChance: 0.04,
+        foodEnergyValue: 5,
+        maxFood: 120
+      }, 'fixture-seed'))
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/loaded\./i)).toBeInTheDocument();
+      expect(within(savedRegion).getByRole('button', { name: /^resume$/i })).toBeEnabled();
+    });
+  });
+
   it('renders saved-card population metadata from persisted snapshot payload when available', async () => {
     globalThis.fetch.mockImplementation(async (url, options = {}) => {
       if (url === '/api/simulations/snapshots' && (!options.method || options.method === 'GET')) {
