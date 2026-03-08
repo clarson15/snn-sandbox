@@ -65,6 +65,7 @@ function resolveOffspringCount(organism) {
 
 function formatInspectorSnapshot(organism, nearestFoodDistance) {
   return {
+    id: typeof organism?.id === 'string' && organism.id.trim().length > 0 ? organism.id : INSPECTOR_PLACEHOLDER,
     generation: formatInteger(organism?.generation),
     parentId: resolveParentId(organism),
     offspringCount: resolveOffspringCount(organism),

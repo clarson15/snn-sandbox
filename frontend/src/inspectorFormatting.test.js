@@ -6,6 +6,7 @@ describe('formatInspectorSnapshot', () => {
   it('formats numeric inspector values with deterministic fixed precision', () => {
     const formatted = formatInspectorSnapshot(
       {
+        id: 'org-42',
         generation: 3,
         age: 42,
         energy: 11.23456,
@@ -31,6 +32,7 @@ describe('formatInspectorSnapshot', () => {
     );
 
     expect(formatted).toEqual({
+      id: 'org-42',
       generation: '3',
       parentId: 'org-7',
       offspringCount: '4',
@@ -57,6 +59,7 @@ describe('formatInspectorSnapshot', () => {
       null
     );
 
+    expect(formatted.id).toBe('—');
     expect(formatted.generation).toBe('—');
     expect(formatted.parentId).toBe('—');
     expect(formatted.offspringCount).toBe('—');
