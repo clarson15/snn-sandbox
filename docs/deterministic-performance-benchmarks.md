@@ -22,6 +22,32 @@ npm ci
 npm run benchmark
 ```
 
+## Generate baseline vs candidate comparison
+
+Create a baseline JSON report on a known-good commit:
+
+```bash
+cd frontend
+npm run benchmark:compare -- --output-json ./benchmark-results/baseline.json --output-markdown ./benchmark-results/baseline.md
+```
+
+Then generate a candidate report and compare against the baseline:
+
+```bash
+cd frontend
+npm run benchmark:compare -- --baseline ./benchmark-results/baseline.json --output-json ./benchmark-results/candidate.json --output-markdown ./benchmark-results/candidate.md --regression-threshold 10
+```
+
+The comparison JSON contains structured fields for each scenario:
+
+- `comparison.baselineAvgTickMs`
+- `comparison.candidateAvgTickMs`
+- `comparison.deltaPercent`
+- `comparison.regressionThresholdPercent`
+- `comparison.isRegression`
+
+`deltaPercent` > threshold marks that scenario as a regression in the report.
+
 ## Output and interpretation
 
 For each scenario, the harness prints:
@@ -45,7 +71,9 @@ Scenario: population-1000
 
 ### Determinism gate
 
-The benchmark command exits with a non-zero status if any scenario reports a checksum mismatch.
+The `npm run benchmark` command exits with a non-zero status if any scenario reports a checksum mismatch.
+
+The comparison command (`npm run benchmark:compare`) is informational by default so PRs can still publish benchmark artifacts without blocking non-performance changes. Use `--strict true` when you want regressions or determinism mismatches to fail the command.
 
 ## Render cadence policy at runtime speeds
 
