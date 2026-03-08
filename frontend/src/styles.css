@@ -79,6 +79,18 @@ input {
   display: inline-flex;
 }
 
+.speed-presets {
+  display: inline-flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.speed-preset-button.is-active {
+  border-color: #67e8f9;
+  box-shadow: 0 0 0 1px #67e8f9;
+  background: #0b3d5c;
+}
+
 .control-with-hint.is-disabled:focus-visible {
   outline: 2px solid #67e8f9;
   outline-offset: 3px;

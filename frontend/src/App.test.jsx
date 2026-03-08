@@ -329,26 +329,33 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
 
     const pauseButton = screen.getByRole('button', { name: /^pause$/i });
+    const speedPresets = screen.getByRole('group', { name: /speed presets/i });
     const speed1x = screen.getByRole('button', { name: /^1x$/i });
     const speed2x = screen.getByRole('button', { name: /^2x$/i });
     const speed5x = screen.getByRole('button', { name: /^5x$/i });
     const speed10x = screen.getByRole('button', { name: /^10x$/i });
 
+    expect(speedPresets).toBeInTheDocument();
+    expect(speed1x).toHaveClass('speed-preset-button', 'is-active');
     expect(speed1x).toHaveAttribute('aria-pressed', 'true');
     expect(speed2x).toHaveAttribute('aria-pressed', 'false');
     expect(speed5x).toHaveAttribute('aria-pressed', 'false');
     expect(speed10x).toHaveAttribute('aria-pressed', 'false');
 
     fireEvent.click(speed5x);
+    expect(speed5x).toHaveClass('speed-preset-button', 'is-active');
     expect(speed5x).toHaveAttribute('aria-pressed', 'true');
+    expect(speed1x).not.toHaveClass('is-active');
     expect(speed1x).toHaveAttribute('aria-pressed', 'false');
 
     fireEvent.click(pauseButton);
     expect(screen.getByRole('button', { name: /^pause$/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(speed5x).not.toHaveClass('is-active');
     expect(speed5x).toHaveAttribute('aria-pressed', 'false');
 
     fireEvent.click(speed2x);
     expect(screen.getByRole('button', { name: /^pause$/i })).toHaveAttribute('aria-pressed', 'false');
+    expect(speed2x).toHaveClass('speed-preset-button', 'is-active');
     expect(speed2x).toHaveAttribute('aria-pressed', 'true');
   });
 
