@@ -56,6 +56,7 @@ import { deriveInspectorComparisonRows } from './inspectorComparison';
 const TICK_MS = 1000 / 30;
 const SPEED_OPTIONS = [1, 2, 5, 10];
 const SIMULATION_VERSION = 'snn-sandbox-v1';
+const INSPECTOR_COMPACT_BREAKPOINT_PX = 980;
 const INSPECTOR_SECTION_ORDER = ['lifecycle', 'traits', 'genome', 'brainSummary'];
 const INSPECTOR_SECTION_LABELS = {
   lifecycle: 'Lifecycle',
@@ -152,6 +153,7 @@ function App() {
   }));
   const [activeInspectorSectionIndex, setActiveInspectorSectionIndex] = useState(0);
   const [pinnedOrganismSnapshot, setPinnedOrganismSnapshot] = useState(null);
+  const [isCompactInspectorLayout, setIsCompactInspectorLayout] = useState(() => window.innerWidth <= INSPECTOR_COMPACT_BREAKPOINT_PX);
   const [activeSynapseId, setActiveSynapseId] = useState(null);
   const [brainGraphTransform, setBrainGraphTransform] = useState(() => ({ scale: 1, translateX: 0, translateY: 0 }));
   const [hideNearZeroBrainEdges, setHideNearZeroBrainEdges] = useState(false);
@@ -246,6 +248,19 @@ function App() {
   useEffect(() => {
     pausedRef.current = paused;
   }, [paused]);
+
+  useEffect(() => {
+    const onResize = () => {
+      setIsCompactInspectorLayout(window.innerWidth <= INSPECTOR_COMPACT_BREAKPOINT_PX);
+    };
+
+    window.addEventListener('resize', onResize);
+    onResize();
+
+    return () => {
+      window.removeEventListener('resize', onResize);
+    };
+  }, []);
 
   useEffect(() => {
     speedMultiplierRef.current = speedMultiplier;
@@ -516,6 +531,21 @@ function App() {
   };
 
   const inspectorOrganism = selectedOrganism ?? (inspectorPinned ? pinnedOrganismSnapshot : null);
+  const inspectorNearestFoodDistance = useMemo(() => {
+    if (!inspectorOrganism || !displayWorld?.food?.length) {
+      return null;
+    }
+
+    let nearestDistance = Infinity;
+    for (const food of displayWorld.food) {
+      const distance = Math.hypot(inspectorOrganism.x - food.x, inspectorOrganism.y - food.y);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+      }
+    }
+
+    return Number.isFinite(nearestDistance) ? nearestDistance : null;
+  }, [displayWorld, inspectorOrganism]);
 
   const baseBrainGraphModel = useMemo(() => {
     if (!inspectorOrganism) {
@@ -2281,48 +2311,59 @@ function App() {
               Selected organism details
             </h3>
             <p><strong>ID:</strong> {inspectorOrganism.id}</p>
-            {INSPECTOR_SECTION_ORDER.map((sectionKey, index) => {
-              const expanded = Boolean(inspectorSectionExpanded[sectionKey]);
-              const buttonId = `inspector-${sectionKey}-toggle`;
-              const regionId = `inspector-${sectionKey}-region`;
+            <section className="inspector-critical-stats" aria-label="inspector critical stats">
+              <h4>Critical stats</h4>
+              <p><strong>Energy:</strong> {inspectorOrganism.energy.toFixed(3)}</p>
+              <p><strong>Age:</strong> {inspectorOrganism.age}</p>
+              <p><strong>Generation:</strong> {inspectorOrganism.generation}</p>
+              <p><strong>Food distance:</strong> {inspectorNearestFoodDistance === null ? 'Unavailable' : inspectorNearestFoodDistance.toFixed(3)}</p>
+            </section>
+            <div
+              className={`inspector-sections-layout${isCompactInspectorLayout ? ' is-compact' : ''}`}
+              data-layout-mode={isCompactInspectorLayout ? 'compact' : 'desktop'}
+            >
+              {INSPECTOR_SECTION_ORDER.map((sectionKey, index) => {
+                const expanded = Boolean(inspectorSectionExpanded[sectionKey]);
+                const buttonId = `inspector-${sectionKey}-toggle`;
+                const regionId = `inspector-${sectionKey}-region`;
 
-              return (
-                <div key={sectionKey} className="inspector-section">
-                  <h3>
-                    <button
-                      id={buttonId}
-                      type="button"
-                      className="inspector-section-toggle"
-                      aria-expanded={expanded}
-                      aria-controls={regionId}
-                      onClick={() => {
-                        setActiveInspectorSectionIndex(index);
-                        setInspectorSectionExpanded((previous) => ({
-                          ...previous,
-                          [sectionKey]: !previous[sectionKey]
-                        }));
-                      }}
-                      onFocus={() => setActiveInspectorSectionIndex(index)}
-                      ref={(element) => {
-                        if (element) {
-                          inspectorSectionButtonRefs.current.set(sectionKey, element);
-                        } else {
-                          inspectorSectionButtonRefs.current.delete(sectionKey);
-                        }
-                      }}
-                    >
-                      {INSPECTOR_SECTION_LABELS[sectionKey]}
-                    </button>
-                  </h3>
-                  <div id={regionId} role="region" aria-labelledby={buttonId} hidden={!expanded}>
-                    {sectionKey === 'lifecycle' ? (
-                      <>
-                        <p><strong>Generation:</strong> {inspectorOrganism.generation}</p>
-                        <p><strong>Age:</strong> {inspectorOrganism.age}</p>
-                        <p><strong>Energy:</strong> {inspectorOrganism.energy.toFixed(3)}</p>
-                        <p><strong>Position:</strong> ({inspectorOrganism.x.toFixed(3)}, {inspectorOrganism.y.toFixed(3)})</p>
-                      </>
-                    ) : null}
+                return (
+                  <div key={sectionKey} className={`inspector-section${sectionKey === 'brainSummary' ? ' inspector-section-brain' : ''}`}>
+                    <h3>
+                      <button
+                        id={buttonId}
+                        type="button"
+                        className="inspector-section-toggle"
+                        aria-expanded={expanded}
+                        aria-controls={regionId}
+                        onClick={() => {
+                          setActiveInspectorSectionIndex(index);
+                          setInspectorSectionExpanded((previous) => ({
+                            ...previous,
+                            [sectionKey]: !previous[sectionKey]
+                          }));
+                        }}
+                        onFocus={() => setActiveInspectorSectionIndex(index)}
+                        ref={(element) => {
+                          if (element) {
+                            inspectorSectionButtonRefs.current.set(sectionKey, element);
+                          } else {
+                            inspectorSectionButtonRefs.current.delete(sectionKey);
+                          }
+                        }}
+                      >
+                        {INSPECTOR_SECTION_LABELS[sectionKey]}
+                      </button>
+                    </h3>
+                    <div id={regionId} role="region" aria-labelledby={buttonId} hidden={!expanded}>
+                      {sectionKey === 'lifecycle' ? (
+                        <>
+                          <p><strong>Generation:</strong> {inspectorOrganism.generation}</p>
+                          <p><strong>Age:</strong> {inspectorOrganism.age}</p>
+                          <p><strong>Energy:</strong> {inspectorOrganism.energy.toFixed(3)}</p>
+                          <p><strong>Position:</strong> ({inspectorOrganism.x.toFixed(3)}, {inspectorOrganism.y.toFixed(3)})</p>
+                        </>
+                      ) : null}
                     {sectionKey === 'traits' ? (
                       <ul>
                         <li>Size: {inspectorOrganism.traits.size}</li>
@@ -2535,6 +2576,7 @@ function App() {
                 </div>
               );
             })}
+            </div>
           </>
         ) : selectedOrganismUnavailable ? (
           <>
