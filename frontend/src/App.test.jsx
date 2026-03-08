@@ -1553,27 +1553,17 @@ describe('App', () => {
     const tickNode = screen.getByText(/^tick count:/i);
     const readTick = () => Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10);
 
-    expect(screen.getByText(/shortcuts: space pause\/play · \[ \/ \] step speed down\/up/i)).toBeInTheDocument();
-    expect(screen.getByText(/inspector shortcuts: ←\/→ previous\/next organism · p pin\/unpin inspector/i)).toBeInTheDocument();
+    expect(screen.getByText(/shortcuts: space pause\/play · \. single-step \(paused\) · 1\/2\/3\/4 set speed/i)).toBeInTheDocument();
+    expect(screen.getByText(/inspector shortcuts: ←\/→ previous\/next organism · p pin\/unpin inspector · \[\/\] section focus · enter toggle section/i)).toBeInTheDocument();
     expect(screen.getByText(/pin mode: disabled/i)).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: '3', code: 'Digit3' });
     expect(screen.getByRole('button', { name: /^5x$/i })).toHaveAttribute('aria-pressed', 'true');
 
-    fireEvent.keyDown(window, { key: '[', code: 'BracketLeft' });
-    expect(screen.getByRole('button', { name: /^2x$/i })).toHaveAttribute('aria-pressed', 'true');
-
-    fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
-    expect(screen.getByRole('button', { name: /^5x$/i })).toHaveAttribute('aria-pressed', 'true');
 
     fireEvent.keyDown(window, { key: ' ', code: 'Space' });
     expect(screen.getByRole('button', { name: /^pause$/i })).toHaveAttribute('aria-pressed', 'true');
 
-    fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
-    expect(screen.getByRole('button', { name: /^1x$/i })).toHaveAttribute('aria-pressed', 'true');
-
-    fireEvent.keyDown(window, { key: '[', code: 'BracketLeft' });
-    expect(screen.getByRole('button', { name: /^pause$/i })).toHaveAttribute('aria-pressed', 'true');
 
     const pausedTick = readTick();
     fireEvent.keyDown(window, { key: '.', code: 'Period' });
@@ -1597,6 +1587,29 @@ describe('App', () => {
     const restoredSelectedId = readInspectorId();
     expect(restoredSelectedId).toBe(firstSelectedId);
 
+    const lifecycleToggle = screen.getByRole('button', { name: /^lifecycle$/i });
+    const traitsToggle = screen.getByRole('button', { name: /^traits$/i });
+    const genomeToggle = screen.getByRole('button', { name: /^genome$/i });
+    const brainSummaryToggle = screen.getByRole('button', { name: /^brain summary$/i });
+
+    expect(lifecycleToggle).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
+    expect(traitsToggle).toHaveFocus();
+    fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
+    expect(genomeToggle).toHaveFocus();
+    fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
+    expect(brainSummaryToggle).toHaveFocus();
+    fireEvent.keyDown(window, { key: '[', code: 'BracketLeft' });
+    expect(genomeToggle).toHaveFocus();
+
+    fireEvent.keyDown(window, { key: 'Enter', code: 'Enter' });
+    expect(genomeToggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByText(/genome signature:/i)).not.toBeVisible();
+
+    fireEvent.keyDown(window, { key: 'Enter', code: 'Enter' });
+    expect(genomeToggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText(/genome signature:/i)).toBeInTheDocument();
+
     fireEvent.keyDown(window, { key: 'p', code: 'KeyP' });
     expect(screen.getByRole('button', { name: /unpin organism inspector/i })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText(/pin mode: enabled/i)).toBeInTheDocument();
@@ -1606,9 +1619,10 @@ describe('App', () => {
     expect(screen.getByText(/pin mode: disabled/i)).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: ' ', code: 'Space' });
-    expect(screen.getByRole('button', { name: /^1x$/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /^pause$/i })).toHaveAttribute('aria-pressed', 'false');
 
     fireEvent.keyDown(window, { key: ' ', code: 'Space' });
+    expect(screen.getByRole('button', { name: /^pause$/i })).toHaveAttribute('aria-pressed', 'true');
     const seedInput = screen.getByLabelText(/seed/i);
     seedInput.focus();
 
