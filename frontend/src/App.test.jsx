@@ -317,10 +317,12 @@ describe('App', () => {
     fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '20' } });
     fireEvent.change(screen.getByLabelText(/max food/i), { target: { value: '1' } });
     fireEvent.change(screen.getByLabelText(/initial food count/i), { target: { value: '20' } });
+    fireEvent.change(screen.getByLabelText(/mutation rate/i), { target: { value: '2' } });
     fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
 
     expect(screen.getByText(/world width must be between 100 and 3000/i)).toBeInTheDocument();
     expect(screen.getByText(/max food must be greater than or equal to initial food count/i)).toBeInTheDocument();
+    expect(screen.getByText(/mutation rate must be between 0 and 1/i)).toBeInTheDocument();
   });
 
   it('supports pause and runtime speed control transitions', () => {

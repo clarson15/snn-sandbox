@@ -131,7 +131,9 @@ function App() {
         initialFoodCount: String(DEFAULT_CONFIG.initialFoodCount),
         foodSpawnChance: String(DEFAULT_CONFIG.foodSpawnChance),
         foodEnergyValue: String(DEFAULT_CONFIG.foodEnergyValue),
-        maxFood: String(DEFAULT_CONFIG.maxFood)
+        maxFood: String(DEFAULT_CONFIG.maxFood),
+        mutationRate: String(DEFAULT_CONFIG.mutationRate),
+        mutationStrength: String(DEFAULT_CONFIG.mutationStrength)
       };
     }
 
@@ -144,7 +146,9 @@ function App() {
       initialFoodCount: String(saved.initialFoodCount),
       foodSpawnChance: String(saved.foodSpawnChance),
       foodEnergyValue: String(saved.foodEnergyValue),
-      maxFood: String(saved.maxFood)
+      maxFood: String(saved.maxFood),
+      mutationRate: String(saved.mutationRate ?? DEFAULT_CONFIG.mutationRate),
+      mutationStrength: String(saved.mutationStrength ?? DEFAULT_CONFIG.mutationStrength)
     };
   });
 
@@ -514,7 +518,9 @@ function App() {
       initialFoodCount: String(loadedConfig.initialFoodCount),
       foodSpawnChance: String(loadedConfig.foodSpawnChance),
       foodEnergyValue: String(loadedConfig.foodEnergyValue),
-      maxFood: String(loadedConfig.maxFood)
+      maxFood: String(loadedConfig.maxFood),
+      mutationRate: String(loadedConfig.mutationRate),
+      mutationStrength: String(loadedConfig.mutationStrength)
     });
 
     replayContextRef.current = {
@@ -1395,7 +1401,9 @@ function App() {
       initialFoodCount: String(validatedPreset.parameters.initialFoodCount),
       foodSpawnChance: String(validatedPreset.parameters.foodSpawnChance),
       foodEnergyValue: String(validatedPreset.parameters.foodEnergyValue),
-      maxFood: String(validatedPreset.parameters.maxFood)
+      maxFood: String(validatedPreset.parameters.maxFood),
+      mutationRate: String(validatedPreset.parameters.mutationRate ?? DEFAULT_CONFIG.mutationRate),
+      mutationStrength: String(validatedPreset.parameters.mutationStrength ?? DEFAULT_CONFIG.mutationStrength)
     }));
 
     setReplayPresetStatus(`Applied preset: ${validatedPreset.name}.`);
@@ -1455,6 +1463,8 @@ function App() {
           <input value={formState.seed} onChange={onFieldChange('seed')} placeholder="Leave blank to auto-generate" />
         </label>
 
+        <h3>World settings</h3>
+        <p className="field-hint">World width/height: 100–3000.</p>
         <div className="field-row">
           <label>
             World width
@@ -1468,6 +1478,8 @@ function App() {
           </label>
         </div>
 
+        <h3>Population settings</h3>
+        <p className="field-hint">Initial/minimum population: 1–500.</p>
         <div className="field-row">
           <label>
             Initial population
@@ -1479,14 +1491,16 @@ function App() {
             <input type="number" value={formState.minimumPopulation} onChange={onFieldChange('minimumPopulation')} />
             {errors.minimumPopulation ? <span className="error-text">{errors.minimumPopulation}</span> : null}
           </label>
+        </div>
+
+        <h3>Food settings</h3>
+        <p className="field-hint">Spawn chance: 0–1. Max food must be ≥ initial food count.</p>
+        <div className="field-row">
           <label>
             Initial food count
             <input type="number" value={formState.initialFoodCount} onChange={onFieldChange('initialFoodCount')} />
             {errors.initialFoodCount ? <span className="error-text">{errors.initialFoodCount}</span> : null}
           </label>
-        </div>
-
-        <div className="field-row">
           <label>
             Food spawn chance (0-1)
             <input type="number" step="0.01" value={formState.foodSpawnChance} onChange={onFieldChange('foodSpawnChance')} />
@@ -1504,6 +1518,21 @@ function App() {
           <input type="number" value={formState.maxFood} onChange={onFieldChange('maxFood')} />
           {errors.maxFood ? <span className="error-text">{errors.maxFood}</span> : null}
         </label>
+
+        <h3>Evolution settings</h3>
+        <p className="field-hint">Mutation controls are deterministic and seed-driven (range 0–1).</p>
+        <div className="field-row">
+          <label>
+            Mutation rate
+            <input type="number" step="0.01" value={formState.mutationRate} onChange={onFieldChange('mutationRate')} />
+            {errors.mutationRate ? <span className="error-text">{errors.mutationRate}</span> : null}
+          </label>
+          <label>
+            Mutation strength
+            <input type="number" step="0.01" value={formState.mutationStrength} onChange={onFieldChange('mutationStrength')} />
+            {errors.mutationStrength ? <span className="error-text">{errors.mutationStrength}</span> : null}
+          </label>
+        </div>
 
         <button type="button" onClick={startSimulation}>
           Start simulation

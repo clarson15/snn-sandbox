@@ -22,7 +22,9 @@ describe('simulation config helpers', () => {
         initialFoodCount: '12',
         foodSpawnChance: '0.1',
         foodEnergyValue: '4',
-        maxFood: '100'
+        maxFood: '100',
+        mutationRate: '0.2',
+        mutationStrength: '0.3'
       },
       'abc123'
     );
@@ -46,7 +48,9 @@ describe('simulation config helpers', () => {
       initialFoodCount: -1,
       foodSpawnChance: 4,
       foodEnergyValue: 0,
-      maxFood: 0
+      maxFood: 0,
+      mutationRate: 2,
+      mutationStrength: -1
     });
 
     expect(errors).toMatchObject({
@@ -58,7 +62,30 @@ describe('simulation config helpers', () => {
       initialFoodCount: expect.any(String),
       foodSpawnChance: expect.any(String),
       foodEnergyValue: expect.any(String),
-      maxFood: expect.any(String)
+      maxFood: expect.any(String),
+      mutationRate: expect.any(String),
+      mutationStrength: expect.any(String)
     });
+  });
+
+  it('normalizes missing evolution values with deterministic defaults', () => {
+    const normalized = normalizeSimulationConfig(
+      {
+        name: 'Defaults',
+        seed: 'defaults-seed',
+        worldWidth: '640',
+        worldHeight: '360',
+        initialPopulation: '10',
+        minimumPopulation: '9',
+        initialFoodCount: '10',
+        foodSpawnChance: '0.1',
+        foodEnergyValue: '5',
+        maxFood: '100'
+      },
+      'defaults-seed'
+    );
+
+    expect(normalized.mutationRate).toBe(0.05);
+    expect(normalized.mutationStrength).toBe(0.1);
   });
 });
