@@ -12,7 +12,7 @@ import {
   validateSimulationConfig
 } from './simulation/config';
 import { createSeededPrng } from './simulation/prng';
-import { mapBrainToVisualizerModel } from './simulation/brainVisualizer';
+import { mapBrainLayoutChecksum, mapBrainToVisualizerModel } from './simulation/brainVisualizer';
 import { drawWorldSnapshot } from './simulation/renderer';
 import { resolveRenderFrameInterval, shouldRenderFrame } from './simulation/renderCadence';
 import { computeFixedStepBudget, resolveMaxCatchUpTicksPerFrame } from './simulation/fixedStepScheduler';
@@ -128,6 +128,7 @@ function App() {
   const [selectedOrganismUnavailable, setSelectedOrganismUnavailable] = useState(false);
   const [inspectorPinned, setInspectorPinned] = useState(false);
   const [pinnedOrganismSnapshot, setPinnedOrganismSnapshot] = useState(null);
+  const [activeSynapseId, setActiveSynapseId] = useState(null);
   const [errors, setErrors] = useState({});
   const [savedSimulations, setSavedSimulations] = useState([]);
   const [saveStatus, setSaveStatus] = useState('');
@@ -449,6 +450,33 @@ function App() {
     }
     return mapBrainToVisualizerModel(inspectorOrganism.brain);
   }, [inspectorOrganism]);
+
+  const brainGraphNodeById = useMemo(() => {
+    if (!brainGraphModel) {
+      return new Map();
+    }
+    return new Map(brainGraphModel.nodes.map((node) => [node.id, node]));
+  }, [brainGraphModel]);
+
+  const activeSynapse = useMemo(() => {
+    if (!brainGraphModel || !activeSynapseId) {
+      return null;
+    }
+    return brainGraphModel.edges.find((edge) => edge.id === activeSynapseId) ?? null;
+  }, [activeSynapseId, brainGraphModel]);
+
+  const brainGraphLayoutChecksum = useMemo(() => mapBrainLayoutChecksum(brainGraphModel), [brainGraphModel]);
+
+  useEffect(() => {
+    if (!brainGraphModel || !activeSynapseId) {
+      setActiveSynapseId(null);
+      return;
+    }
+
+    if (!brainGraphModel.edges.some((edge) => edge.id === activeSynapseId)) {
+      setActiveSynapseId(null);
+    }
+  }, [activeSynapseId, brainGraphModel]);
 
   const pinnedComparisonCandidate = inspectorPinned ? pinnedOrganismSnapshot : null;
   const hasComparisonPair = Boolean(
@@ -2152,10 +2180,16 @@ function App() {
                     <span style={{ color: '#ef4444' }}>red = inhibitory (-)</span>, thicker edge = stronger magnitude.
                   </p>
                 </div>
+                <p><strong>Layout checksum:</strong> <code>{brainGraphLayoutChecksum || 'n/a'}</code></p>
+                <p role="status" aria-live="polite" aria-label="brain graph selected synapse details">
+                  {activeSynapse
+                    ? `Selected synapse ${activeSynapse.id}: ${activeSynapse.sourceId} → ${activeSynapse.targetId}, ${activeSynapse.polarityLabel}, weight ${activeSynapse.weightLabel}`
+                    : 'Select or hover a synapse to inspect source, target, and exact weight.'}
+                </p>
                 <svg viewBox="0 0 640 300" role="img" aria-label="organism brain graph" className="brain-graph">
                   {brainGraphModel.edges.map((edge) => {
-                    const source = brainGraphModel.nodes.find((node) => node.id === edge.sourceId);
-                    const target = brainGraphModel.nodes.find((node) => node.id === edge.targetId);
+                    const source = brainGraphNodeById.get(edge.sourceId);
+                    const target = brainGraphNodeById.get(edge.targetId);
                     if (!source || !target) {
                       return null;
                     }
@@ -2169,9 +2203,22 @@ function App() {
                         y2={target.y}
                         stroke={edge.color}
                         strokeWidth={edge.strokeWidth}
-                        opacity="0.85"
+                        opacity={activeSynapse?.id === edge.id ? '1' : '0.85'}
+                        style={{ cursor: 'pointer' }}
+                        onMouseEnter={() => setActiveSynapseId(edge.id)}
+                        onFocus={() => setActiveSynapseId(edge.id)}
+                        onClick={() => setActiveSynapseId(edge.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            setActiveSynapseId(edge.id);
+                          }
+                        }}
+                        tabIndex={0}
+                        role="button"
+                        aria-label={`Synapse ${edge.id}: ${source.id} to ${target.id}, weight ${edge.weightLabel}`}
                       >
-                        <title>{`${source.id} → ${target.id}: ${edge.polarityLabel}, weight ${edge.weight.toFixed(3)}`}</title>
+                        <title>{`${source.id} → ${target.id}: ${edge.polarityLabel}, weight ${edge.weightLabel}`}</title>
                       </line>
                     );
                   })}

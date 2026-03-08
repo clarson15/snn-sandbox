@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { mapBrainToVisualizerModel, mapNeuronValueToColor, mapSynapseWeightToCue } from './brainVisualizer';
+import { mapBrainLayoutChecksum, mapBrainToVisualizerModel, mapNeuronValueToColor, mapSynapseWeightToCue } from './brainVisualizer';
 
 describe('mapNeuronValueToColor', () => {
   it('maps negative to red, zero to neutral, and positive to green', () => {
@@ -81,7 +81,8 @@ describe('mapBrainToVisualizerModel', () => {
         weight: 0.5,
         strokeWidth: 2.625,
         color: '#22c55e',
-        polarityLabel: 'excitatory (+)'
+        polarityLabel: 'excitatory (+)',
+        weightLabel: '0.500'
       },
       {
         id: 's-b',
@@ -90,9 +91,36 @@ describe('mapBrainToVisualizerModel', () => {
         weight: -0.35,
         strokeWidth: 2.212,
         color: '#ef4444',
-        polarityLabel: 'inhibitory (-)'
+        polarityLabel: 'inhibitory (-)',
+        weightLabel: '-0.350'
       }
     ]);
+  });
+
+  it('produces a deterministic layout checksum for identical brains', () => {
+    const brain = {
+      neurons: [
+        { id: 'in-2', type: 'input', value: 0.1 },
+        { id: 'out-1', type: 'output', value: -0.2 },
+        { id: 'in-1', type: 'input', value: 0.8 },
+        { id: 'h-1', type: 'hidden', value: 0.3 }
+      ],
+      synapses: [
+        { id: 's2', sourceId: 'h-1', targetId: 'out-1', weight: -0.25 },
+        { id: 's1', sourceId: 'in-1', targetId: 'h-1', weight: 0.9 },
+        { id: 's3', sourceId: 'in-2', targetId: 'h-1', weight: 0.2 }
+      ]
+    };
+
+    const first = mapBrainToVisualizerModel(brain);
+    const second = mapBrainToVisualizerModel(structuredClone(brain));
+
+    expect(first).not.toBeNull();
+    expect(second).not.toBeNull();
+    expect(mapBrainLayoutChecksum(first)).toBe(
+      'in-1@120.000,120.000|in-2@120.000,180.000|h-1@300.000,150.000|out-1@480.000,150.000::s1:in-1->h-1:0.900|s2:h-1->out-1:-0.250|s3:in-2->h-1:0.200'
+    );
+    expect(mapBrainLayoutChecksum(second)).toBe(mapBrainLayoutChecksum(first));
   });
 
   it('falls back to neutral color when neuron value is missing', () => {

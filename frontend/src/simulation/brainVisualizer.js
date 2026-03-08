@@ -78,6 +78,21 @@ export function mapSynapseWeightToCue(weight) {
  * @param {unknown} brain
  * @returns {{nodes: {id:string,type:string,x:number,y:number,value:number,fillColor:string,labelColor:string}[], edges: {id:string,sourceId:string,targetId:string,weight:number,strokeWidth:number,color:string,polarityLabel:string}[]} | null}
  */
+export function mapBrainLayoutChecksum(model) {
+  if (!model || !Array.isArray(model.nodes) || !Array.isArray(model.edges)) {
+    return '';
+  }
+
+  const nodeSignature = model.nodes
+    .map((node) => `${node.id}@${Number(node.x).toFixed(3)},${Number(node.y).toFixed(3)}`)
+    .join('|');
+  const edgeSignature = model.edges
+    .map((edge) => `${edge.id}:${edge.sourceId}->${edge.targetId}:${Number(edge.weight).toFixed(3)}`)
+    .join('|');
+
+  return `${nodeSignature}::${edgeSignature}`;
+}
+
 export function mapBrainToVisualizerModel(brain) {
   if (!brain || !Array.isArray(brain.neurons) || !Array.isArray(brain.synapses)) {
     return null;
@@ -138,7 +153,8 @@ export function mapBrainToVisualizerModel(brain) {
         weight: cue.weight,
         strokeWidth: cue.strokeWidth,
         color: cue.color,
-        polarityLabel: cue.polarityLabel
+        polarityLabel: cue.polarityLabel,
+        weightLabel: cue.weight.toFixed(3)
       };
     })
     .sort((a, b) => a.id.localeCompare(b.id));
