@@ -47,4 +47,15 @@ Scenario: population-1000
 
 The benchmark command exits with a non-zero status if any scenario reports a checksum mismatch.
 
+## Render cadence policy at runtime speeds
+
+The app now decouples simulation tick execution from canvas render cadence:
+
+- **1x speed**: render every animation frame (baseline visual behavior).
+- **2x speed**: render every 2nd frame.
+- **5x speed**: render every 3rd frame.
+- **10x speed**: render every 4th frame.
+
+Simulation ticks still execute at the selected speed multiplier on each scheduler cycle, so deterministic world evolution remains unchanged for the same seed + setup.
+
 A mismatch means the simulation did not end in the same deterministic state for identical seed + setup, and should be investigated before merging simulation changes.

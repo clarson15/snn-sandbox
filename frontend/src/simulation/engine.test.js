@@ -21,6 +21,10 @@ function squaredDistance(organism, food) {
   return dx * dx + dy * dy;
 }
 
+function deterministicChecksum(worldState) {
+  return JSON.stringify(worldState);
+}
+
 function stepWorldWithLegacyFoodLookup(state, rng, params = {}) {
   const movementDelta = params.movementDelta ?? 1;
   const metabolismPerTick = params.metabolismPerTick ?? 0.1;
@@ -254,6 +258,28 @@ describe('simulation engine skeleton', () => {
     expect(run1x.tick).toBe(100);
     expect(run5x.tick).toBe(100);
     expect(run1x).toEqual(run5x);
+  });
+
+  it('produces identical deterministic end-state checksum with and without render-skipping-aligned schedules', () => {
+    const params = {
+      movementDelta: 2,
+      metabolismPerTick: 0.25,
+      movementCostMultiplier: 0.1,
+      consumeRadius: 2,
+      foodSpawnChance: 0.2,
+      foodEnergyValue: 7,
+      maxFood: 200
+    };
+
+    const totalTicks = 120;
+    const baselineSchedule = new Array(totalTicks).fill(1);
+    // Approximate a high-speed render cadence where visual frames are skipped but ticks still run.
+    const renderSkippingAlignedSchedule = new Array(30).fill(4);
+
+    const baseline = runTickSchedule(baseState, createSeededPrng('render-cadence-seed'), baselineSchedule, params);
+    const renderSkippingAligned = runTickSchedule(baseState, createSeededPrng('render-cadence-seed'), renderSkippingAlignedSchedule, params);
+
+    expect(deterministicChecksum(renderSkippingAligned)).toBe(deterministicChecksum(baseline));
   });
 
   it('preserves deterministic state when switching between pause/1x/2x/5x/10x and returning to 1x', () => {
