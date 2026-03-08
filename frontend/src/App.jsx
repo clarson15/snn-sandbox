@@ -1899,17 +1899,15 @@ function App() {
       </section>
 
       <section className="simulation-stage" aria-label="simulation stage">
-        {(hasSimulation || replayActive) ? (
-          <section className="simulation-stats-hud" aria-label="simulation stats hud">
-            <h2>Simulation stats</h2>
-            <p>Population: {formattedStats.population}</p>
-            <p>Food count: {formattedStats.foodCount}</p>
-            <p>Average generation: {formattedStats.averageGeneration}</p>
-            <p>Average organism energy: {formattedStats.averageEnergy}</p>
-            <p>Tick count: {formattedStats.tickCount}</p>
-            <p>Time elapsed: {formattedStats.elapsedTime}</p>
-          </section>
-        ) : null}
+        <section className="simulation-stats-hud" aria-label="simulation stats hud">
+          <h2>Simulation stats</h2>
+          <p>Population: {formattedStats.population}</p>
+          <p>Food count: {formattedStats.foodCount}</p>
+          <p>Average generation: {formattedStats.averageGeneration}</p>
+          <p>Average organism energy: {formattedStats.averageEnergy}</p>
+          <p>Tick count: {formattedStats.tickCount}</p>
+          <p>Time elapsed: {formattedStats.elapsedTime}</p>
+        </section>
 
         <canvas
           ref={canvasRef}

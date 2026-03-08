@@ -1811,6 +1811,18 @@ describe('App', () => {
     vi.useRealTimers();
   });
 
+  it('renders an always-visible zero-safe stats HUD before simulation starts', () => {
+    render(<App />);
+
+    expect(screen.getByRole('region', { name: /simulation stats hud/i })).toBeInTheDocument();
+    expect(screen.getByText(/^population:/i)).toHaveTextContent('Population: 0');
+    expect(screen.getByText(/^food count:/i)).toHaveTextContent('Food count: 0');
+    expect(screen.getByText(/^average generation:/i)).toHaveTextContent('Average generation: 0.0');
+    expect(screen.getByText(/^average organism energy:/i)).toHaveTextContent('Average organism energy: 0.0');
+    expect(screen.getByText(/^tick count:/i)).toHaveTextContent('Tick count: 0');
+    expect(screen.getByText(/^time elapsed:/i)).toHaveTextContent('Time elapsed: 0.0s');
+  });
+
   it('updates stats while running and keeps tick-derived metrics stable while paused', () => {
     vi.useFakeTimers();
     render(<App />);
