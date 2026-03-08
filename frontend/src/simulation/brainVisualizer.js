@@ -29,6 +29,12 @@ function compareEdgesForRendering(left, right, nodeById) {
     return leftPinnedRank - rightPinnedRank;
   }
 
+  const leftOutputEmphasisRank = left.isIncomingToEmphasizedOutput ? 1 : 0;
+  const rightOutputEmphasisRank = right.isIncomingToEmphasizedOutput ? 1 : 0;
+  if (leftOutputEmphasisRank !== rightOutputEmphasisRank) {
+    return leftOutputEmphasisRank - rightOutputEmphasisRank;
+  }
+
   const leftSourceRank = layerRank(nodeById.get(left.sourceId)?.type);
   const rightSourceRank = layerRank(nodeById.get(right.sourceId)?.type);
   if (leftSourceRank !== rightSourceRank) {
@@ -371,6 +377,12 @@ export function deriveFilteredBrainGraphModel(model, settings = {}) {
   const pinnedNeuronId = typeof settings.pinnedNeuronId === 'string' && focusedNodeIds.has(settings.pinnedNeuronId)
     ? settings.pinnedNeuronId
     : null;
+  const emphasizedOutputNeuronId = typeof settings.emphasizedOutputNeuronId === 'string' && focusedNodeIds.has(settings.emphasizedOutputNeuronId)
+    ? settings.emphasizedOutputNeuronId
+    : null;
+  const emphasizedOutputNeuron = emphasizedOutputNeuronId
+    ? focusedNodes.find((node) => node.id === emphasizedOutputNeuronId && node.type === 'output') ?? null
+    : null;
 
   const pinnedNeuron = pinnedNeuronId ? focusedNodes.find((node) => node.id === pinnedNeuronId) ?? null : null;
   const inboundDegree = pinnedNeuronId
@@ -380,33 +392,76 @@ export function deriveFilteredBrainGraphModel(model, settings = {}) {
     ? focusedEdges.filter((edge) => edge.sourceId === pinnedNeuronId).length
     : 0;
 
+  const emphasizedSourceNodeIds = new Set();
   const edges = sortEdgesForRendering(
     focusedEdges.map((edge) => {
       const isInboundToPinned = pinnedNeuronId !== null && edge.targetId === pinnedNeuronId;
       const isOutboundFromPinned = pinnedNeuronId !== null && edge.sourceId === pinnedNeuronId;
       const isPinnedPath = isInboundToPinned || isOutboundFromPinned;
+      const isIncomingToEmphasizedOutput = emphasizedOutputNeuron !== null && edge.targetId === emphasizedOutputNeuron.id;
+      if (isIncomingToEmphasizedOutput) {
+        emphasizedSourceNodeIds.add(edge.sourceId);
+      }
+
+      const hasPinnedEmphasis = pinnedNeuronId !== null;
+      const hasOutputEmphasis = emphasizedOutputNeuron !== null;
+      const isEmphasizedByOutputSelection = isIncomingToEmphasizedOutput;
+      const deemphasizedByOutputSelection = hasOutputEmphasis && !isEmphasizedByOutputSelection;
+
+      const opacity = hasPinnedEmphasis
+        ? isPinnedPath ? 1 : 0.2
+        : hasOutputEmphasis
+          ? deemphasizedByOutputSelection ? 0.2 : 1
+          : edge.emphasisOpacity;
+
+      const strokeWidth = isPinnedPath
+        ? Number((edge.emphasisStrokeWidth + 1).toFixed(3))
+        : isEmphasizedByOutputSelection
+          ? Number((edge.emphasisStrokeWidth + 0.8).toFixed(3))
+          : edge.emphasisStrokeWidth;
 
       return {
         ...edge,
         isInboundToPinned,
         isOutboundFromPinned,
         isPinnedPath,
-        emphasisOpacity: pinnedNeuronId === null ? edge.emphasisOpacity : isPinnedPath ? 1 : 0.2,
-        emphasisStrokeWidth: isPinnedPath ? Number((edge.emphasisStrokeWidth + 1).toFixed(3)) : edge.emphasisStrokeWidth,
+        isIncomingToEmphasizedOutput,
+        emphasisOpacity: opacity,
+        emphasisStrokeWidth: strokeWidth,
         color: isInboundToPinned ? '#38bdf8' : isOutboundFromPinned ? '#f59e0b' : edge.color
       };
     }),
     new Map(focusedNodes.map((node) => [node.id, node]))
   );
 
+  const nodes = focusedNodes.map((node) => {
+    const isEmphasizedOutputTarget = emphasizedOutputNeuron !== null && node.id === emphasizedOutputNeuron.id;
+    const isEmphasizedOutputSource = emphasizedOutputNeuron !== null && emphasizedSourceNodeIds.has(node.id);
+
+    return {
+      ...node,
+      isEmphasizedOutputTarget,
+      isEmphasizedOutputSource,
+      emphasisOpacity: emphasizedOutputNeuron === null || isEmphasizedOutputTarget || isEmphasizedOutputSource ? 1 : 0.45
+    };
+  });
+
   return {
     ...model,
-    nodes: focusedNodes,
+    nodes,
     edges,
     selectedNeuronId,
     focusMode,
     pinnedNeuron,
     pinnedNeuronId,
+    emphasizedOutputNeuronId: emphasizedOutputNeuron?.id ?? null,
+    emphasizedOutputNeuronMetadata: emphasizedOutputNeuron
+      ? {
+          id: emphasizedOutputNeuron.id,
+          incomingEdgeCount: edges.filter((edge) => edge.isIncomingToEmphasizedOutput).length,
+          sourceNeuronCount: emphasizedSourceNodeIds.size
+        }
+      : null,
     pinnedNeuronMetadata: pinnedNeuron
       ? {
           id: pinnedNeuron.id,
