@@ -22,6 +22,42 @@ function layerRank(type) {
   return rank === -1 ? LAYER_ORDER.length : rank;
 }
 
+function compareEdgesForRendering(left, right, nodeById) {
+  const leftPinnedRank = left.isPinnedPath ? (left.isOutboundFromPinned ? 2 : 1) : 0;
+  const rightPinnedRank = right.isPinnedPath ? (right.isOutboundFromPinned ? 2 : 1) : 0;
+  if (leftPinnedRank !== rightPinnedRank) {
+    return leftPinnedRank - rightPinnedRank;
+  }
+
+  const leftSourceRank = layerRank(nodeById.get(left.sourceId)?.type);
+  const rightSourceRank = layerRank(nodeById.get(right.sourceId)?.type);
+  if (leftSourceRank !== rightSourceRank) {
+    return leftSourceRank - rightSourceRank;
+  }
+
+  const leftTargetRank = layerRank(nodeById.get(left.targetId)?.type);
+  const rightTargetRank = layerRank(nodeById.get(right.targetId)?.type);
+  if (leftTargetRank !== rightTargetRank) {
+    return leftTargetRank - rightTargetRank;
+  }
+
+  const sourceDelta = left.sourceId.localeCompare(right.sourceId);
+  if (sourceDelta !== 0) {
+    return sourceDelta;
+  }
+
+  const targetDelta = left.targetId.localeCompare(right.targetId);
+  if (targetDelta !== 0) {
+    return targetDelta;
+  }
+
+  return left.id.localeCompare(right.id);
+}
+
+function sortEdgesForRendering(edges, nodeById) {
+  return [...edges].sort((left, right) => compareEdgesForRendering(left, right, nodeById));
+}
+
 function resolveNeuronValue(neuron) {
   for (const key of NEURON_VALUE_KEYS) {
     const candidate = Number(neuron?.[key]);
@@ -344,21 +380,24 @@ export function deriveFilteredBrainGraphModel(model, settings = {}) {
     ? focusedEdges.filter((edge) => edge.sourceId === pinnedNeuronId).length
     : 0;
 
-  const edges = focusedEdges.map((edge) => {
-    const isInboundToPinned = pinnedNeuronId !== null && edge.targetId === pinnedNeuronId;
-    const isOutboundFromPinned = pinnedNeuronId !== null && edge.sourceId === pinnedNeuronId;
-    const isPinnedPath = isInboundToPinned || isOutboundFromPinned;
+  const edges = sortEdgesForRendering(
+    focusedEdges.map((edge) => {
+      const isInboundToPinned = pinnedNeuronId !== null && edge.targetId === pinnedNeuronId;
+      const isOutboundFromPinned = pinnedNeuronId !== null && edge.sourceId === pinnedNeuronId;
+      const isPinnedPath = isInboundToPinned || isOutboundFromPinned;
 
-    return {
-      ...edge,
-      isInboundToPinned,
-      isOutboundFromPinned,
-      isPinnedPath,
-      emphasisOpacity: pinnedNeuronId === null ? edge.emphasisOpacity : isPinnedPath ? 1 : 0.2,
-      emphasisStrokeWidth: isPinnedPath ? Number((edge.emphasisStrokeWidth + 1).toFixed(3)) : edge.emphasisStrokeWidth,
-      color: isInboundToPinned ? '#38bdf8' : isOutboundFromPinned ? '#f59e0b' : edge.color
-    };
-  });
+      return {
+        ...edge,
+        isInboundToPinned,
+        isOutboundFromPinned,
+        isPinnedPath,
+        emphasisOpacity: pinnedNeuronId === null ? edge.emphasisOpacity : isPinnedPath ? 1 : 0.2,
+        emphasisStrokeWidth: isPinnedPath ? Number((edge.emphasisStrokeWidth + 1).toFixed(3)) : edge.emphasisStrokeWidth,
+        color: isInboundToPinned ? '#38bdf8' : isOutboundFromPinned ? '#f59e0b' : edge.color
+      };
+    }),
+    new Map(focusedNodes.map((node) => [node.id, node]))
+  );
 
   return {
     ...model,
@@ -432,7 +471,7 @@ export function mapBrainToVisualizerModel(brain) {
 
   const nodeById = new Map(neurons.map((node) => [node.id, node]));
 
-  const edges = brain.synapses
+  const mappedEdges = brain.synapses
     .filter((synapse) => synapse && typeof synapse.sourceId === 'string' && typeof synapse.targetId === 'string' && Number.isFinite(synapse.weight))
     .filter((synapse) => nodeById.has(synapse.sourceId) && nodeById.has(synapse.targetId))
     .map((synapse, index) => {
@@ -447,8 +486,9 @@ export function mapBrainToVisualizerModel(brain) {
         polarityLabel: cue.polarityLabel,
         weightLabel: cue.weight.toFixed(3)
       };
-    })
-    .sort((a, b) => a.id.localeCompare(b.id));
+    });
+
+  const edges = sortEdgesForRendering(mappedEdges, nodeById);
 
   return {
     nodes: neurons,

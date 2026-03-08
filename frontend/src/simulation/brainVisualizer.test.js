@@ -117,6 +117,25 @@ describe('mapBrainToVisualizerModel', () => {
     ]);
   });
 
+  it('draws synapses in deterministic layer order independent of input order', () => {
+    const brain = {
+      neurons: [
+        { id: 'in-1', type: 'input', value: 0.1 },
+        { id: 'h-1', type: 'hidden', value: 0.2 },
+        { id: 'out-1', type: 'output', value: 0.3 }
+      ],
+      synapses: [
+        { id: 's-hidden-output', sourceId: 'h-1', targetId: 'out-1', weight: 0.5 },
+        { id: 's-input-hidden', sourceId: 'in-1', targetId: 'h-1', weight: 0.5 },
+        { id: 's-input-output', sourceId: 'in-1', targetId: 'out-1', weight: 0.5 }
+      ]
+    };
+
+    const mapped = mapBrainToVisualizerModel(brain);
+
+    expect(mapped?.edges.map((edge) => edge.id)).toEqual(['s-input-hidden', 's-input-output', 's-hidden-output']);
+  });
+
   it('produces a deterministic layout checksum for identical brains', () => {
     const brain = {
       neurons: [
@@ -138,7 +157,7 @@ describe('mapBrainToVisualizerModel', () => {
     expect(first).not.toBeNull();
     expect(second).not.toBeNull();
     expect(mapBrainLayoutChecksum(first)).toBe(
-      'in-1@120.000,120.000|in-2@120.000,180.000|h-1@300.000,150.000|out-1@480.000,150.000::s1:in-1->h-1:0.900|s2:h-1->out-1:-0.250|s3:in-2->h-1:0.200'
+      'in-1@120.000,120.000|in-2@120.000,180.000|h-1@300.000,150.000|out-1@480.000,150.000::s1:in-1->h-1:0.900|s3:in-2->h-1:0.200|s2:h-1->out-1:-0.250'
     );
     expect(mapBrainLayoutChecksum(second)).toBe(mapBrainLayoutChecksum(first));
   });
@@ -229,6 +248,32 @@ describe('deriveFilteredBrainGraphModel', () => {
     });
     expect(first.filterSettings).toEqual(second.filterSettings);
     expect(mapBrainLayoutChecksum(first)).toBe(mapBrainLayoutChecksum(second));
+  });
+
+  it('layers pinned-path edges last so highlighting remains visible in full mode', () => {
+    const base = mapBrainToVisualizerModel({
+      neurons: [
+        { id: 'in-a', type: 'input', value: 0.9 },
+        { id: 'h-a', type: 'hidden', value: 0.45 },
+        { id: 'out-a', type: 'output', value: 0.7 },
+        { id: 'out-b', type: 'output', value: 0.4 }
+      ],
+      synapses: [
+        { id: 's-bg', sourceId: 'in-a', targetId: 'out-b', weight: 0.1 },
+        { id: 's-in', sourceId: 'in-a', targetId: 'h-a', weight: 0.4 },
+        { id: 's-out', sourceId: 'h-a', targetId: 'out-a', weight: -0.3 }
+      ]
+    });
+
+    const filtered = deriveFilteredBrainGraphModel(base, {
+      visibleNeuronTypes: ['input', 'hidden', 'output'],
+      minActivationThreshold: 0,
+      pinnedNeuronId: 'h-a',
+      focusMode: 'full'
+    });
+
+    expect(filtered.edges.map((edge) => edge.id)).toEqual(['s-bg', 's-in', 's-out']);
+    expect(filtered.edges.at(-1)?.isOutboundFromPinned).toBe(true);
   });
 
   it('supports deterministic incoming/outgoing focus modes for a selected neuron', () => {
