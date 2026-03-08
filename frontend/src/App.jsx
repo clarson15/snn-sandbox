@@ -649,11 +649,12 @@ function App() {
     return brainGraphModel.edges.find((edge) => edge.id === activeSynapseId) ?? null;
   }, [activeSynapseId, brainGraphModel]);
 
+  const activeBrainNeuronDetailNeuronId = pinnedBrainNeuronId ?? hoveredBrainNeuronId ?? selectedBrainNeuronId;
   const activeBrainNeuronDetail = useMemo(() => deriveNeuronDetailPanel(
     baseBrainGraphModel,
     inspectorOrganism?.brain,
-    hoveredBrainNeuronId ?? selectedBrainNeuronId
-  ), [baseBrainGraphModel, inspectorOrganism?.brain, hoveredBrainNeuronId, selectedBrainNeuronId]);
+    activeBrainNeuronDetailNeuronId
+  ), [baseBrainGraphModel, inspectorOrganism?.brain, activeBrainNeuronDetailNeuronId]);
 
   const brainGraphLayoutChecksum = useMemo(() => mapBrainLayoutChecksum(baseBrainGraphModel), [baseBrainGraphModel]);
   const brainGraphEmphasisChecksum = useMemo(
