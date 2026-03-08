@@ -35,7 +35,7 @@ Then generate a candidate report and compare against the baseline:
 
 ```bash
 cd frontend
-npm run benchmark:compare -- --baseline ./benchmark-results/baseline.json --output-json ./benchmark-results/candidate.json --output-markdown ./benchmark-results/candidate.md --regression-threshold 10
+npm run benchmark:compare -- --baseline ./benchmark-results/baseline.json --budget-config ./scripts/benchmark-budgets.v1.json --output-json ./benchmark-results/candidate.json --output-markdown ./benchmark-results/candidate.md --regression-threshold 10
 ```
 
 The comparison JSON contains structured fields for each scenario:
@@ -69,11 +69,16 @@ Scenario: population-1000
   Checksum match: YES
 ```
 
-### Determinism gate
+### Determinism + budget gate
 
 The `npm run benchmark` command exits with a non-zero status if any scenario reports a checksum mismatch.
 
-The comparison command (`npm run benchmark:compare`) is informational by default so PRs can still publish benchmark artifacts without blocking non-performance changes. Use `--strict true` when you want regressions or determinism mismatches to fail the command.
+The comparison command (`npm run benchmark:compare`) is CI-gating by default for:
+
+- determinism mismatches (`deterministicMatch` / `modeParity` failures)
+- configured budget violations in `frontend/scripts/benchmark-budgets.v1.json`
+
+Optional baseline regression enforcement remains available via `--strict true`.
 
 ## Render cadence policy at runtime speeds
 
@@ -87,3 +92,17 @@ The app now decouples simulation tick execution from canvas render cadence:
 Simulation ticks still execute at the selected speed multiplier on each scheduler cycle, so deterministic world evolution remains unchanged for the same seed + setup.
 
 A mismatch means the simulation did not end in the same deterministic state for identical seed + setup, and should be investigated before merging simulation changes.
+
+## Updating performance budgets responsibly
+
+Budget config is versioned at `frontend/scripts/benchmark-budgets.v1.json` and uses per-scenario thresholds.
+
+When changing thresholds:
+
+1. Re-run benchmarks on a clean branch with pinned seeds (`npm run benchmark:compare -- --budget-config ./scripts/benchmark-budgets.v1.json`).
+2. Confirm determinism still passes for all scenarios.
+3. Capture before/after benchmark JSON in the PR description.
+4. Only loosen a threshold when there is a justified product/runtime reason (for example, intentional complexity increase with measurable player benefit).
+5. Prefer tightening thresholds after optimizations, and keep headroom small enough to catch real regressions without introducing CI flakiness.
+
+Threshold changes should be reviewed like code changes because they directly affect CI quality gates.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createComparisonReport, runBenchmarkSuite } from './benchmark-runner.mjs';
+import { applyPerformanceBudgets, createComparisonReport, runBenchmarkSuite } from './benchmark-runner.mjs';
 
 describe('benchmark runner', () => {
   it('produces deterministic checksums and stable schema for deterministic scenarios', () => {
@@ -67,8 +67,46 @@ describe('benchmark runner', () => {
       expect.objectContaining({
         baselineAvgTickMs: expect.any(Number),
         candidateAvgTickMs: expect.any(Number),
+        candidateTicksPerSecond: expect.any(Number),
         regressionThresholdPercent: 5,
         isRegression: expect.any(Boolean)
+      })
+    );
+  });
+
+  it('evaluates per-scenario performance budgets', () => {
+    const report = createComparisonReport({
+      candidateReport: runBenchmarkSuite({
+        ticks: 10,
+        scenarios: [
+          {
+            name: 'budget-population',
+            seed: 'budget-seed',
+            initialPopulation: 20,
+            minimumPopulation: 5,
+            initialFoodCount: 20,
+            maxFood: 40
+          }
+        ]
+      })
+    });
+
+    const budgeted = applyPerformanceBudgets(report, {
+      schemaVersion: 1,
+      scenarios: {
+        'budget-population': {
+          maxAverageTickMs: 100,
+          minTicksPerSecond: 1
+        }
+      }
+    });
+
+    expect(budgeted.summary.budgetFailureCount).toBe(0);
+    expect(budgeted.scenarios[0].comparison.budget).toEqual(
+      expect.objectContaining({
+        configured: true,
+        isWithinBudget: true,
+        violations: []
       })
     );
   });
