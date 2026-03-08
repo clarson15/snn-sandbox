@@ -1554,6 +1554,7 @@ describe('App', () => {
 
     expect(screen.getByText(/shortcuts: space pause\/play · \[ \/ \] step speed down\/up/i)).toBeInTheDocument();
     expect(screen.getByText(/inspector shortcuts: ←\/→ previous\/next organism · p pin\/unpin inspector/i)).toBeInTheDocument();
+    expect(screen.getByText(/pin mode: disabled/i)).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: '3', code: 'Digit3' });
     expect(screen.getByRole('button', { name: /^5x$/i })).toHaveAttribute('aria-pressed', 'true');
@@ -1597,9 +1598,11 @@ describe('App', () => {
 
     fireEvent.keyDown(window, { key: 'p', code: 'KeyP' });
     expect(screen.getByRole('button', { name: /unpin organism inspector/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText(/pin mode: enabled/i)).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: 'P', code: 'KeyP' });
     expect(screen.getByRole('button', { name: /pin organism inspector/i })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByText(/pin mode: disabled/i)).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: ' ', code: 'Space' });
     expect(screen.getByRole('button', { name: /^1x$/i })).toHaveAttribute('aria-pressed', 'true');
