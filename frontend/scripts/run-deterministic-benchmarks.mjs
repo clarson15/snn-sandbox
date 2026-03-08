@@ -77,9 +77,14 @@ function buildScenarioConfig(scenario) {
   );
 }
 
-function executeScenarioRun(scenario) {
+function executeScenarioRun(scenario, interactionLookupMode) {
   const config = buildScenarioConfig(scenario);
-  const stepParams = toEngineStepParams(config);
+  const stepParams = {
+    ...toEngineStepParams(config),
+    interactionRadius: 32,
+    interactionCostPerNeighbor: 0.005,
+    interactionLookupMode
+  };
   const rng = createSeededPrng(config.resolvedSeed);
   let world = createInitialWorldFromConfig(config);
 
@@ -106,25 +111,33 @@ function runBenchmarks() {
   let hasMismatch = false;
 
   for (const scenario of SCENARIOS) {
-    const firstRun = executeScenarioRun(scenario);
-    const secondRun = executeScenarioRun(scenario);
+    const spatialRunA = executeScenarioRun(scenario, 'spatial');
+    const spatialRunB = executeScenarioRun(scenario, 'spatial');
+    const legacyRun = executeScenarioRun(scenario, 'legacy');
 
-    const deterministicMatch = firstRun.checksum === secondRun.checksum;
-    hasMismatch = hasMismatch || !deterministicMatch;
+    const deterministicMatch = spatialRunA.checksum === spatialRunB.checksum;
+    const modeParity = spatialRunA.checksum === legacyRun.checksum;
+    hasMismatch = hasMismatch || !deterministicMatch || !modeParity;
+
+    const speedupPercent = ((legacyRun.averageTickMs - spatialRunA.averageTickMs) / legacyRun.averageTickMs) * 100;
 
     console.log(`Scenario: ${scenario.name}`);
     console.log(`  Seed: ${scenario.seed}`);
     console.log(`  Population: ${scenario.initialPopulation}`);
-    console.log(`  Run #1 total: ${formatMs(firstRun.elapsedMs)} | avg/tick: ${formatMs(firstRun.averageTickMs)} | ticks/sec: ${(1000 / firstRun.averageTickMs).toFixed(2)}`);
-    console.log(`  Run #2 total: ${formatMs(secondRun.elapsedMs)} | avg/tick: ${formatMs(secondRun.averageTickMs)} | ticks/sec: ${(1000 / secondRun.averageTickMs).toFixed(2)}`);
-    console.log(`  Deterministic checksum run #1: ${firstRun.checksum}`);
-    console.log(`  Deterministic checksum run #2: ${secondRun.checksum}`);
-    console.log(`  Checksum match: ${deterministicMatch ? 'YES' : 'NO'}`);
+    console.log(`  Spatial run #1 total: ${formatMs(spatialRunA.elapsedMs)} | avg/tick: ${formatMs(spatialRunA.averageTickMs)} | ticks/sec: ${(1000 / spatialRunA.averageTickMs).toFixed(2)}`);
+    console.log(`  Spatial run #2 total: ${formatMs(spatialRunB.elapsedMs)} | avg/tick: ${formatMs(spatialRunB.averageTickMs)} | ticks/sec: ${(1000 / spatialRunB.averageTickMs).toFixed(2)}`);
+    console.log(`  Legacy lookup total: ${formatMs(legacyRun.elapsedMs)} | avg/tick: ${formatMs(legacyRun.averageTickMs)} | ticks/sec: ${(1000 / legacyRun.averageTickMs).toFixed(2)}`);
+    console.log(`  Spatial deterministic checksum run #1: ${spatialRunA.checksum}`);
+    console.log(`  Spatial deterministic checksum run #2: ${spatialRunB.checksum}`);
+    console.log(`  Legacy deterministic checksum: ${legacyRun.checksum}`);
+    console.log(`  Spatial deterministic match: ${deterministicMatch ? 'YES' : 'NO'}`);
+    console.log(`  Spatial/legacy parity: ${modeParity ? 'YES' : 'NO'}`);
+    console.log(`  Spatial lookup speedup vs legacy: ${speedupPercent.toFixed(2)}%`);
     console.log('');
   }
 
   if (hasMismatch) {
-    console.error('Deterministic benchmark failed: checksum mismatch detected.');
+    console.error('Deterministic benchmark failed: checksum mismatch detected between repeated spatial runs or spatial/legacy parity.');
     process.exitCode = 1;
     return;
   }

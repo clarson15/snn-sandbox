@@ -224,6 +224,84 @@ describe('simulation engine skeleton', () => {
     }
   });
 
+  it('matches deterministic checkpoints between spatial and legacy organism interaction lookups', () => {
+    const params = {
+      movementDelta: 1.5,
+      metabolismPerTick: 0.2,
+      movementCostMultiplier: 0.05,
+      consumeRadius: 2,
+      foodSpawnChance: 0.1,
+      foodEnergyValue: 7,
+      maxFood: 300,
+      interactionRadius: 5,
+      interactionCostPerNeighbor: 0.03
+    };
+
+    const checkpoints = new Set([1, 5, 20, 50]);
+    let spatialState = createWorldState({
+      tick: 0,
+      organisms: Array.from({ length: 60 }, (_, index) => ({
+        id: `org-${index + 1}`,
+        x: (index % 12) * 3,
+        y: Math.floor(index / 12) * 3,
+        energy: 25,
+        age: 0,
+        generation: 1,
+        direction: 0,
+        traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, metabolism: 0.05 }
+      })),
+      food: []
+    });
+    let legacyState = createWorldState(spatialState);
+
+    const spatialRng = createSeededPrng('interaction-lookup-parity');
+    const legacyRng = createSeededPrng('interaction-lookup-parity');
+
+    for (let tick = 1; tick <= 50; tick += 1) {
+      spatialState = stepWorld(spatialState, spatialRng, {
+        ...params,
+        interactionLookupMode: 'spatial'
+      });
+      legacyState = stepWorld(legacyState, legacyRng, {
+        ...params,
+        interactionLookupMode: 'legacy'
+      });
+
+      if (checkpoints.has(tick)) {
+        expect(spatialState).toEqual(legacyState);
+      }
+    }
+  });
+
+  it('counts interaction neighbors deterministically across partition boundaries', () => {
+    const state = createWorldState({
+      tick: 0,
+      organisms: [
+        { id: 'org-a', x: 4.9, y: 4.9, energy: 10, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 1, turnRate: 1, metabolism: 1 } },
+        { id: 'org-b', x: 5.1, y: 4.9, energy: 10, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 1, turnRate: 1, metabolism: 1 } },
+        { id: 'org-c', x: 9.8, y: 4.9, energy: 10, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 1, turnRate: 1, metabolism: 1 } }
+      ],
+      food: []
+    });
+
+    const next = stepWorld(state, createSeededPrng('boundary-neighbors'), {
+      movementDelta: 0,
+      metabolismPerTick: 0,
+      movementCostMultiplier: 0,
+      consumeRadius: 1,
+      foodSpawnChance: 0,
+      interactionRadius: 0.4,
+      interactionCostPerNeighbor: 1,
+      interactionLookupMode: 'spatial'
+    });
+
+    const byId = new Map(next.organisms.map((organism) => [organism.id, organism]));
+
+    expect(byId.get('org-a').energy).toBe(9);
+    expect(byId.get('org-b').energy).toBe(9);
+    expect(byId.get('org-c').energy).toBe(10);
+  });
+
   it('diverges for different seeds with same params + initial state', () => {
     const params = {
       movementDelta: 2,
