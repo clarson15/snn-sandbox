@@ -391,6 +391,7 @@ describe('App', () => {
     const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
     expect(within(savedRegion).getByText(/seed fixture-seed/i)).toBeInTheDocument();
     expect(within(savedRegion).getByText(/tick 0/i)).toBeInTheDocument();
+    expect(within(savedRegion).getByText(/population metadata unavailable/i)).toBeInTheDocument();
     fireEvent.click(within(savedRegion).getByRole('button', { name: /^resume$/i }));
 
     await waitFor(() => {
@@ -401,6 +402,44 @@ describe('App', () => {
       expect(within(runMetadataPanel).getByText(/^seed: fixture-seed$/i)).toBeInTheDocument();
       expect(within(runMetadataPanel).getByText(/^snapshot id: sim-fixture$/i)).toBeInTheDocument();
     });
+  });
+
+  it('renders saved-card population metadata from persisted snapshot payload when available', async () => {
+    globalThis.fetch.mockImplementation(async (url, options = {}) => {
+      if (url === '/api/simulations/snapshots' && (!options.method || options.method === 'GET')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ([
+            {
+              id: 'sim-pop',
+              name: 'Population fixture',
+              seed: 'seed-pop',
+              tickCount: 44,
+              updatedAt: '2026-03-06T12:00:01.000Z',
+              worldState: {
+                organisms: [{ id: 'o1' }, { id: 'o2' }, { id: 'o3' }, { id: 'o4' }]
+              }
+            }
+          ])
+        };
+      }
+
+      if (String(url).startsWith('/api/simulations/snapshots/')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ id: 'sim-pop' })
+        };
+      }
+
+      return { ok: true, status: 200, json: async () => ({}) };
+    });
+
+    render(<App />);
+
+    const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
+    expect(within(savedRegion).getByText(/population 4/i)).toBeInTheDocument();
   });
 
   it('supports deterministic replay tick jumps from a loaded snapshot and only resumes when explicit', async () => {

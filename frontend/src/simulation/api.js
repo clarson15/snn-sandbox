@@ -1,14 +1,42 @@
+function toNonNegativeInteger(value) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function derivePopulationCount(item) {
+  const directCandidates = [
+    item?.populationCount,
+    item?.population,
+    item?.snapshotMetadata?.population,
+    item?.snapshotMetadata?.populationCount
+  ];
+
+  for (const candidate of directCandidates) {
+    const parsed = toNonNegativeInteger(candidate);
+    if (parsed !== null) {
+      return parsed;
+    }
+  }
+
+  if (Array.isArray(item?.worldState?.organisms)) {
+    return item.worldState.organisms.length;
+  }
+
+  return null;
+}
+
 export function mapSavedSimulationList(apiItems) {
   return [...apiItems]
     .map((item) => {
-      const parsedTickCount = Number.parseInt(item.tickCount, 10);
+      const parsedTickCount = toNonNegativeInteger(item.tickCount);
 
       return {
         id: String(item.id),
         name: String(item.name),
         seed: String(item.seed ?? ''),
-        tickCount: Number.isInteger(parsedTickCount) && parsedTickCount >= 0 ? parsedTickCount : 0,
-        updatedAt: String(item.updatedAt)
+        tickCount: parsedTickCount ?? 0,
+        updatedAt: String(item.updatedAt),
+        populationCount: derivePopulationCount(item)
       };
     })
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
