@@ -408,9 +408,10 @@ describe('App', () => {
     fireEvent.change(screen.getByLabelText(/seed/i), { target: { value: 'meta-seed' } });
     fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
 
-    expect(screen.getByText(/^seed:/i)).toHaveTextContent('Seed: meta-seed');
-    expect(screen.getByText(/^speed multiplier:/i)).toHaveTextContent('Speed multiplier: 1x');
-    expect(screen.getByText(/^snapshot id:/i)).toHaveTextContent('Snapshot ID: No snapshot');
+    const runMetadataPanel = screen.getByRole('region', { name: /run metadata panel/i });
+    expect(within(runMetadataPanel).getByText(/^seed:/i)).toHaveTextContent('Seed: meta-seed');
+    expect(within(runMetadataPanel).getByText(/^speed multiplier:/i)).toHaveTextContent('Speed multiplier: 1x');
+    expect(within(runMetadataPanel).getByText(/^snapshot id:/i)).toHaveTextContent('Snapshot ID: No snapshot');
 
     await waitFor(() => {
       const tickValue = Number.parseInt(screen.getByText(/^current tick:/i).textContent.replace(/\D+/g, ''), 10);
@@ -1857,13 +1858,44 @@ describe('App', () => {
   it('renders an always-visible zero-safe stats HUD before simulation starts', () => {
     render(<App />);
 
-    expect(screen.getByRole('region', { name: /simulation stats hud/i })).toBeInTheDocument();
-    expect(screen.getByText(/^population:/i)).toHaveTextContent('Population: 0');
+    const statsHud = screen.getByRole('region', { name: /simulation stats hud/i });
+    expect(statsHud).toBeInTheDocument();
+    expect(within(statsHud).getByText(/^seed:/i)).toHaveTextContent('Seed: Seed unavailable');
+    expect(within(statsHud).getByText(/^population:/i)).toHaveTextContent('Population: 0');
     expect(screen.getByText(/^food count:/i)).toHaveTextContent('Food count: 0');
     expect(screen.getByText(/^average generation:/i)).toHaveTextContent('Average generation: 0.0');
     expect(screen.getByText(/^average organism energy:/i)).toHaveTextContent('Average organism energy: 0.0');
     expect(screen.getByText(/^tick count:/i)).toHaveTextContent('Tick count: 0');
     expect(screen.getByText(/^time elapsed:/i)).toHaveTextContent('Time elapsed: 0.0s');
+  });
+
+  it('renders deterministic seed/tick in stats HUD and reports copy feedback', async () => {
+    vi.useFakeTimers();
+    const clipboardWriteText = vi.fn().mockResolvedValue();
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: clipboardWriteText }
+    });
+
+    render(<App />);
+    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'hud-seed' } });
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    const statsHud = screen.getByRole('region', { name: /simulation stats hud/i });
+    expect(within(statsHud).getByText(/^seed:/i)).toHaveTextContent('Seed: hud-seed');
+
+    const tickNode = within(statsHud).getByText(/^tick count:/i);
+    act(() => {
+      vi.advanceTimersByTime(110);
+    });
+    expect(Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole('button', { name: /copy seed/i }));
+    await act(async () => {});
+    expect(clipboardWriteText).toHaveBeenCalledWith('hud-seed');
+    expect(screen.getByText(/seed copied\./i)).toBeInTheDocument();
+
+    vi.useRealTimers();
   });
 
   it('updates stats while running and keeps tick-derived metrics stable while paused', () => {

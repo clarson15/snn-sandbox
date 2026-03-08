@@ -737,6 +737,8 @@ function App() {
 
   const serializedRunMetadata = useMemo(() => serializeRunMetadata(runMetadata), [runMetadata]);
 
+  const hudSeedLabel = runMetadata.seed.trim() || 'Seed unavailable';
+
   const replaySummaryStrip = useMemo(
     () => deriveReplaySummaryStrip({
       replaySnapshotMetadata,
@@ -1595,9 +1597,6 @@ function App() {
 
       <section className="controls" aria-label="simulation controls">
         <p>Active seed: {resolvedSeed || 'No active simulation'}</p>
-        <ControlButtonWithHint name="copy-seed" onClick={onCopyActiveSeed} reason={controlDisableReasons.copySeed}>
-          Copy seed
-        </ControlButtonWithHint>
         <ControlButtonWithHint name="regenerate-seed" onClick={onRegenerateSeed} reason={controlDisableReasons.regenerateSeed}>
           Regenerate seed + restart
         </ControlButtonWithHint>
@@ -1982,12 +1981,16 @@ function App() {
       <section className="simulation-stage" aria-label="simulation stage">
         <section className="simulation-stats-hud" aria-label="simulation stats hud">
           <h2>Simulation stats</h2>
+          <p>Seed: {hudSeedLabel}</p>
           <p>Population: {formattedStats.population}</p>
           <p>Food count: {formattedStats.foodCount}</p>
           <p>Average generation: {formattedStats.averageGeneration}</p>
           <p>Average organism energy: {formattedStats.averageEnergy}</p>
           <p>Tick count: {formattedStats.tickCount}</p>
           <p>Time elapsed: {formattedStats.elapsedTime}</p>
+          <ControlButtonWithHint name="copy-seed-hud" onClick={onCopyActiveSeed} reason={controlDisableReasons.copySeed}>
+            Copy seed
+          </ControlButtonWithHint>
         </section>
 
         <canvas
