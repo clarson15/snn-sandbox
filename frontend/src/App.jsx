@@ -179,6 +179,7 @@ function App() {
   const keyboardShortcutsCloseButtonRef = useRef(null);
   const deleteConfirmButtonRef = useRef(null);
   const replayInteractionRegionRef = useRef(null);
+  const inspectorSelectionHeadingRef = useRef(null);
   const rngRef = useRef(null);
   const stepParamsRef = useRef(null);
   const schedulerCarryMsRef = useRef(0);
@@ -352,6 +353,14 @@ function App() {
 
     return displayWorld.organisms.find((organism) => organism.id === selectedOrganismId) ?? null;
   }, [displayWorld, selectedOrganismId, tickDisplay]);
+
+  useEffect(() => {
+    if (!selectedOrganism?.id) {
+      return;
+    }
+
+    inspectorSelectionHeadingRef.current?.focus();
+  }, [selectedOrganism?.id]);
 
   const deterministicOrganismIds = useMemo(() => {
     if (!displayWorld) {
@@ -2122,13 +2131,14 @@ function App() {
         />
       </section>
 
-      <section className="config-panel" aria-label="organism inspector">
-        <h2>Organism inspector</h2>
-        <div className="field-row">
+      <section className="config-panel" aria-label="organism inspector" role="region">
+        <h2 id="organism-inspector-heading">Organism inspector</h2>
+        <div className="field-row" role="group" aria-label="organism selection controls">
           <button
             type="button"
             onClick={onSelectPreviousOrganism}
             disabled={deterministicOrganismIds.length === 0}
+            aria-label="Select previous organism"
           >
             Previous organism
           </button>
@@ -2136,6 +2146,7 @@ function App() {
             type="button"
             onClick={onSelectNextOrganism}
             disabled={deterministicOrganismIds.length === 0}
+            aria-label="Select next organism"
           >
             Next organism
           </button>
@@ -2189,6 +2200,9 @@ function App() {
             ) : comparisonUnavailableReason ? (
               <p role="status">{comparisonUnavailableReason}</p>
             ) : null}
+            <h3 ref={inspectorSelectionHeadingRef} tabIndex={-1} aria-label="inspector selection details">
+              Selected organism details
+            </h3>
             <p><strong>ID:</strong> {inspectorOrganism.id}</p>
             <p><strong>Generation:</strong> {inspectorOrganism.generation}</p>
             <p><strong>Age:</strong> {inspectorOrganism.age}</p>
@@ -2255,6 +2269,7 @@ function App() {
                           stroke={edge.color}
                           strokeWidth={edge.strokeWidth}
                           opacity={activeSynapse?.id === edge.id ? '1' : '0.85'}
+                          className="brain-graph-synapse-edge"
                           style={{ cursor: 'pointer' }}
                           onMouseEnter={() => setActiveSynapseId(edge.id)}
                           onFocus={() => setActiveSynapseId(edge.id)}
@@ -2267,6 +2282,7 @@ function App() {
                           }}
                           tabIndex={0}
                           role="button"
+                          aria-keyshortcuts="Enter Space"
                           aria-label={`Synapse ${edge.id}: ${source.id} to ${target.id}, weight ${edge.weightLabel}`}
                         >
                           <title>{`${source.id} → ${target.id}: ${edge.polarityLabel}, weight ${edge.weightLabel}`}</title>

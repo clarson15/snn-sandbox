@@ -345,3 +345,10 @@ canvas {
   border-radius: 0.5rem;
   background: #020617;
 }
+
+.brain-graph-synapse-edge:focus-visible {
+  outline: none;
+  stroke: #67e8f9;
+  stroke-width: 4;
+  opacity: 1;
+}
