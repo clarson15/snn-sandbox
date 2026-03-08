@@ -11,6 +11,8 @@ const ORGANISM_BASE_RADIUS = 6;
 const DIRECTION_INDICATOR_LENGTH = 4;
 const MAX_ENERGY_FOR_BAR = 40;
 const HEALTH_DECAY_TICKS = 1000;
+const DEFAULT_VIEWPORT_CULL_PADDING = 12;
+const FOOD_RADIUS = 3;
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -19,6 +21,15 @@ function clamp(value, min, max) {
 function deriveOrganismRadius(organism) {
   const sizeTrait = organism?.traits?.size ?? 1;
   return clamp(ORGANISM_BASE_RADIUS * sizeTrait, 3, 18);
+}
+
+function isCircleWithinViewport(x, y, radius, width, height, padding) {
+  return !(
+    x + radius < -padding ||
+    x - radius > width + padding ||
+    y + radius < -padding ||
+    y - radius > height + padding
+  );
 }
 
 function drawBar(ctx, x, y, width, height, ratio, fillStyle) {
@@ -71,11 +82,15 @@ function drawSelectedOrganismOverlays(ctx, organism, radius) {
  * @param {CanvasRenderingContext2D} ctx
  * @param {WorldState} snapshot
  * @param {{width: number, height: number}} viewport
- * @param {{selectedOrganismId?: string|null}} [renderOptions]
+ * @param {{selectedOrganismId?: string|null, enableViewportCulling?: boolean, cullPadding?: number}} [renderOptions]
  */
 export function drawWorldSnapshot(ctx, snapshot, viewport, renderOptions = {}) {
   const { width, height } = viewport;
   const selectedOrganismId = renderOptions.selectedOrganismId ?? null;
+  const cullPadding = Number.isFinite(renderOptions.cullPadding)
+    ? Math.max(0, renderOptions.cullPadding)
+    : DEFAULT_VIEWPORT_CULL_PADDING;
+  const viewportCullingEnabled = renderOptions.enableViewportCulling ?? true;
 
   ctx.clearRect(0, 0, width, height);
 
@@ -85,13 +100,21 @@ export function drawWorldSnapshot(ctx, snapshot, viewport, renderOptions = {}) {
   // Food first (under organisms)
   ctx.fillStyle = '#22c55e';
   for (const food of snapshot.food) {
+    if (viewportCullingEnabled && !isCircleWithinViewport(food.x, food.y, FOOD_RADIUS, width, height, cullPadding)) {
+      continue;
+    }
+
     ctx.beginPath();
-    ctx.arc(food.x, food.y, 3, 0, Math.PI * 2);
+    ctx.arc(food.x, food.y, FOOD_RADIUS, 0, Math.PI * 2);
     ctx.fill();
   }
 
   for (const organism of snapshot.organisms) {
     const radius = deriveOrganismRadius(organism);
+    if (viewportCullingEnabled && !isCircleWithinViewport(organism.x, organism.y, radius, width, height, cullPadding)) {
+      continue;
+    }
+
     const direction = Number.isFinite(organism.direction) ? organism.direction : 0;
     const headingX = organism.x + Math.cos(direction) * (radius + DIRECTION_INDICATOR_LENGTH);
     const headingY = organism.y + Math.sin(direction) * (radius + DIRECTION_INDICATOR_LENGTH);

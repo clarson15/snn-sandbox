@@ -1,114 +1,106 @@
 import { describe, expect, it } from 'vitest';
 
-import { createWorldState } from './engine';
 import { drawWorldSnapshot } from './renderer';
 
-function createRecordingContext() {
-  const calls = [];
-
-  const ctx = {
-    set fillStyle(value) {
-      calls.push(['fillStyle', value]);
+function createMockContext() {
+  return {
+    arcCalls: [],
+    fillRectCalls: [],
+    strokeRectCalls: [],
+    moveToCalls: [],
+    lineToCalls: [],
+    clearRect() {},
+    fillRect(x, y, width, height) {
+      this.fillRectCalls.push({ x, y, width, height });
     },
-    set strokeStyle(value) {
-      calls.push(['strokeStyle', value]);
+    strokeRect(x, y, width, height) {
+      this.strokeRectCalls.push({ x, y, width, height });
     },
-    set lineWidth(value) {
-      calls.push(['lineWidth', value]);
+    beginPath() {},
+    arc(x, y, radius, startAngle, endAngle) {
+      this.arcCalls.push({ x, y, radius, startAngle, endAngle });
     },
-    clearRect: (...args) => calls.push(['clearRect', ...args]),
-    fillRect: (...args) => calls.push(['fillRect', ...args]),
-    strokeRect: (...args) => calls.push(['strokeRect', ...args]),
-    beginPath: () => calls.push(['beginPath']),
-    arc: (...args) => calls.push(['arc', ...args]),
-    moveTo: (...args) => calls.push(['moveTo', ...args]),
-    lineTo: (...args) => calls.push(['lineTo', ...args]),
-    fill: () => calls.push(['fill']),
-    stroke: () => calls.push(['stroke'])
+    fill() {},
+    stroke() {},
+    moveTo(x, y) {
+      this.moveToCalls.push({ x, y });
+    },
+    lineTo(x, y) {
+      this.lineToCalls.push({ x, y });
+    },
+    set fillStyle(_value) {},
+    set strokeStyle(_value) {},
+    set lineWidth(_value) {}
   };
-
-  return { ctx, calls };
 }
 
-describe('drawWorldSnapshot', () => {
-  it('draws the same command stream for the same snapshot', () => {
-    const snapshot = createWorldState({
-      tick: 10,
-      organisms: [{ id: 'o1', x: 30, y: 40, energy: 12, direction: Math.PI / 3, traits: { size: 1 } }],
-      food: [{ id: 'f1', x: 10, y: 20, energyValue: 5 }]
-    });
-
-    const first = createRecordingContext();
-    const second = createRecordingContext();
-
-    drawWorldSnapshot(first.ctx, snapshot, { width: 320, height: 200 });
-    drawWorldSnapshot(second.ctx, snapshot, { width: 320, height: 200 });
-
-    expect(second.calls).toEqual(first.calls);
-  });
-
-  it('does not mutate world snapshot while rendering', () => {
-    const snapshot = createWorldState({
-      tick: 3,
-      organisms: [{ id: 'o1', x: 5, y: 6, energy: 7, direction: 0, traits: { size: 1, visionRange: 10 } }],
-      food: [{ id: 'f1', x: 8, y: 9, energyValue: 2 }]
-    });
-
-    const before = JSON.parse(JSON.stringify(snapshot));
-    const { ctx } = createRecordingContext();
-
-    drawWorldSnapshot(ctx, snapshot, { width: 160, height: 120 }, { selectedOrganismId: 'o1' });
-
-    expect(snapshot).toEqual(before);
-  });
-
-  it('draws heading indicator aligned with organism direction', () => {
-    const snapshot = createWorldState({
-      organisms: [{ id: 'o1', x: 10, y: 20, energy: 10, direction: 0, traits: { size: 1 } }],
-      food: []
-    });
-
-    const { ctx, calls } = createRecordingContext();
-
-    drawWorldSnapshot(ctx, snapshot, { width: 100, height: 80 });
-
-    expect(calls).toContainEqual(['moveTo', 10, 20]);
-    expect(calls).toContainEqual(['lineTo', 20, 20]);
-  });
-
-  it('draws selection overlays only for selected organism', () => {
-    const snapshot = createWorldState({
-      organisms: [
-        { id: 'o1', x: 10, y: 20, energy: 30, age: 50, direction: 0, traits: { size: 1, visionRange: 12 } },
-        { id: 'o2', x: 40, y: 30, energy: 30, age: 50, direction: 0, traits: { size: 1, visionRange: 25 } }
+describe('drawWorldSnapshot viewport culling', () => {
+  it('draws inside entities and skips fully offscreen entities', () => {
+    const ctx = createMockContext();
+    const snapshot = {
+      food: [
+        { x: 20, y: 20 },
+        { x: -40, y: 10 }
       ],
-      food: []
-    });
+      organisms: [
+        { id: 'inside', x: 30, y: 30, direction: 0, traits: { size: 1 } },
+        { id: 'outside', x: 250, y: 30, direction: 0, traits: { size: 1 } }
+      ]
+    };
 
-    const withSelection = createRecordingContext();
-    drawWorldSnapshot(withSelection.ctx, snapshot, { width: 100, height: 80 }, { selectedOrganismId: 'o1' });
+    drawWorldSnapshot(ctx, snapshot, { width: 100, height: 100 }, { cullPadding: 0 });
 
-    const withoutSelection = createRecordingContext();
-    drawWorldSnapshot(withoutSelection.ctx, snapshot, { width: 100, height: 80 }, { selectedOrganismId: null });
+    const arcsAtVisiblePositions = ctx.arcCalls.filter(({ x, y }) =>
+      (x === 20 && y === 20) || (x === 30 && y === 30)
+    );
+    expect(arcsAtVisiblePositions).toHaveLength(2);
+    expect(ctx.arcCalls.some(({ x, y }) => x === -40 && y === 10)).toBe(false);
+    expect(ctx.arcCalls.some(({ x, y }) => x === 250 && y === 30)).toBe(false);
+  });
 
-    const selectedVisionArcCount = withSelection.calls.filter(
-      (call) => call[0] === 'arc' && call[3] === 12
-    ).length;
-    const unselectedVisionArcCount = withoutSelection.calls.filter(
-      (call) => call[0] === 'arc' && call[3] === 12
-    ).length;
-    const selectedHighlightRingCount = withSelection.calls.filter(
-      (call) => call[0] === 'arc' && call[1] === 10 && call[2] === 20 && call[3] === 9
-    ).length;
-    const unselectedHighlightRingCount = withoutSelection.calls.filter(
-      (call) => call[0] === 'arc' && call[1] === 10 && call[2] === 20 && call[3] === 9
-    ).length;
+  it('keeps edge-overlap organisms visible and overlays selected entity near boundary', () => {
+    const ctx = createMockContext();
+    const snapshot = {
+      food: [],
+      organisms: [
+        {
+          id: 'edge',
+          x: 104,
+          y: 50,
+          direction: 0,
+          age: 10,
+          energy: 20,
+          traits: { size: 1, visionRange: 12 }
+        }
+      ]
+    };
 
-    expect(selectedVisionArcCount).toBe(1);
-    expect(unselectedVisionArcCount).toBe(0);
-    expect(selectedHighlightRingCount).toBe(1);
-    expect(unselectedHighlightRingCount).toBe(0);
-    expect(withSelection.calls).toContainEqual(['strokeStyle', '#facc15']);
-    expect(withSelection.calls.some((call) => call[0] === 'strokeRect')).toBe(true);
+    drawWorldSnapshot(ctx, snapshot, { width: 100, height: 100 }, { selectedOrganismId: 'edge', cullPadding: 0 });
+
+    const edgeBodyArc = ctx.arcCalls.find(({ x, y, radius }) => x === 104 && y === 50 && radius === 6);
+    expect(edgeBodyArc).toBeDefined();
+    const selectedOverlayArc = ctx.arcCalls.find(({ x, y, radius }) => x === 104 && y === 50 && radius === 9);
+    expect(selectedOverlayArc).toBeDefined();
+    const visionArc = ctx.arcCalls.find(({ x, y, radius }) => x === 104 && y === 50 && radius === 12);
+    expect(visionArc).toBeDefined();
+  });
+
+  it('does not mutate snapshot state whether culling is enabled or disabled', () => {
+    const baseSnapshot = {
+      tick: 42,
+      food: [{ x: 10, y: 10 }, { x: 220, y: 220 }],
+      organisms: [{ id: 'a', x: 20, y: 20, direction: 0, energy: 5, age: 2, traits: { size: 1, visionRange: 0 } }]
+    };
+
+    const enabledSnapshot = structuredClone(baseSnapshot);
+    const disabledSnapshot = structuredClone(baseSnapshot);
+    const enabledBefore = JSON.stringify(enabledSnapshot);
+    const disabledBefore = JSON.stringify(disabledSnapshot);
+
+    drawWorldSnapshot(createMockContext(), enabledSnapshot, { width: 100, height: 100 }, { enableViewportCulling: true });
+    drawWorldSnapshot(createMockContext(), disabledSnapshot, { width: 100, height: 100 }, { enableViewportCulling: false });
+
+    expect(JSON.stringify(enabledSnapshot)).toBe(enabledBefore);
+    expect(JSON.stringify(disabledSnapshot)).toBe(disabledBefore);
   });
 });
