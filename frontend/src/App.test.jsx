@@ -8,10 +8,38 @@ import { loadReplayComparisonPresets } from './simulation/replayComparisonPreset
 import { stepWorld } from './simulation/engine';
 import { createSeededPrng } from './simulation/prng';
 
+function ensureWritableLocalStorage() {
+  const storage = window.localStorage;
+  if (storage && typeof storage.setItem === 'function' && typeof storage.getItem === 'function') {
+    return;
+  }
+
+  const backing = new Map();
+  const fallbackStorage = {
+    getItem: (key) => (backing.has(String(key)) ? backing.get(String(key)) : null),
+    setItem: (key, value) => {
+      backing.set(String(key), String(value));
+    },
+    removeItem: (key) => {
+      backing.delete(String(key));
+    },
+    clear: () => {
+      backing.clear();
+    }
+  };
+
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: fallbackStorage
+  });
+}
+
 describe('App', () => {
   let clipboardWriteText;
 
   beforeEach(() => {
+    ensureWritableLocalStorage();
+
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 1);
     vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({

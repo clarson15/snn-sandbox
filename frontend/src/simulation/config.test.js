@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import { runTicks } from './engine';
 import {
@@ -11,7 +11,37 @@ import {
 } from './config';
 import { createSeededPrng } from './prng';
 
+function ensureWritableLocalStorage() {
+  const storage = window.localStorage;
+  if (storage && typeof storage.setItem === 'function' && typeof storage.getItem === 'function') {
+    return;
+  }
+
+  const backing = new Map();
+  const fallbackStorage = {
+    getItem: (key) => (backing.has(String(key)) ? backing.get(String(key)) : null),
+    setItem: (key, value) => {
+      backing.set(String(key), String(value));
+    },
+    removeItem: (key) => {
+      backing.delete(String(key));
+    },
+    clear: () => {
+      backing.clear();
+    }
+  };
+
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: fallbackStorage
+  });
+}
+
 describe('simulation config helpers', () => {
+  beforeEach(() => {
+    ensureWritableLocalStorage();
+    window.localStorage.clear();
+  });
   it('produces identical first N ticks with same resolved config', () => {
     const config = normalizeSimulationConfig(
       {
