@@ -2080,6 +2080,7 @@ function App() {
           </button>
         </div>
         <p className="shortcut-hints">Inspector shortcuts: ←/→ previous/next organism · P pin/unpin inspector</p>
+        <p role="status" aria-live="polite">Pin mode: {inspectorPinned ? 'Enabled' : 'Disabled'}</p>
         {inspectorOrganism ? (
           <>
             <button type="button" onClick={clearSelection} aria-label="close organism inspector">Close inspector</button>
