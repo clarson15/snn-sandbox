@@ -409,6 +409,106 @@ describe('App', () => {
     vi.useRealTimers();
   });
 
+  it('switches inspector layout mode between desktop and compact on breakpoint changes', () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: 1200 });
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'inspector-layout-seed' } });
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
+
+    const deterministicConfig = normalizeSimulationConfig(
+      {
+        name: 'Inspector layout test',
+        seed: 'inspector-layout-seed',
+        worldWidth: 800,
+        worldHeight: 480,
+        initialPopulation: 20,
+        minimumPopulation: 15,
+        initialFoodCount: 40,
+        foodSpawnChance: 0.03,
+        foodEnergyValue: 20,
+        maxFood: 250
+      },
+      'inspector-layout-seed'
+    );
+
+    const initialWorld = createInitialWorldFromConfig(deterministicConfig);
+    const selectedFixture = initialWorld.organisms[0];
+    const canvas = screen.getByLabelText(/simulation world/i);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 800,
+      height: 480,
+      right: 800,
+      bottom: 480,
+      toJSON: () => ({})
+    });
+
+    fireEvent.click(canvas, { clientX: selectedFixture.x, clientY: selectedFixture.y });
+
+    const inspector = screen.getByRole('region', { name: /organism inspector/i });
+    const layout = inspector.querySelector('.inspector-sections-layout');
+    expect(layout).toHaveAttribute('data-layout-mode', 'desktop');
+
+    act(() => {
+      window.innerWidth = 900;
+      window.dispatchEvent(new Event('resize'));
+    });
+
+    expect(layout).toHaveAttribute('data-layout-mode', 'compact');
+  });
+
+  it('shows critical inspector stats including food distance while selected', () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'inspector-critical-stats-seed' } });
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
+
+    const deterministicConfig = normalizeSimulationConfig(
+      {
+        name: 'Inspector critical stats test',
+        seed: 'inspector-critical-stats-seed',
+        worldWidth: 800,
+        worldHeight: 480,
+        initialPopulation: 20,
+        minimumPopulation: 15,
+        initialFoodCount: 40,
+        foodSpawnChance: 0.03,
+        foodEnergyValue: 20,
+        maxFood: 250
+      },
+      'inspector-critical-stats-seed'
+    );
+
+    const initialWorld = createInitialWorldFromConfig(deterministicConfig);
+    const selectedFixture = initialWorld.organisms[0];
+    const canvas = screen.getByLabelText(/simulation world/i);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 800,
+      height: 480,
+      right: 800,
+      bottom: 480,
+      toJSON: () => ({})
+    });
+
+    fireEvent.click(canvas, { clientX: selectedFixture.x, clientY: selectedFixture.y });
+
+    const criticalStats = screen.getByRole('region', { name: /inspector critical stats/i });
+    expect(criticalStats).toHaveTextContent(/energy:/i);
+    expect(criticalStats).toHaveTextContent(/age:/i);
+    expect(criticalStats).toHaveTextContent(/generation:/i);
+    expect(criticalStats).toHaveTextContent(/food distance:/i);
+  });
+
   it('shows actionable validation errors for invalid ranges', () => {
     render(<App />);
 
