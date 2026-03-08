@@ -9,7 +9,8 @@
     "test": "vitest run",
     "preview": "vite preview",
     "benchmark": "node --experimental-specifier-resolution=node ./scripts/run-deterministic-benchmarks.mjs",
-    "benchmark:compare": "node --experimental-specifier-resolution=node ./scripts/run-benchmark-comparison.mjs"
+    "benchmark:compare": "node --experimental-specifier-resolution=node ./scripts/run-benchmark-comparison.mjs",
+    "benchmark:render-culling": "node --experimental-specifier-resolution=node ./scripts/benchmark-render-culling.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",
