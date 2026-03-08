@@ -21,6 +21,10 @@ describe('formatInspectorSnapshot', () => {
         brain: {
           neurons: [{ id: 'n1' }, { id: 'n2' }],
           synapses: [{ id: 's1' }]
+        },
+        lineage: {
+          parentId: 'org-7',
+          offspringCount: 4
         }
       },
       7.89123
@@ -28,6 +32,8 @@ describe('formatInspectorSnapshot', () => {
 
     expect(formatted).toEqual({
       generation: '3',
+      parentId: 'org-7',
+      offspringCount: '4',
       age: '42',
       energy: '11.235',
       position: '(10.000, 20.333)',
@@ -52,6 +58,8 @@ describe('formatInspectorSnapshot', () => {
     );
 
     expect(formatted.generation).toBe('—');
+    expect(formatted.parentId).toBe('—');
+    expect(formatted.offspringCount).toBe('—');
     expect(formatted.energy).toBe('—');
     expect(formatted.position).toBe('—');
     expect(formatted.nearestFoodDistance).toBe('—');
