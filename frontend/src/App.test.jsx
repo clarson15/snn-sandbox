@@ -140,6 +140,47 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: /start simulation/i })).toBeInTheDocument();
   });
 
+  it('resets setup form values back to project defaults', () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/simulation name/i), { target: { value: 'Custom setup' } });
+    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'abc-seed' } });
+    fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '1200' } });
+    fireEvent.change(screen.getByLabelText(/mutation rate/i), { target: { value: '0.33' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /reset to defaults/i }));
+
+    expect(screen.getByLabelText(/simulation name/i)).toHaveValue('New Simulation');
+    expect(screen.getByLabelText(/^seed \(optional\)$/i)).toHaveValue('');
+    expect(screen.getByLabelText(/world width/i)).toHaveValue(800);
+    expect(screen.getByLabelText(/mutation rate/i)).toHaveValue(0.05);
+  });
+
+  it('tracks dirty setup fields and clears dirty state when values are reverted', () => {
+    render(<App />);
+
+    expect(screen.queryByText(/unsaved setup changes in:/i)).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '900' } });
+    expect(screen.getByText(/unsaved setup changes in: worldWidth\./i)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '800' } });
+    expect(screen.queryByText(/unsaved setup changes in:/i)).not.toBeInTheDocument();
+  });
+
+  it('prompts before discarding dirty setup form changes when resuming a saved simulation', async () => {
+    window.confirm.mockReturnValue(false);
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '950' } });
+
+    const resumeButton = await screen.findByRole('button', { name: /^resume$/i });
+    fireEvent.click(resumeButton);
+
+    expect(window.confirm).toHaveBeenCalledWith('You have unsaved setup changes. Discard them and continue?');
+    expect(screen.getByText(/load cancelled\./i)).toBeInTheDocument();
+  });
+
   it('generates a seed when omitted and persists config', async () => {
     const canReadWriteStorage = (() => {
       const storage = window.localStorage;
