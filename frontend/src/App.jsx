@@ -36,7 +36,8 @@ import {
   deleteSimulationSnapshot,
   getSimulationSnapshot,
   listSimulationSnapshots,
-  saveSimulationSnapshot
+  saveSimulationSnapshot,
+  SnapshotNameConflictError
 } from './simulation/api';
 import { useToasts } from './toasts';
 
@@ -993,7 +994,9 @@ function App() {
     setSelectedOrganismUnavailable(false);
   };
 
-  const onSaveSimulation = async () => {
+  const onSaveSimulation = async (options = {}) => {
+    const { forceOverwrite = false, overwriteSnapshotId = null } = options;
+
     if (!worldRef.current || !activeConfigRef.current) {
       return;
     }
@@ -1008,7 +1011,9 @@ function App() {
         parameters: activeConfigRef.current,
         tickCount: worldRef.current.tick,
         worldState: worldRef.current,
-        rngState: rngRef.current?.getState?.() ?? null
+        rngState: rngRef.current?.getState?.() ?? null,
+        overwriteExisting: forceOverwrite,
+        overwriteSnapshotId
       });
       lastPersistedTickRef.current = worldRef.current.tick;
 
@@ -1016,6 +1021,22 @@ function App() {
       setSavedSimulations(items);
       setSaveStatus('Saved.');
     } catch (error) {
+      if (error instanceof SnapshotNameConflictError && error.conflictingSnapshot) {
+        const confirmed = window.confirm(
+          `A saved simulation named "${activeConfigRef.current.name}" already exists (tick ${error.conflictingSnapshot.tickCount}).\n\n` +
+            'Click OK to overwrite it with the current simulation state, or Cancel to keep the existing save.'
+        );
+        if (confirmed) {
+          await onSaveSimulation({
+            forceOverwrite: true,
+            overwriteSnapshotId: error.conflictingSnapshot.id
+          });
+          return;
+        }
+        setSaveStatus('Save cancelled.');
+        return;
+      }
+
       const detail = error instanceof Error ? error.message : 'Unknown save error.';
       setSaveErrorDetail(detail);
       setSaveStatus('Failed to save snapshot. Retry when ready.');

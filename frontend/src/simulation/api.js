@@ -59,6 +59,14 @@ async function getResponseErrorMessage(response, fallbackMessage) {
   return `${fallbackMessage} (${response.status})`;
 }
 
+export class SnapshotNameConflictError extends Error {
+  constructor(message, conflictingSnapshot) {
+    super(message);
+    this.name = 'SnapshotNameConflictError';
+    this.conflictingSnapshot = conflictingSnapshot;
+  }
+}
+
 export async function saveSimulationSnapshot(snapshot) {
   const response = await fetch('/api/simulations/snapshots', {
     method: 'POST',
@@ -68,6 +76,21 @@ export async function saveSimulationSnapshot(snapshot) {
     },
     body: JSON.stringify(snapshot)
   });
+
+  if (response.status === 409) {
+    try {
+      const payload = await response.json();
+      throw new SnapshotNameConflictError(
+        payload.error ?? 'A saved simulation with this name already exists.',
+        payload.conflictSnapshot ?? null
+      );
+    } catch (e) {
+      if (e instanceof SnapshotNameConflictError) {
+        throw e;
+      }
+      throw new Error('Name conflict detection failed. A snapshot with this name may already exist.');
+    }
+  }
 
   if (!response.ok) {
     const errorMessage = await getResponseErrorMessage(response, 'Failed to save snapshot');
