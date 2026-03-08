@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { deleteSimulationSnapshot, getSimulationSnapshot, mapSavedSimulationList, saveSimulationSnapshot } from './api';
+import {
+  deleteSimulationSnapshot,
+  getSimulationSnapshot,
+  mapSavedSimulationList,
+  saveSimulationSnapshot,
+  SnapshotNameConflictError
+} from './api';
 
 describe('mapSavedSimulationList', () => {
   it('maps API fields and orders by updatedAt descending', () => {
@@ -72,6 +78,31 @@ describe('saveSimulationSnapshot', () => {
     await expect(saveSimulationSnapshot({})).rejects.toThrow('Snapshot payload missing world_state.');
   });
 
+  it('throws a typed conflict error with snapshot context when name already exists', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: false,
+      status: 409,
+      json: async () => ({
+        error: 'A saved simulation named "Fixture" already exists.',
+        conflictSnapshot: {
+          id: 'sim-existing',
+          name: 'Fixture',
+          seed: 'seed-a',
+          tickCount: 42
+        }
+      })
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      await saveSimulationSnapshot({ name: 'Fixture' });
+      throw new Error('Expected conflict error');
+    } catch (error) {
+      expect(error).toBeInstanceOf(SnapshotNameConflictError);
+      expect(error.conflictingSnapshot).toMatchObject({ id: 'sim-existing', tickCount: 42 });
+    }
+  });
+
   it('falls back to status code when backend error payload is unavailable', async () => {
     const fetchMock = vi.fn(async () => ({
       ok: false,
@@ -83,6 +114,21 @@ describe('saveSimulationSnapshot', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(saveSimulationSnapshot({})).rejects.toThrow('Failed to save snapshot (500)');
+  });
+
+  it('throws a generic error when conflict payload is unreadable', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: false,
+      status: 409,
+      json: async () => {
+        throw new Error('broken payload');
+      }
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(saveSimulationSnapshot({})).rejects.toThrow(
+      'Name conflict detection failed. A snapshot with this name may already exist.'
+    );
   });
 });
 
