@@ -162,6 +162,7 @@ export function createComparisonReport({ baselineReport, candidateReport, regres
       comparison: {
         baselineAvgTickMs,
         candidateAvgTickMs,
+        candidateTicksPerSecond: candidateScenario.candidate.runA.ticksPerSecond,
         deltaAvgTickMs,
         deltaPercent,
         regressionThresholdPercent,
@@ -178,6 +179,69 @@ export function createComparisonReport({ baselineReport, candidateReport, regres
       scenarioCount: scenarios.length,
       hasMismatch: candidateReport.summary.hasMismatch,
       regressionCount: scenarios.filter((scenario) => scenario.comparison.isRegression).length
+    },
+    scenarios
+  };
+}
+
+function createEmptyBudgetEvaluation() {
+  return {
+    isWithinBudget: true,
+    configured: false,
+    maxAverageTickMs: null,
+    minTicksPerSecond: null,
+    violations: []
+  };
+}
+
+function evaluateScenarioBudget(scenarioName, candidateRun, budgetConfig) {
+  const scenarioBudget = budgetConfig?.scenarios?.[scenarioName];
+  if (!scenarioBudget) {
+    return createEmptyBudgetEvaluation();
+  }
+
+  const violations = [];
+  if (typeof scenarioBudget.maxAverageTickMs === 'number' && candidateRun.averageTickMs > scenarioBudget.maxAverageTickMs) {
+    violations.push(`avg/tick ${candidateRun.averageTickMs.toFixed(3)}ms > max ${scenarioBudget.maxAverageTickMs.toFixed(3)}ms`);
+  }
+
+  if (typeof scenarioBudget.minTicksPerSecond === 'number' && candidateRun.ticksPerSecond < scenarioBudget.minTicksPerSecond) {
+    violations.push(`ticks/sec ${candidateRun.ticksPerSecond.toFixed(2)} < min ${scenarioBudget.minTicksPerSecond.toFixed(2)}`);
+  }
+
+  return {
+    isWithinBudget: violations.length === 0,
+    configured: true,
+    maxAverageTickMs: typeof scenarioBudget.maxAverageTickMs === 'number' ? scenarioBudget.maxAverageTickMs : null,
+    minTicksPerSecond: typeof scenarioBudget.minTicksPerSecond === 'number' ? scenarioBudget.minTicksPerSecond : null,
+    violations
+  };
+}
+
+export function applyPerformanceBudgets(report, budgetConfig) {
+  const scenarios = report.scenarios.map((scenarioEntry) => {
+    const budget = evaluateScenarioBudget(scenarioEntry.scenario.name, scenarioEntry.candidate.runA, budgetConfig);
+    return {
+      ...scenarioEntry,
+      comparison: {
+        ...scenarioEntry.comparison,
+        budget
+      }
+    };
+  });
+
+  return {
+    ...report,
+    budgetConfig: budgetConfig
+      ? {
+          schemaVersion: budgetConfig.schemaVersion,
+          name: budgetConfig.name ?? null,
+          ticks: budgetConfig.ticks ?? null
+        }
+      : null,
+    summary: {
+      ...report.summary,
+      budgetFailureCount: scenarios.filter((scenario) => !scenario.comparison.budget.isWithinBudget).length
     },
     scenarios
   };

@@ -44,12 +44,12 @@ jobs:
         with:
           node-version: 20
 
-      - name: Generate deterministic benchmark comparison report (non-blocking)
-        continue-on-error: true
+      - name: Generate deterministic benchmark comparison report (budget-gated)
         run: |
           cd frontend
           npm ci
           npm run benchmark:compare -- \
+            --budget-config ./scripts/benchmark-budgets.v1.json \
             --output-json ./benchmark-results/benchmark-comparison.json \
             --output-markdown ./benchmark-results/benchmark-summary.md
 
