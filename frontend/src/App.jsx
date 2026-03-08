@@ -48,6 +48,7 @@ import {
   SnapshotNameConflictError
 } from './simulation/api';
 import { useToasts } from './toasts';
+import { deriveInspectorComparisonRows } from './inspectorComparison';
 
 const TICK_MS = 1000 / 30;
 const SPEED_OPTIONS = [1, 2, 5, 10];
@@ -540,50 +541,10 @@ function App() {
       ? 'Comparison unavailable: selected organism is no longer alive. Showing pinned snapshot only.'
       : null;
 
-  const comparisonRows = useMemo(() => {
-    if (!hasComparisonPair) {
-      return [];
-    }
-
-    const selected = selectedOrganism;
-    const pinned = pinnedComparisonCandidate;
-    const fields = [
-      { key: 'generation', label: 'Generation', selectedValue: selected.generation, pinnedValue: pinned.generation },
-      { key: 'age', label: 'Age', selectedValue: selected.age, pinnedValue: pinned.age },
-      { key: 'energy', label: 'Energy', selectedValue: selected.energy, pinnedValue: pinned.energy, precision: 3 },
-      { key: 'size', label: 'Size', selectedValue: selected.traits.size, pinnedValue: pinned.traits.size },
-      { key: 'speed', label: 'Speed', selectedValue: selected.traits.speed, pinnedValue: pinned.traits.speed },
-      { key: 'visionRange', label: 'Vision range', selectedValue: selected.traits.visionRange, pinnedValue: pinned.traits.visionRange },
-      { key: 'turnRate', label: 'Turn rate', selectedValue: selected.traits.turnRate, pinnedValue: pinned.traits.turnRate },
-      { key: 'metabolism', label: 'Metabolism', selectedValue: selected.traits.metabolism, pinnedValue: pinned.traits.metabolism }
-    ];
-
-    return fields.map((field) => {
-      const numericSelected = typeof field.selectedValue === 'number' ? field.selectedValue : null;
-      const numericPinned = typeof field.pinnedValue === 'number' ? field.pinnedValue : null;
-      const delta = numericSelected !== null && numericPinned !== null
-        ? numericSelected - numericPinned
-        : null;
-      const precision = field.precision ?? 2;
-      const formatValue = (value) => (typeof value === 'number' ? value.toFixed(precision) : String(value));
-
-      let deltaLabel = 'No numeric difference';
-      if (delta !== null && delta !== 0) {
-        const sign = delta > 0 ? '+' : '-';
-        deltaLabel = `${sign}${Math.abs(delta).toFixed(precision)} vs pinned`;
-      } else if (delta === 0) {
-        deltaLabel = 'No change vs pinned';
-      }
-
-      return {
-        key: field.key,
-        label: field.label,
-        selectedDisplay: formatValue(field.selectedValue),
-        pinnedDisplay: formatValue(field.pinnedValue),
-        deltaLabel
-      };
-    });
-  }, [hasComparisonPair, selectedOrganism, pinnedComparisonCandidate]);
+  const comparisonRows = useMemo(
+    () => (hasComparisonPair ? deriveInspectorComparisonRows(selectedOrganism, pinnedComparisonCandidate) : []),
+    [hasComparisonPair, selectedOrganism, pinnedComparisonCandidate]
+  );
 
   const onFieldChange = (field) => (event) => {
     const nextValue = event.target.value;
