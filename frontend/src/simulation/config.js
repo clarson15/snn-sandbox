@@ -1,5 +1,5 @@
-import { createWorldState } from './engine';
-import { createSeededPrng } from './prng';
+import { createWorldState } from './engine.js';
+import { createSeededPrng } from './prng.js';
 
 export const STORAGE_KEY = 'snn-sandbox.latest-simulation-config';
 
