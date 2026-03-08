@@ -14,6 +14,7 @@ import {
 import { createSeededPrng } from './simulation/prng';
 import { mapBrainToVisualizerModel } from './simulation/brainVisualizer';
 import { drawWorldSnapshot } from './simulation/renderer';
+import { resolveRenderFrameInterval, shouldRenderFrame } from './simulation/renderCadence';
 import { pickOrganismAtPoint } from './simulation/selection';
 import { deriveSimulationStats, formatSimulationStats } from './simulation/stats';
 import { deriveRunMetadata, serializeRunMetadata } from './simulation/metadata';
@@ -227,12 +228,15 @@ function App() {
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [hasUnsavedFormChanges]);
 
-  const advanceOneTick = () => {
-    if (!worldRef.current || !rngRef.current || !stepParamsRef.current) {
+  const advanceTicks = (count) => {
+    if (!worldRef.current || !rngRef.current || !stepParamsRef.current || !Number.isInteger(count) || count <= 0) {
       return;
     }
 
-    worldRef.current = stepWorld(worldRef.current, rngRef.current, stepParamsRef.current);
+    for (let i = 0; i < count; i += 1) {
+      worldRef.current = stepWorld(worldRef.current, rngRef.current, stepParamsRef.current);
+    }
+
     setTickDisplay(worldRef.current.tick);
   };
 
@@ -242,9 +246,7 @@ function App() {
         return;
       }
 
-      for (let i = 0; i < speedMultiplierRef.current; i += 1) {
-        advanceOneTick();
-      }
+      advanceTicks(speedMultiplierRef.current);
     }, TICK_MS);
 
     return () => clearInterval(interval);
@@ -261,21 +263,32 @@ function App() {
       return undefined;
     }
 
-    let frame = 0;
+    let frameRequest = 0;
+    let frameNumber = 0;
     const render = () => {
       const worldToDraw = replayWorldState ?? worldRef.current;
-      if (worldToDraw) {
+      const frameInterval = replayWorldState ? 1 : resolveRenderFrameInterval(speedMultiplierRef.current);
+      if (worldToDraw && shouldRenderFrame(frameNumber, frameInterval)) {
         drawWorldSnapshot(ctx, worldToDraw, viewportRef.current, {
           selectedOrganismId
         });
       }
-      frame = requestAnimationFrame(render);
+      frameNumber += 1;
+      frameRequest = requestAnimationFrame(render);
     };
 
-    frame = requestAnimationFrame(render);
+    frameRequest = requestAnimationFrame(render);
 
-    return () => cancelAnimationFrame(frame);
+    return () => cancelAnimationFrame(frameRequest);
   }, [replayWorldState, selectedOrganismId]);
+
+  useEffect(() => {
+    if (replayWorldState) {
+      return;
+    }
+
+    setTickDisplay((currentTick) => (worldRef.current ? worldRef.current.tick : currentTick));
+  }, [speedMultiplier, replayWorldState]);
 
   useEffect(() => {
     listSimulationSnapshots()
@@ -848,9 +861,7 @@ function App() {
       return;
     }
 
-    for (let i = 0; i < count; i += 1) {
-      advanceOneTick();
-    }
+    advanceTicks(count);
   };
 
   const onStepTick = () => {
