@@ -13,7 +13,9 @@ export const DEFAULT_CONFIG = {
   initialFoodCount: 30,
   foodSpawnChance: 0.04,
   foodEnergyValue: 5,
-  maxFood: 120
+  maxFood: 120,
+  mutationRate: 0.05,
+  mutationStrength: 0.1
 };
 
 export function resolveSeed(seedInput) {
@@ -28,7 +30,7 @@ export function resolveSeed(seedInput) {
     return bytes[0].toString(16);
   }
 
-  return `seed-${Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)}`;
+  return 'seed-fallback';
 }
 
 export function validateSimulationConfig(input) {
@@ -46,7 +48,9 @@ export function validateSimulationConfig(input) {
     ['initialFoodCount', 0, 1000, 'Initial food count must be between 0 and 1000.'],
     ['foodSpawnChance', 0, 1, 'Food spawn chance must be between 0 and 1.'],
     ['foodEnergyValue', 1, 100, 'Food energy value must be between 1 and 100.'],
-    ['maxFood', 1, 2000, 'Max food must be between 1 and 2000.']
+    ['maxFood', 1, 2000, 'Max food must be between 1 and 2000.'],
+    ['mutationRate', 0, 1, 'Mutation rate must be between 0 and 1.'],
+    ['mutationStrength', 0, 1, 'Mutation strength must be between 0 and 1.']
   ];
 
   for (const [field, min, max, message] of numericChecks) {
@@ -72,14 +76,16 @@ export function normalizeSimulationConfig(input, resolvedSeed) {
     name: String(input.name).trim(),
     seed: String(input.seed ?? '').trim(),
     resolvedSeed,
-    worldWidth: Number(input.worldWidth),
-    worldHeight: Number(input.worldHeight),
-    initialPopulation: Number(input.initialPopulation),
-    minimumPopulation: Number(input.minimumPopulation ?? input.initialPopulation),
-    initialFoodCount: Number(input.initialFoodCount),
-    foodSpawnChance: Number(input.foodSpawnChance),
-    foodEnergyValue: Number(input.foodEnergyValue),
-    maxFood: Number(input.maxFood)
+    worldWidth: Number(input.worldWidth ?? DEFAULT_CONFIG.worldWidth),
+    worldHeight: Number(input.worldHeight ?? DEFAULT_CONFIG.worldHeight),
+    initialPopulation: Number(input.initialPopulation ?? DEFAULT_CONFIG.initialPopulation),
+    minimumPopulation: Number(input.minimumPopulation ?? input.initialPopulation ?? DEFAULT_CONFIG.minimumPopulation),
+    initialFoodCount: Number(input.initialFoodCount ?? DEFAULT_CONFIG.initialFoodCount),
+    foodSpawnChance: Number(input.foodSpawnChance ?? DEFAULT_CONFIG.foodSpawnChance),
+    foodEnergyValue: Number(input.foodEnergyValue ?? DEFAULT_CONFIG.foodEnergyValue),
+    maxFood: Number(input.maxFood ?? DEFAULT_CONFIG.maxFood),
+    mutationRate: Number(input.mutationRate ?? DEFAULT_CONFIG.mutationRate),
+    mutationStrength: Number(input.mutationStrength ?? DEFAULT_CONFIG.mutationStrength)
   };
 }
 
@@ -179,6 +185,8 @@ export function toEngineStepParams(config) {
     worldHeight: config.worldHeight,
     maxFood: config.maxFood,
     minimumPopulation: config.minimumPopulation,
+    mutationRate: config.mutationRate,
+    mutationStrength: config.mutationStrength,
     createFloorSpawnOrganism: (id, rng) => createRandomizedOrganism({
       id,
       rng,
