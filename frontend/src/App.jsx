@@ -16,6 +16,8 @@ import {
   applyBrainViewportZoom,
   BRAIN_GRAPH_VIEWBOX,
   createBrainViewportFitTransform,
+  deriveEmphasizedBrainGraphModel,
+  mapBrainEmphasisChecksum,
   mapBrainLayoutChecksum,
   mapBrainToVisualizerModel
 } from './simulation/brainVisualizer';
@@ -137,6 +139,8 @@ function App() {
   const [pinnedOrganismSnapshot, setPinnedOrganismSnapshot] = useState(null);
   const [activeSynapseId, setActiveSynapseId] = useState(null);
   const [brainGraphTransform, setBrainGraphTransform] = useState(() => ({ scale: 1, translateX: 0, translateY: 0 }));
+  const [hideNearZeroBrainEdges, setHideNearZeroBrainEdges] = useState(false);
+  const [strongestBrainEdgeCount, setStrongestBrainEdgeCount] = useState(0);
   const [errors, setErrors] = useState({});
   const [savedSimulations, setSavedSimulations] = useState([]);
   const [saveStatus, setSaveStatus] = useState('');
@@ -481,12 +485,21 @@ function App() {
 
   const inspectorOrganism = selectedOrganism ?? (inspectorPinned ? pinnedOrganismSnapshot : null);
 
-  const brainGraphModel = useMemo(() => {
+  const baseBrainGraphModel = useMemo(() => {
     if (!inspectorOrganism) {
       return null;
     }
     return mapBrainToVisualizerModel(inspectorOrganism.brain);
   }, [inspectorOrganism]);
+
+  const brainGraphModel = useMemo(
+    () => deriveEmphasizedBrainGraphModel(baseBrainGraphModel, {
+      hideNearZeroWeights: hideNearZeroBrainEdges,
+      nearZeroThreshold: 0.1,
+      strongestEdgeCount: strongestBrainEdgeCount
+    }),
+    [baseBrainGraphModel, hideNearZeroBrainEdges, strongestBrainEdgeCount]
+  );
 
   const brainGraphNodeById = useMemo(() => {
     if (!brainGraphModel) {
@@ -502,7 +515,15 @@ function App() {
     return brainGraphModel.edges.find((edge) => edge.id === activeSynapseId) ?? null;
   }, [activeSynapseId, brainGraphModel]);
 
-  const brainGraphLayoutChecksum = useMemo(() => mapBrainLayoutChecksum(brainGraphModel), [brainGraphModel]);
+  const brainGraphLayoutChecksum = useMemo(() => mapBrainLayoutChecksum(baseBrainGraphModel), [baseBrainGraphModel]);
+  const brainGraphEmphasisChecksum = useMemo(
+    () => mapBrainEmphasisChecksum(baseBrainGraphModel, {
+      hideNearZeroWeights: hideNearZeroBrainEdges,
+      nearZeroThreshold: 0.1,
+      strongestEdgeCount: strongestBrainEdgeCount
+    }),
+    [baseBrainGraphModel, hideNearZeroBrainEdges, strongestBrainEdgeCount]
+  );
 
   useEffect(() => {
     if (!brainGraphModel) {
@@ -2182,7 +2203,8 @@ function App() {
             {brainGraphModel ? (
               <>
                 <p>
-                  <strong>Neurons:</strong> {brainGraphModel.nodes.length} | <strong>Synapses:</strong> {brainGraphModel.edges.length}
+                  <strong>Neurons:</strong> {brainGraphModel.nodes.length} | <strong>Synapses:</strong> {baseBrainGraphModel?.edges.length ?? 0} |{' '}
+                  <strong>Rendered edges:</strong> {brainGraphModel.edges.length}
                 </p>
                 <div aria-label="brain graph legend">
                   <p><strong>Neuron legend:</strong></p>
@@ -2206,6 +2228,38 @@ function App() {
                   <button type="button" onClick={() => onZoomBrainGraphViewport(-1)}>Zoom Out</button>
                   <button type="button" onClick={onFitBrainGraphViewport}>Reset View</button>
                 </div>
+                <div className="brain-graph-controls" role="group" aria-label="brain visualizer signal emphasis controls">
+                  <label>
+                    <input
+                      type="checkbox"
+                      aria-label="hide near-zero-weight synapses"
+                      checked={hideNearZeroBrainEdges}
+                      onChange={(event) => setHideNearZeroBrainEdges(event.target.checked)}
+                    />{' '}
+                    Hide near-zero-weight synapses (|w| &lt; 0.1)
+                  </label>
+                  <label htmlFor="strongest-synapse-count-input">
+                    Highlight strongest synapses
+                  </label>
+                  <input
+                    id="strongest-synapse-count-input"
+                    aria-label="highlight strongest synapse count"
+                    type="number"
+                    min="0"
+                    max={baseBrainGraphModel?.edges.length ?? 0}
+                    value={strongestBrainEdgeCount}
+                    onChange={(event) => {
+                      const numeric = Number(event.target.value);
+                      if (!Number.isFinite(numeric)) {
+                        setStrongestBrainEdgeCount(0);
+                        return;
+                      }
+                      const clamped = Math.max(0, Math.min(baseBrainGraphModel?.edges.length ?? 0, Math.floor(numeric)));
+                      setStrongestBrainEdgeCount(clamped);
+                    }}
+                  />
+                </div>
+                <p aria-label="brain graph emphasis checksum"><strong>Emphasis checksum:</strong> <code>{brainGraphEmphasisChecksum || 'n/a'}</code></p>
                 <p role="status" aria-live="polite" aria-label="brain graph selected synapse details">
                   {activeSynapse
                     ? `Selected synapse ${activeSynapse.id}: ${activeSynapse.sourceId} → ${activeSynapse.targetId}, ${activeSynapse.polarityLabel}, weight ${activeSynapse.weightLabel}`
@@ -2228,8 +2282,8 @@ function App() {
                           x2={target.x}
                           y2={target.y}
                           stroke={edge.color}
-                          strokeWidth={edge.strokeWidth}
-                          opacity={activeSynapse?.id === edge.id ? '1' : '0.85'}
+                          strokeWidth={edge.emphasisStrokeWidth}
+                          opacity={activeSynapse?.id === edge.id ? '1' : String(edge.emphasisOpacity)}
                           className="brain-graph-synapse-edge"
                           style={{ cursor: 'pointer' }}
                           onMouseEnter={() => setActiveSynapseId(edge.id)}

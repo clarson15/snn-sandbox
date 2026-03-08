@@ -7,6 +7,7 @@ import { createInitialWorldFromConfig, loadSimulationConfig, normalizeSimulation
 import { loadReplayComparisonPresets } from './simulation/replayComparisonPresets';
 import { stepWorld } from './simulation/engine';
 import { createSeededPrng } from './simulation/prng';
+import { mapBrainEmphasisChecksum, mapBrainToVisualizerModel } from './simulation/brainVisualizer';
 
 function ensureWritableLocalStorage() {
   const storage = window.localStorage;
@@ -2168,6 +2169,56 @@ describe('App', () => {
     fireEvent.click(canvas, { clientX: firstTarget.x, clientY: firstTarget.y });
     fireEvent.click(screen.getByRole('button', { name: /close organism inspector/i }));
     expect(inspector).toHaveTextContent(/click an organism to inspect it/i);
+  });
+
+  it('keeps signal emphasis controls deterministic for fixture brain data', () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/seed/i), { target: { value: 'fixture-seed' } });
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    const fixtureConfig = normalizeSimulationConfig(
+      {
+        name: 'Fixture',
+        seed: 'fixture-seed',
+        worldWidth: 800,
+        worldHeight: 480,
+        initialPopulation: 12,
+        initialFoodCount: 30,
+        foodSpawnChance: 0.04,
+        foodEnergyValue: 5,
+        maxFood: 120
+      },
+      'fixture-seed'
+    );
+    const fixtureWorld = createInitialWorldFromConfig(fixtureConfig);
+    const firstTarget = fixtureWorld.organisms[0];
+
+    const canvas = screen.getByLabelText(/simulation world/i);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 800,
+      height: 480,
+      right: 800,
+      bottom: 480,
+      toJSON: () => ({})
+    });
+
+    fireEvent.click(canvas, { clientX: firstTarget.x, clientY: firstTarget.y });
+
+    const expectedChecksum = mapBrainEmphasisChecksum(mapBrainToVisualizerModel(firstTarget.brain), {
+      hideNearZeroWeights: true,
+      nearZeroThreshold: 0.1,
+      strongestEdgeCount: 2
+    });
+
+    fireEvent.click(screen.getByLabelText(/hide near-zero-weight synapses/i));
+    fireEvent.change(screen.getByLabelText(/highlight strongest synapse count/i), { target: { value: '2' } });
+
+    expect(screen.getByLabelText(/brain graph emphasis checksum/i)).toHaveTextContent(expectedChecksum);
   });
 
   it('keeps inspector and synapse controls keyboard-operable with deterministic focus after selection changes', async () => {

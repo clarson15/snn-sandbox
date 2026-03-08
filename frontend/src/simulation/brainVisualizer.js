@@ -196,6 +196,84 @@ export function mapBrainLayoutChecksum(model) {
   return `${nodeSignature}::${edgeSignature}`;
 }
 
+function normalizeEmphasisSettings(settings = {}) {
+  const hideNearZeroWeights = Boolean(settings.hideNearZeroWeights);
+  const nearZeroThresholdCandidate = Number(settings.nearZeroThreshold);
+  const nearZeroThreshold = Number.isFinite(nearZeroThresholdCandidate)
+    ? Math.max(0, Math.min(1, nearZeroThresholdCandidate))
+    : 0.1;
+  const strongestEdgeCountCandidate = Number(settings.strongestEdgeCount);
+  const strongestEdgeCount = Number.isFinite(strongestEdgeCountCandidate)
+    ? Math.max(0, Math.floor(strongestEdgeCountCandidate))
+    : 0;
+
+  return {
+    hideNearZeroWeights,
+    nearZeroThreshold,
+    strongestEdgeCount
+  };
+}
+
+export function deriveEmphasizedBrainGraphModel(model, settings = {}) {
+  if (!model || !Array.isArray(model.nodes) || !Array.isArray(model.edges)) {
+    return null;
+  }
+
+  const normalized = normalizeEmphasisSettings(settings);
+  const sortedEdges = [...model.edges].sort((a, b) => a.id.localeCompare(b.id));
+  const visibleEdges = normalized.hideNearZeroWeights
+    ? sortedEdges.filter((edge) => Math.abs(edge.weight) >= normalized.nearZeroThreshold)
+    : sortedEdges;
+
+  let strongestEdgeIds = new Set();
+  if (normalized.strongestEdgeCount > 0 && visibleEdges.length > 0) {
+    strongestEdgeIds = new Set(
+      [...visibleEdges]
+        .sort((left, right) => {
+          const magnitudeDelta = Math.abs(right.weight) - Math.abs(left.weight);
+          if (magnitudeDelta !== 0) {
+            return magnitudeDelta;
+          }
+          return left.id.localeCompare(right.id);
+        })
+        .slice(0, normalized.strongestEdgeCount)
+        .map((edge) => edge.id)
+    );
+  }
+
+  const emphasizedEdges = visibleEdges.map((edge) => {
+    const isStrongest = strongestEdgeIds.has(edge.id);
+    const deemphasized = strongestEdgeIds.size > 0 && !isStrongest;
+
+    return {
+      ...edge,
+      isStrongest,
+      emphasisOpacity: deemphasized ? 0.25 : 1,
+      emphasisStrokeWidth: isStrongest ? Number((edge.strokeWidth + 0.85).toFixed(3)) : edge.strokeWidth
+    };
+  });
+
+  return {
+    ...model,
+    edges: emphasizedEdges,
+    emphasisSettings: normalized
+  };
+}
+
+export function mapBrainEmphasisChecksum(model, settings = {}) {
+  const emphasized = deriveEmphasizedBrainGraphModel(model, settings);
+  if (!emphasized) {
+    return '';
+  }
+
+  const settingsKey = `${emphasized.emphasisSettings.hideNearZeroWeights ? 1 : 0}:${emphasized.emphasisSettings.nearZeroThreshold.toFixed(3)}:${emphasized.emphasisSettings.strongestEdgeCount}`;
+  const edgeKey = emphasized.edges
+    .map((edge) => `${edge.id}:${Number(edge.weight).toFixed(3)}:${edge.isStrongest ? 1 : 0}`)
+    .join('|');
+
+  return `${settingsKey}::${edgeKey}`;
+}
+
 export function mapBrainToVisualizerModel(brain) {
   if (!brain || !Array.isArray(brain.neurons) || !Array.isArray(brain.synapses)) {
     return null;

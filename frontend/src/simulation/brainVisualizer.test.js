@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   applyBrainViewportZoom,
   createBrainViewportFitTransform,
+  deriveEmphasizedBrainGraphModel,
+  mapBrainEmphasisChecksum,
   mapBrainLayoutChecksum,
   mapBrainToVisualizerModel,
   mapNeuronValueToColor,
@@ -155,6 +157,34 @@ describe('mapBrainToVisualizerModel', () => {
     expect(mapBrainToVisualizerModel(null)).toBeNull();
     expect(mapBrainToVisualizerModel({ neurons: [], synapses: [] })).toBeNull();
     expect(mapBrainToVisualizerModel({ neurons: [{ id: 'in-1', type: 'input' }] })).toBeNull();
+  });
+});
+
+describe('deriveEmphasizedBrainGraphModel', () => {
+  it('deterministically filters near-zero edges and highlights strongest edges', () => {
+    const base = mapBrainToVisualizerModel({
+      neurons: [
+        { id: 'in-1', type: 'input', value: 0.2 },
+        { id: 'h-1', type: 'hidden', value: 0.3 },
+        { id: 'out-1', type: 'output', value: -0.1 }
+      ],
+      synapses: [
+        { id: 's-weak', sourceId: 'in-1', targetId: 'h-1', weight: 0.02 },
+        { id: 's-mid', sourceId: 'h-1', targetId: 'out-1', weight: -0.4 },
+        { id: 's-strong', sourceId: 'in-1', targetId: 'out-1', weight: 0.95 }
+      ]
+    });
+
+    expect(base).not.toBeNull();
+
+    const settings = { hideNearZeroWeights: true, nearZeroThreshold: 0.1, strongestEdgeCount: 1 };
+    const first = deriveEmphasizedBrainGraphModel(base, settings);
+    const second = deriveEmphasizedBrainGraphModel(structuredClone(base), settings);
+
+    expect(first.edges.map((edge) => edge.id)).toEqual(['s-mid', 's-strong']);
+    expect(first.edges.find((edge) => edge.id === 's-strong')?.isStrongest).toBe(true);
+    expect(first.edges.find((edge) => edge.id === 's-mid')?.emphasisOpacity).toBe(0.25);
+    expect(mapBrainEmphasisChecksum(first, settings)).toBe(mapBrainEmphasisChecksum(second, settings));
   });
 });
 
