@@ -1495,17 +1495,24 @@ function App() {
         >
           Pause
         </ControlButtonWithHint>
-        {SPEED_OPTIONS.map((multiplier) => (
-          <ControlButtonWithHint
-            key={multiplier}
-            name={`speed-${multiplier}`}
-            onClick={() => onSpeedSelect(multiplier)}
-            reason={controlDisableReasons.speed}
-            aria-pressed={!paused && !replayActive && speedMultiplier === multiplier}
-          >
-            {multiplier}x
-          </ControlButtonWithHint>
-        ))}
+        <div className="speed-presets" role="group" aria-label="speed presets">
+          {SPEED_OPTIONS.map((multiplier) => {
+            const isActivePreset = !paused && !replayActive && speedMultiplier === multiplier;
+
+            return (
+              <ControlButtonWithHint
+                key={multiplier}
+                name={`speed-${multiplier}`}
+                onClick={() => onSpeedSelect(multiplier)}
+                reason={controlDisableReasons.speed}
+                className={`speed-preset-button${isActivePreset ? ' is-active' : ''}`}
+                aria-pressed={isActivePreset}
+              >
+                {multiplier}x
+              </ControlButtonWithHint>
+            );
+          })}
+        </div>
         <ControlButtonWithHint name="step-plus-1" onClick={onStepTick} reason={controlDisableReasons.step}>
           Step +1
         </ControlButtonWithHint>
