@@ -1661,7 +1661,7 @@ describe('App', () => {
     const readTick = () => Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10);
 
     expect(screen.getByText(/shortcuts: space pause\/play · \. single-step \(paused\) · 1\/2\/3\/4 set speed/i)).toBeInTheDocument();
-    expect(screen.getByText(/inspector shortcuts: ←\/→ previous\/next organism · p pin\/unpin inspector · \[\/\] section focus · enter toggle section/i)).toBeInTheDocument();
+    expect(screen.getByText(/inspector shortcuts: ←\/↑ previous organism · →\/↓ next organism · p pin\/unpin inspector · \[\/\] section focus · enter toggle section/i)).toBeInTheDocument();
     expect(screen.getByText(/pin mode: disabled/i)).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: '3', code: 'Digit3' });
@@ -1685,14 +1685,19 @@ describe('App', () => {
     const firstSelectedId = readInspectorId();
     expect(firstSelectedId).toBeTruthy();
 
-    fireEvent.keyDown(window, { key: 'ArrowRight', code: 'ArrowRight' });
+    fireEvent.keyDown(window, { key: 'ArrowDown', code: 'ArrowDown' });
     const secondSelectedId = readInspectorId();
     expect(secondSelectedId).toBeTruthy();
     expect(secondSelectedId).not.toBe(firstSelectedId);
 
-    fireEvent.keyDown(window, { key: 'ArrowLeft', code: 'ArrowLeft' });
+    fireEvent.keyDown(window, { key: 'ArrowUp', code: 'ArrowUp' });
     const restoredSelectedId = readInspectorId();
     expect(restoredSelectedId).toBe(firstSelectedId);
+
+    fireEvent.keyDown(window, { key: 'ArrowLeft', code: 'ArrowLeft' });
+    const wrappedSelectedId = readInspectorId();
+    expect(wrappedSelectedId).toBeTruthy();
+    expect(wrappedSelectedId).not.toBe(restoredSelectedId);
 
     const lifecycleToggle = screen.getByRole('button', { name: /^lifecycle$/i });
     const energyToggle = screen.getByRole('button', { name: /^energy$/i });

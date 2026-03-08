@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { deriveDeterministicOrganismIds, resolveDeadSelectionFallback } from './inspectorSelection';
+import {
+  deriveDeterministicOrganismIds,
+  resolveAdjacentSelectionId,
+  resolveDeadSelectionFallback
+} from './inspectorSelection';
 
 describe('inspectorSelection helpers', () => {
   it('returns ids sorted by deterministic lexical order', () => {
@@ -23,5 +27,27 @@ describe('inspectorSelection helpers', () => {
 
   it('returns null when no alive organisms remain', () => {
     expect(resolveDeadSelectionFallback([], 'org-3')).toBeNull();
+  });
+
+  it('selects adjacent id using deterministic wraparound when current selection is alive', () => {
+    const ids = ['org-1', 'org-4', 'org-7'];
+
+    expect(resolveAdjacentSelectionId(ids, 'org-4', 1)).toBe('org-7');
+    expect(resolveAdjacentSelectionId(ids, 'org-4', -1)).toBe('org-1');
+    expect(resolveAdjacentSelectionId(ids, 'org-7', 1)).toBe('org-1');
+  });
+
+  it('resolves from dead-selection fallback before applying adjacent keyboard navigation', () => {
+    const ids = ['org-1', 'org-4', 'org-7'];
+
+    expect(resolveAdjacentSelectionId(ids, 'org-4-dead', 1)).toBe('org-1');
+    expect(resolveAdjacentSelectionId(ids, 'org-4-dead', -1)).toBe('org-4');
+  });
+
+  it('uses directional edge fallback when no prior selection exists', () => {
+    const ids = ['org-1', 'org-4', 'org-7'];
+
+    expect(resolveAdjacentSelectionId(ids, null, 1)).toBe('org-1');
+    expect(resolveAdjacentSelectionId(ids, null, -1)).toBe('org-7');
   });
 });
