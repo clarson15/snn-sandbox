@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { mapBrainLayoutChecksum, mapBrainToVisualizerModel, mapNeuronValueToColor, mapSynapseWeightToCue } from './brainVisualizer';
+import {
+  applyBrainViewportZoom,
+  createBrainViewportFitTransform,
+  mapBrainLayoutChecksum,
+  mapBrainToVisualizerModel,
+  mapNeuronValueToColor,
+  mapSynapseWeightToCue
+} from './brainVisualizer';
 
 describe('mapNeuronValueToColor', () => {
   it('maps negative to red, zero to neutral, and positive to green', () => {
@@ -45,6 +52,16 @@ describe('mapSynapseWeightToCue', () => {
     expect(mapSynapseWeightToCue(9).weight).toBe(1);
     expect(mapSynapseWeightToCue(-9).weight).toBe(-1);
   });
+});
+
+const createViewportTestModel = () => ({
+  nodes: [
+    { id: 'in-1', x: 120, y: 120 },
+    { id: 'in-2', x: 120, y: 180 },
+    { id: 'h-1', x: 300, y: 150 },
+    { id: 'out-1', x: 480, y: 150 }
+  ],
+  edges: []
 });
 
 describe('mapBrainToVisualizerModel', () => {
@@ -138,5 +155,44 @@ describe('mapBrainToVisualizerModel', () => {
     expect(mapBrainToVisualizerModel(null)).toBeNull();
     expect(mapBrainToVisualizerModel({ neurons: [], synapses: [] })).toBeNull();
     expect(mapBrainToVisualizerModel({ neurons: [{ id: 'in-1', type: 'input' }] })).toBeNull();
+  });
+});
+
+describe('brain graph viewport transforms', () => {
+  it('derives deterministic fit transform from bounds and viewbox size', () => {
+    const model = createViewportTestModel();
+
+    const first = createBrainViewportFitTransform(model);
+    const second = createBrainViewportFitTransform(structuredClone(model));
+
+    expect(first).toEqual({
+      scale: 1.644444,
+      translateX: -173.333333,
+      translateY: -96.666667
+    });
+    expect(second).toEqual(first);
+  });
+
+  it('zooms in and out deterministically around the canvas center', () => {
+    const model = createViewportTestModel();
+    const fit = createBrainViewportFitTransform(model);
+
+    const zoomIn = applyBrainViewportZoom(fit, 1);
+    const zoomOut = applyBrainViewportZoom(zoomIn, -1);
+
+    expect(zoomIn).toEqual({
+      scale: 2.055555,
+      translateX: -296.666666,
+      translateY: -158.333334
+    });
+    expect(zoomOut).toEqual(fit);
+  });
+
+  it('clamps zoom operations to min/max scale bounds', () => {
+    const extremeIn = applyBrainViewportZoom({ scale: 10, translateX: 0, translateY: 0 }, 1);
+    const extremeOut = applyBrainViewportZoom({ scale: 0.01, translateX: 0, translateY: 0 }, -1);
+
+    expect(extremeIn.scale).toBe(4);
+    expect(extremeOut.scale).toBe(0.5);
   });
 });

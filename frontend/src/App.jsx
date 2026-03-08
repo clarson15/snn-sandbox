@@ -12,7 +12,13 @@ import {
   validateSimulationConfig
 } from './simulation/config';
 import { createSeededPrng } from './simulation/prng';
-import { mapBrainLayoutChecksum, mapBrainToVisualizerModel } from './simulation/brainVisualizer';
+import {
+  applyBrainViewportZoom,
+  BRAIN_GRAPH_VIEWBOX,
+  createBrainViewportFitTransform,
+  mapBrainLayoutChecksum,
+  mapBrainToVisualizerModel
+} from './simulation/brainVisualizer';
 import { drawWorldSnapshot } from './simulation/renderer';
 import { resolveRenderFrameInterval, shouldRenderFrame } from './simulation/renderCadence';
 import { computeFixedStepBudget, resolveMaxCatchUpTicksPerFrame } from './simulation/fixedStepScheduler';
@@ -129,6 +135,7 @@ function App() {
   const [inspectorPinned, setInspectorPinned] = useState(false);
   const [pinnedOrganismSnapshot, setPinnedOrganismSnapshot] = useState(null);
   const [activeSynapseId, setActiveSynapseId] = useState(null);
+  const [brainGraphTransform, setBrainGraphTransform] = useState(() => ({ scale: 1, translateX: 0, translateY: 0 }));
   const [errors, setErrors] = useState({});
   const [savedSimulations, setSavedSimulations] = useState([]);
   const [saveStatus, setSaveStatus] = useState('');
@@ -433,6 +440,26 @@ function App() {
     selectAdjacentOrganism(1);
   };
 
+  const onFitBrainGraphViewport = () => {
+    if (!brainGraphModel) {
+      return;
+    }
+
+    setBrainGraphTransform(
+      createBrainViewportFitTransform(brainGraphModel, {
+        width: BRAIN_GRAPH_VIEWBOX.width,
+        height: BRAIN_GRAPH_VIEWBOX.height
+      })
+    );
+  };
+
+  const onZoomBrainGraphViewport = (direction) => {
+    setBrainGraphTransform((previous) => applyBrainViewportZoom(previous, direction, {
+      width: BRAIN_GRAPH_VIEWBOX.width,
+      height: BRAIN_GRAPH_VIEWBOX.height
+    }));
+  };
+
   const acknowledgeUnavailableSelection = () => {
     if (!selectedOrganismUnavailable || inspectorPinned) {
       return false;
@@ -466,6 +493,20 @@ function App() {
   }, [activeSynapseId, brainGraphModel]);
 
   const brainGraphLayoutChecksum = useMemo(() => mapBrainLayoutChecksum(brainGraphModel), [brainGraphModel]);
+
+  useEffect(() => {
+    if (!brainGraphModel) {
+      setBrainGraphTransform({ scale: 1, translateX: 0, translateY: 0 });
+      return;
+    }
+
+    setBrainGraphTransform(
+      createBrainViewportFitTransform(brainGraphModel, {
+        width: BRAIN_GRAPH_VIEWBOX.width,
+        height: BRAIN_GRAPH_VIEWBOX.height
+      })
+    );
+  }, [brainGraphModel, inspectorOrganism?.id]);
 
   useEffect(() => {
     if (!brainGraphModel || !activeSynapseId) {
@@ -2181,53 +2222,64 @@ function App() {
                   </p>
                 </div>
                 <p><strong>Layout checksum:</strong> <code>{brainGraphLayoutChecksum || 'n/a'}</code></p>
+                <p>
+                  Deterministic viewport policy: fit transform is applied whenever the inspected organism changes; Reset View restores that same fit transform.
+                </p>
+                <div className="brain-graph-controls" role="group" aria-label="brain visualizer viewport controls">
+                  <button type="button" onClick={onFitBrainGraphViewport}>Fit</button>
+                  <button type="button" onClick={() => onZoomBrainGraphViewport(1)}>Zoom In</button>
+                  <button type="button" onClick={() => onZoomBrainGraphViewport(-1)}>Zoom Out</button>
+                  <button type="button" onClick={onFitBrainGraphViewport}>Reset View</button>
+                </div>
                 <p role="status" aria-live="polite" aria-label="brain graph selected synapse details">
                   {activeSynapse
                     ? `Selected synapse ${activeSynapse.id}: ${activeSynapse.sourceId} → ${activeSynapse.targetId}, ${activeSynapse.polarityLabel}, weight ${activeSynapse.weightLabel}`
                     : 'Select or hover a synapse to inspect source, target, and exact weight.'}
                 </p>
                 <svg viewBox="0 0 640 300" role="img" aria-label="organism brain graph" className="brain-graph">
-                  {brainGraphModel.edges.map((edge) => {
-                    const source = brainGraphNodeById.get(edge.sourceId);
-                    const target = brainGraphNodeById.get(edge.targetId);
-                    if (!source || !target) {
-                      return null;
-                    }
+                  <g transform={`translate(${brainGraphTransform.translateX} ${brainGraphTransform.translateY}) scale(${brainGraphTransform.scale})`}>
+                    {brainGraphModel.edges.map((edge) => {
+                      const source = brainGraphNodeById.get(edge.sourceId);
+                      const target = brainGraphNodeById.get(edge.targetId);
+                      if (!source || !target) {
+                        return null;
+                      }
 
-                    return (
-                      <line
-                        key={edge.id}
-                        x1={source.x}
-                        y1={source.y}
-                        x2={target.x}
-                        y2={target.y}
-                        stroke={edge.color}
-                        strokeWidth={edge.strokeWidth}
-                        opacity={activeSynapse?.id === edge.id ? '1' : '0.85'}
-                        style={{ cursor: 'pointer' }}
-                        onMouseEnter={() => setActiveSynapseId(edge.id)}
-                        onFocus={() => setActiveSynapseId(edge.id)}
-                        onClick={() => setActiveSynapseId(edge.id)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault();
-                            setActiveSynapseId(edge.id);
-                          }
-                        }}
-                        tabIndex={0}
-                        role="button"
-                        aria-label={`Synapse ${edge.id}: ${source.id} to ${target.id}, weight ${edge.weightLabel}`}
-                      >
-                        <title>{`${source.id} → ${target.id}: ${edge.polarityLabel}, weight ${edge.weightLabel}`}</title>
-                      </line>
-                    );
-                  })}
-                  {brainGraphModel.nodes.map((node) => (
-                    <g key={node.id}>
-                      <circle cx={node.x} cy={node.y} r="10" fill={node.fillColor} stroke="#94a3b8" strokeWidth="1.5" />
-                      <text x={node.x + 14} y={node.y + 4} fill={node.labelColor} fontSize="12">{node.id} ({node.value.toFixed(2)})</text>
-                    </g>
-                  ))}
+                      return (
+                        <line
+                          key={edge.id}
+                          x1={source.x}
+                          y1={source.y}
+                          x2={target.x}
+                          y2={target.y}
+                          stroke={edge.color}
+                          strokeWidth={edge.strokeWidth}
+                          opacity={activeSynapse?.id === edge.id ? '1' : '0.85'}
+                          style={{ cursor: 'pointer' }}
+                          onMouseEnter={() => setActiveSynapseId(edge.id)}
+                          onFocus={() => setActiveSynapseId(edge.id)}
+                          onClick={() => setActiveSynapseId(edge.id)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              setActiveSynapseId(edge.id);
+                            }
+                          }}
+                          tabIndex={0}
+                          role="button"
+                          aria-label={`Synapse ${edge.id}: ${source.id} to ${target.id}, weight ${edge.weightLabel}`}
+                        >
+                          <title>{`${source.id} → ${target.id}: ${edge.polarityLabel}, weight ${edge.weightLabel}`}</title>
+                        </line>
+                      );
+                    })}
+                    {brainGraphModel.nodes.map((node) => (
+                      <g key={node.id}>
+                        <circle cx={node.x} cy={node.y} r="10" fill={node.fillColor} stroke="#94a3b8" strokeWidth="1.5" />
+                        <text x={node.x + 14} y={node.y + 4} fill={node.labelColor} fontSize="12">{node.id} ({node.value.toFixed(2)})</text>
+                      </g>
+                    ))}
+                  </g>
                 </svg>
               </>
             ) : (

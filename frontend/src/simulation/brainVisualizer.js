@@ -4,6 +4,17 @@ const SYNAPSE_WEIGHT_MAX = 1;
 const SYNAPSE_STROKE_MIN = 1.25;
 const SYNAPSE_STROKE_MAX = 4;
 
+export const BRAIN_GRAPH_VIEWBOX = {
+  width: 640,
+  height: 300
+};
+
+export const BRAIN_GRAPH_ZOOM_LIMITS = {
+  minScale: 0.5,
+  maxScale: 4,
+  stepMultiplier: 1.25
+};
+
 const NEURON_VALUE_KEYS = ['value', 'activation', 'state', 'signal'];
 
 function layerRank(type) {
@@ -78,6 +89,98 @@ export function mapSynapseWeightToCue(weight) {
  * @param {unknown} brain
  * @returns {{nodes: {id:string,type:string,x:number,y:number,value:number,fillColor:string,labelColor:string}[], edges: {id:string,sourceId:string,targetId:string,weight:number,strokeWidth:number,color:string,polarityLabel:string}[]} | null}
  */
+function roundTransformValue(value) {
+  return Number(value.toFixed(6));
+}
+
+function clampViewportScale(scale, limits = BRAIN_GRAPH_ZOOM_LIMITS) {
+  const numericScale = Number(scale);
+  if (!Number.isFinite(numericScale)) {
+    return 1;
+  }
+
+  return Math.max(limits.minScale, Math.min(limits.maxScale, numericScale));
+}
+
+export function mapBrainGraphBounds(model) {
+  if (!model || !Array.isArray(model.nodes) || model.nodes.length === 0) {
+    return null;
+  }
+
+  const xs = model.nodes.map((node) => node.x);
+  const ys = model.nodes.map((node) => node.y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+
+  return {
+    minX,
+    maxX,
+    minY,
+    maxY,
+    width: Math.max(1, maxX - minX),
+    height: Math.max(1, maxY - minY)
+  };
+}
+
+export function createBrainViewportFitTransform(model, options = {}) {
+  const bounds = mapBrainGraphBounds(model);
+  if (!bounds) {
+    return {
+      scale: 1,
+      translateX: 0,
+      translateY: 0
+    };
+  }
+
+  const width = Number(options.width) || BRAIN_GRAPH_VIEWBOX.width;
+  const height = Number(options.height) || BRAIN_GRAPH_VIEWBOX.height;
+  const padding = Number.isFinite(options.padding) ? options.padding : 24;
+  const limits = options.limits ?? BRAIN_GRAPH_ZOOM_LIMITS;
+
+  const availableWidth = Math.max(1, width - padding * 2);
+  const availableHeight = Math.max(1, height - padding * 2);
+  const fitScale = Math.min(availableWidth / bounds.width, availableHeight / bounds.height);
+  const scale = clampViewportScale(fitScale, limits);
+  const translateX = (width - bounds.width * scale) / 2 - bounds.minX * scale;
+  const translateY = (height - bounds.height * scale) / 2 - bounds.minY * scale;
+
+  return {
+    scale: roundTransformValue(scale),
+    translateX: roundTransformValue(translateX),
+    translateY: roundTransformValue(translateY)
+  };
+}
+
+export function applyBrainViewportZoom(transform, direction, options = {}) {
+  const width = Number(options.width) || BRAIN_GRAPH_VIEWBOX.width;
+  const height = Number(options.height) || BRAIN_GRAPH_VIEWBOX.height;
+  const limits = options.limits ?? BRAIN_GRAPH_ZOOM_LIMITS;
+  const anchorX = Number.isFinite(options.anchorX) ? options.anchorX : width / 2;
+  const anchorY = Number.isFinite(options.anchorY) ? options.anchorY : height / 2;
+  const currentScale = clampViewportScale(transform?.scale ?? 1, limits);
+  const currentTranslateX = Number(transform?.translateX) || 0;
+  const currentTranslateY = Number(transform?.translateY) || 0;
+
+  const zoomDirection = direction >= 0 ? 1 : -1;
+  const nextScale = clampViewportScale(
+    currentScale * (zoomDirection > 0 ? limits.stepMultiplier : 1 / limits.stepMultiplier),
+    limits
+  );
+
+  const graphAnchorX = (anchorX - currentTranslateX) / currentScale;
+  const graphAnchorY = (anchorY - currentTranslateY) / currentScale;
+  const translateX = anchorX - graphAnchorX * nextScale;
+  const translateY = anchorY - graphAnchorY * nextScale;
+
+  return {
+    scale: roundTransformValue(nextScale),
+    translateX: roundTransformValue(translateX),
+    translateY: roundTransformValue(translateY)
+  };
+}
+
 export function mapBrainLayoutChecksum(model) {
   if (!model || !Array.isArray(model.nodes) || !Array.isArray(model.edges)) {
     return '';
