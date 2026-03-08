@@ -1770,7 +1770,7 @@ function App() {
           <ul>
             {savedSimulations.map((snapshot) => (
               <li key={snapshot.id}>
-                <strong>{snapshot.name}</strong> — updated {formatTimestamp(snapshot.updatedAt)} · seed {snapshot.seed || 'unknown'} · tick {snapshot.tickCount}{' '}
+                <strong>{snapshot.name}</strong> — updated {formatTimestamp(snapshot.updatedAt)} · seed {snapshot.seed || 'unknown'} · tick {snapshot.tickCount} · population {snapshot.populationCount ?? 'metadata unavailable'}{' '}
                 <button type="button" onClick={() => onLoadSimulation(snapshot)}>Resume</button>{' '}
                 <button type="button" onClick={() => onDeleteSimulation(snapshot)}>Delete</button>
               </li>

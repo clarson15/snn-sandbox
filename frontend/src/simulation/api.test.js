@@ -29,16 +29,35 @@ describe('mapSavedSimulationList', () => {
         name: 'Newest run',
         seed: '',
         tickCount: 0,
-        updatedAt: '2026-03-06T12:00:01.000Z'
+        updatedAt: '2026-03-06T12:00:01.000Z',
+        populationCount: null
       },
       {
         id: 'sim-1',
         name: 'Older run',
         seed: '',
         tickCount: 0,
-        updatedAt: '2026-03-06T12:00:00.000Z'
+        updatedAt: '2026-03-06T12:00:00.000Z',
+        populationCount: null
       }
     ]);
+  });
+
+  it('derives deterministic population metadata from persisted payload when available', () => {
+    const mapped = mapSavedSimulationList([
+      {
+        id: 'sim-1',
+        name: 'With world metadata',
+        seed: 'seed-a',
+        tickCount: 12,
+        updatedAt: '2026-03-06T12:00:00.000Z',
+        worldState: {
+          organisms: [{ id: 'a' }, { id: 'b' }, { id: 'c' }]
+        }
+      }
+    ]);
+
+    expect(mapped[0]).toMatchObject({ populationCount: 3 });
   });
 });
 
