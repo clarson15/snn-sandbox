@@ -116,6 +116,34 @@ function deriveNextOrganismNumericId(organisms) {
   return maxNumericId + 1;
 }
 
+function toCellIndex(value, cellSize) {
+  return Math.floor(value / cellSize);
+}
+
+function toCellKey(cellX, cellY) {
+  return `${cellX},${cellY}`;
+}
+
+function buildFoodSpatialIndex(foodItems, cellSize) {
+  const foodIdToCellKey = new Map();
+  const cells = new Map();
+
+  for (const food of foodItems) {
+    const cellX = toCellIndex(food.x, cellSize);
+    const cellY = toCellIndex(food.y, cellSize);
+    const key = toCellKey(cellX, cellY);
+
+    if (!cells.has(key)) {
+      cells.set(key, new Set());
+    }
+
+    cells.get(key).add(food.id);
+    foodIdToCellKey.set(food.id, key);
+  }
+
+  return { cells, foodIdToCellKey };
+}
+
 /**
  * Advance the simulation by one deterministic tick.
  *
@@ -149,6 +177,8 @@ export function stepWorld(state, rng, params = {}) {
   const foodById = new Map(state.food.map((item) => [item.id, { ...item }]));
   const consumeRadiusSquared = consumeRadius * consumeRadius;
   const consumedEnergyByOrganismId = new Map();
+  const indexCellSize = Math.max(consumeRadius, 1);
+  const { cells: foodCellsByKey, foodIdToCellKey } = buildFoodSpatialIndex(foodById.values(), indexCellSize);
 
   const organismsByStableOrder = [...movedOrganisms].sort((a, b) => a.id.localeCompare(b.id));
 
@@ -160,16 +190,38 @@ export function stepWorld(state, rng, params = {}) {
     let chosenFoodId = null;
     let chosenDistance = Number.POSITIVE_INFINITY;
 
-    for (const [foodId, food] of foodById.entries()) {
-      const distance = squaredDistance(organism, food);
+    const minCellX = toCellIndex(organism.x - consumeRadius, indexCellSize);
+    const maxCellX = toCellIndex(organism.x + consumeRadius, indexCellSize);
+    const minCellY = toCellIndex(organism.y - consumeRadius, indexCellSize);
+    const maxCellY = toCellIndex(organism.y + consumeRadius, indexCellSize);
 
-      if (distance > consumeRadiusSquared) {
-        continue;
-      }
+    for (let cellX = minCellX; cellX <= maxCellX; cellX += 1) {
+      for (let cellY = minCellY; cellY <= maxCellY; cellY += 1) {
+        const cellFoodIds = foodCellsByKey.get(toCellKey(cellX, cellY));
+        if (!cellFoodIds || cellFoodIds.size === 0) {
+          continue;
+        }
 
-      if (distance < chosenDistance || (distance === chosenDistance && (chosenFoodId === null || foodId < chosenFoodId))) {
-        chosenDistance = distance;
-        chosenFoodId = foodId;
+        for (const foodId of cellFoodIds) {
+          const food = foodById.get(foodId);
+          if (!food) {
+            continue;
+          }
+
+          const distance = squaredDistance(organism, food);
+
+          if (distance > consumeRadiusSquared) {
+            continue;
+          }
+
+          if (
+            distance < chosenDistance ||
+            (distance === chosenDistance && (chosenFoodId === null || foodId < chosenFoodId))
+          ) {
+            chosenDistance = distance;
+            chosenFoodId = foodId;
+          }
+        }
       }
     }
 
@@ -180,6 +232,18 @@ export function stepWorld(state, rng, params = {}) {
         (consumedEnergyByOrganismId.get(organism.id) ?? 0) + food.energyValue
       );
       foodById.delete(chosenFoodId);
+
+      const consumedFoodCellKey = foodIdToCellKey.get(chosenFoodId);
+      if (consumedFoodCellKey) {
+        const cellFoodIds = foodCellsByKey.get(consumedFoodCellKey);
+        if (cellFoodIds) {
+          cellFoodIds.delete(chosenFoodId);
+          if (cellFoodIds.size === 0) {
+            foodCellsByKey.delete(consumedFoodCellKey);
+          }
+        }
+        foodIdToCellKey.delete(chosenFoodId);
+      }
     }
   }
 
