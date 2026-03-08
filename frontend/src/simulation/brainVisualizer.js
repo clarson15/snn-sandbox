@@ -293,6 +293,14 @@ function normalizeNeuronFilterSettings(settings = {}) {
   };
 }
 
+function normalizeFocusMode(mode) {
+  if (mode === 'incoming' || mode === 'outgoing') {
+    return mode;
+  }
+
+  return 'full';
+}
+
 export function deriveFilteredBrainGraphModel(model, settings = {}) {
   if (!model || !Array.isArray(model.nodes) || !Array.isArray(model.edges)) {
     return null;
@@ -309,19 +317,34 @@ export function deriveFilteredBrainGraphModel(model, settings = {}) {
     .filter((edge) => visibleNodeIds.has(edge.sourceId) && visibleNodeIds.has(edge.targetId))
     .sort((a, b) => a.id.localeCompare(b.id));
 
-  const pinnedNeuronId = typeof settings.pinnedNeuronId === 'string' && visibleNodeIds.has(settings.pinnedNeuronId)
+  const selectedNeuronId = typeof settings.selectedNeuronId === 'string' && visibleNodeIds.has(settings.selectedNeuronId)
+    ? settings.selectedNeuronId
+    : null;
+  const focusMode = normalizeFocusMode(settings.focusMode);
+
+  const focusedEdges = selectedNeuronId === null || focusMode === 'full'
+    ? filteredEdges
+    : filteredEdges.filter((edge) => (focusMode === 'incoming' ? edge.targetId === selectedNeuronId : edge.sourceId === selectedNeuronId));
+
+  const focusedNodeIds = selectedNeuronId === null || focusMode === 'full'
+    ? visibleNodeIds
+    : new Set([selectedNeuronId, ...focusedEdges.map((edge) => edge.sourceId), ...focusedEdges.map((edge) => edge.targetId)]);
+
+  const focusedNodes = filteredNodes.filter((node) => focusedNodeIds.has(node.id));
+
+  const pinnedNeuronId = typeof settings.pinnedNeuronId === 'string' && focusedNodeIds.has(settings.pinnedNeuronId)
     ? settings.pinnedNeuronId
     : null;
 
-  const pinnedNeuron = pinnedNeuronId ? filteredNodes.find((node) => node.id === pinnedNeuronId) ?? null : null;
+  const pinnedNeuron = pinnedNeuronId ? focusedNodes.find((node) => node.id === pinnedNeuronId) ?? null : null;
   const inboundDegree = pinnedNeuronId
-    ? filteredEdges.filter((edge) => edge.targetId === pinnedNeuronId).length
+    ? focusedEdges.filter((edge) => edge.targetId === pinnedNeuronId).length
     : 0;
   const outboundDegree = pinnedNeuronId
-    ? filteredEdges.filter((edge) => edge.sourceId === pinnedNeuronId).length
+    ? focusedEdges.filter((edge) => edge.sourceId === pinnedNeuronId).length
     : 0;
 
-  const edges = filteredEdges.map((edge) => {
+  const edges = focusedEdges.map((edge) => {
     const isInboundToPinned = pinnedNeuronId !== null && edge.targetId === pinnedNeuronId;
     const isOutboundFromPinned = pinnedNeuronId !== null && edge.sourceId === pinnedNeuronId;
     const isPinnedPath = isInboundToPinned || isOutboundFromPinned;
@@ -339,8 +362,10 @@ export function deriveFilteredBrainGraphModel(model, settings = {}) {
 
   return {
     ...model,
-    nodes: filteredNodes,
+    nodes: focusedNodes,
     edges,
+    selectedNeuronId,
+    focusMode,
     pinnedNeuron,
     pinnedNeuronId,
     pinnedNeuronMetadata: pinnedNeuron
