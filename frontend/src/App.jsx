@@ -64,6 +64,7 @@ import {
   reduceInspectorTrendState
 } from './inspectorTrend';
 import { formatInspectorSnapshot } from './inspectorFormatting';
+import { deriveNeuronDetailPanel } from './inspectorNeuronDetail';
 import { deriveInspectorTraitSections, INSPECTOR_TRAIT_SECTION_SCHEMA } from './inspectorTraitSchema';
 
 const TICK_MS = 1000 / 30;
@@ -171,6 +172,7 @@ function App() {
   const [pinnedBrainNeuronId, setPinnedBrainNeuronId] = useState(null);
   const [emphasizedOutputNeuronId, setEmphasizedOutputNeuronId] = useState(null);
   const [selectedBrainNeuronId, setSelectedBrainNeuronId] = useState(null);
+  const [hoveredBrainNeuronId, setHoveredBrainNeuronId] = useState(null);
   const [brainFocusMode, setBrainFocusMode] = useState('full');
   const [errors, setErrors] = useState({});
   const [savedSimulations, setSavedSimulations] = useState([]);
@@ -647,6 +649,12 @@ function App() {
     return brainGraphModel.edges.find((edge) => edge.id === activeSynapseId) ?? null;
   }, [activeSynapseId, brainGraphModel]);
 
+  const activeBrainNeuronDetail = useMemo(() => deriveNeuronDetailPanel(
+    baseBrainGraphModel,
+    inspectorOrganism?.brain,
+    hoveredBrainNeuronId ?? selectedBrainNeuronId
+  ), [baseBrainGraphModel, inspectorOrganism?.brain, hoveredBrainNeuronId, selectedBrainNeuronId]);
+
   const brainGraphLayoutChecksum = useMemo(() => mapBrainLayoutChecksum(baseBrainGraphModel), [baseBrainGraphModel]);
   const brainGraphEmphasisChecksum = useMemo(
     () => mapBrainEmphasisChecksum(baseBrainGraphModel, {
@@ -675,6 +683,7 @@ function App() {
     setPinnedBrainNeuronId(null);
     setEmphasizedOutputNeuronId(null);
     setSelectedBrainNeuronId(null);
+    setHoveredBrainNeuronId(null);
     setBrainFocusMode('full');
   }, [inspectorOrganism?.id]);
 
@@ -2660,6 +2669,33 @@ function App() {
                                 {brainGraphModel.pinnedNeuronMetadata.outboundDegree}
                               </p>
                             ) : null}
+                            <div role="status" aria-live="polite" aria-label="brain neuron detail panel">
+                              {activeBrainNeuronDetail ? (
+                                <>
+                                  <p>
+                                    <strong>Neuron detail:</strong> ID {activeBrainNeuronDetail.neuronId} · role {activeBrainNeuronDetail.role} · incoming {activeBrainNeuronDetail.incomingCount} · outgoing {activeBrainNeuronDetail.outgoingCount} · threshold {activeBrainNeuronDetail.thresholdLabel}
+                                  </p>
+                                  <p>
+                                    Incoming synapses:{' '}
+                                    {activeBrainNeuronDetail.incomingSynapses.length > 0
+                                      ? activeBrainNeuronDetail.incomingSynapses
+                                        .map((synapse) => `${synapse.sourceId}→${synapse.targetId} (${synapse.weightLabel})`)
+                                        .join(', ')
+                                      : 'none'}
+                                  </p>
+                                  <p>
+                                    Outgoing synapses:{' '}
+                                    {activeBrainNeuronDetail.outgoingSynapses.length > 0
+                                      ? activeBrainNeuronDetail.outgoingSynapses
+                                        .map((synapse) => `${synapse.sourceId}→${synapse.targetId} (${synapse.weightLabel})`)
+                                        .join(', ')
+                                      : 'none'}
+                                  </p>
+                                </>
+                              ) : (
+                                <p>Select, focus, or hover a neuron to inspect deterministic neuron details.</p>
+                              )}
+                            </div>
                             <p aria-label="brain graph emphasis checksum"><strong>Emphasis checksum:</strong> <code>{brainGraphEmphasisChecksum || 'n/a'}</code></p>
                             <p role="status" aria-live="polite" aria-label="brain graph selected synapse details">
                               {activeSynapse
@@ -2733,6 +2769,10 @@ function App() {
                                       tabIndex={0}
                                       aria-label={`Pin neuron ${node.id}`}
                                       opacity={String(node.emphasisOpacity ?? 1)}
+                                      onMouseEnter={() => setHoveredBrainNeuronId(node.id)}
+                                      onMouseLeave={() => setHoveredBrainNeuronId((current) => (current === node.id ? null : current))}
+                                      onFocus={() => setHoveredBrainNeuronId(node.id)}
+                                      onBlur={() => setHoveredBrainNeuronId((current) => (current === node.id ? null : current))}
                                       onClick={handleNodeToggle}
                                       onKeyDown={(event) => {
                                         if (event.key === 'Enter' || event.key === ' ') {
