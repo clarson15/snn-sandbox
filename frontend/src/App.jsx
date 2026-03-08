@@ -1582,7 +1582,7 @@ function App() {
 
         <div className="field-row">
           <button type="button" onClick={onResetConfigToDefaults}>
-            Reset to defaults
+            Use defaults
           </button>
           <button type="button" onClick={startSimulation}>
             Start simulation

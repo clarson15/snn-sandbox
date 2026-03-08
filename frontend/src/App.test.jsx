@@ -148,12 +148,40 @@ describe('App', () => {
     fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '1200' } });
     fireEvent.change(screen.getByLabelText(/mutation rate/i), { target: { value: '0.33' } });
 
-    fireEvent.click(screen.getByRole('button', { name: /reset to defaults/i }));
+    fireEvent.click(screen.getByRole('button', { name: /use defaults/i }));
 
     expect(screen.getByLabelText(/simulation name/i)).toHaveValue('New Simulation');
     expect(screen.getByLabelText(/^seed \(optional\)$/i)).toHaveValue('');
     expect(screen.getByLabelText(/world width/i)).toHaveValue(800);
     expect(screen.getByLabelText(/mutation rate/i)).toHaveValue(0.05);
+  });
+
+  it('keeps saved draft intact when using defaults in the form', () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      name: 'Draft Simulation',
+      seed: 'draft-seed',
+      worldWidth: 999,
+      worldHeight: 600,
+      initialPopulation: 40,
+      minimumPopulation: 30,
+      initialFoodCount: 60,
+      foodSpawnChance: 0.2,
+      foodEnergyValue: 7,
+      maxFood: 200,
+      mutationRate: 0.15,
+      mutationStrength: 0.25
+    }));
+
+    const { unmount } = render(<App />);
+
+    expect(screen.getByLabelText(/simulation name/i)).toHaveValue('Draft Simulation');
+
+    fireEvent.click(screen.getByRole('button', { name: /use defaults/i }));
+    expect(screen.getByLabelText(/simulation name/i)).toHaveValue('New Simulation');
+
+    unmount();
+    render(<App />);
+    expect(screen.getByLabelText(/simulation name/i)).toHaveValue('Draft Simulation');
   });
 
   it('tracks dirty setup fields and clears dirty state when values are reverted', () => {
