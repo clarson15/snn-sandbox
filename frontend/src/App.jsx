@@ -52,7 +52,11 @@ import {
 } from './simulation/api';
 import { useToasts } from './toasts';
 import { deriveInspectorComparisonRows } from './inspectorComparison';
-import { deriveDeterministicOrganismIds, resolveDeadSelectionFallback } from './inspectorSelection';
+import {
+  deriveDeterministicOrganismIds,
+  resolveAdjacentSelectionId,
+  resolveDeadSelectionFallback
+} from './inspectorSelection';
 import {
   deriveInspectorTrendSeries,
   formatTrendPolyline,
@@ -487,23 +491,12 @@ function App() {
   };
 
   const selectAdjacentOrganism = (offset) => {
-    if (deterministicOrganismIds.length === 0) {
+    const nextSelectionId = resolveAdjacentSelectionId(deterministicOrganismIds, selectedOrganismId, offset);
+    if (!nextSelectionId) {
       return;
     }
 
-    const currentIndex = selectedOrganismId
-      ? deterministicOrganismIds.indexOf(selectedOrganismId)
-      : -1;
-
-    if (currentIndex === -1) {
-      const fallbackIndex = offset >= 0 ? 0 : deterministicOrganismIds.length - 1;
-      setSelectedOrganismId(deterministicOrganismIds[fallbackIndex]);
-      setSelectedOrganismUnavailable(false);
-      return;
-    }
-
-    const nextIndex = (currentIndex + offset + deterministicOrganismIds.length) % deterministicOrganismIds.length;
-    setSelectedOrganismId(deterministicOrganismIds[nextIndex]);
+    setSelectedOrganismId(nextSelectionId);
     setSelectedOrganismUnavailable(false);
   };
 
@@ -1253,13 +1246,13 @@ function App() {
         return;
       }
 
-      if (event.key === 'ArrowLeft') {
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
         event.preventDefault();
         onSelectPreviousOrganism();
         return;
       }
 
-      if (event.key === 'ArrowRight') {
+      if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
         event.preventDefault();
         onSelectNextOrganism();
         return;
@@ -2336,7 +2329,7 @@ function App() {
             {inspectorPinned ? 'Unpin inspector' : 'Pin inspector'}
           </button>
         </div>
-        <p className="shortcut-hints">Inspector shortcuts: ←/→ previous/next organism · P pin/unpin inspector · [/] section focus · Enter toggle section</p>
+        <p className="shortcut-hints">Inspector shortcuts: ←/↑ previous organism · →/↓ next organism · P pin/unpin inspector · [/] section focus · Enter toggle section</p>
         <p role="status" aria-live="polite">Pin mode: {inspectorPinned ? 'Enabled' : 'Disabled'}</p>
         {inspectorOrganism ? (
           <>
