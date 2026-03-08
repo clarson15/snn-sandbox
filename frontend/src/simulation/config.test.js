@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { runTicks } from './engine';
 import {
   createInitialWorldFromConfig,
+  loadSimulationConfig,
   normalizeSimulationConfig,
+  STORAGE_KEY,
   toEngineStepParams,
   validateSimulationConfig
 } from './config';
@@ -87,5 +89,72 @@ describe('simulation config helpers', () => {
 
     expect(normalized.mutationRate).toBe(0.05);
     expect(normalized.mutationStrength).toBe(0.1);
+  });
+
+  it('loads schema-safe draft values and ignores unknown fields', () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      name: 'Draft Name',
+      seed: '  draft-seed  ',
+      worldWidth: 900,
+      worldHeight: 500,
+      initialPopulation: 22,
+      minimumPopulation: 20,
+      initialFoodCount: 40,
+      foodSpawnChance: 0.2,
+      foodEnergyValue: 6,
+      maxFood: 180,
+      mutationRate: 0.3,
+      mutationStrength: 0.4,
+      unknownField: 'ignored'
+    }));
+
+    expect(loadSimulationConfig()).toEqual({
+      name: 'Draft Name',
+      seed: 'draft-seed',
+      worldWidth: 900,
+      worldHeight: 500,
+      initialPopulation: 22,
+      minimumPopulation: 20,
+      initialFoodCount: 40,
+      foodSpawnChance: 0.2,
+      foodEnergyValue: 6,
+      maxFood: 180,
+      mutationRate: 0.3,
+      mutationStrength: 0.4,
+      resolvedSeed: undefined
+    });
+  });
+
+  it('replaces invalid stored draft fields with defaults', () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      name: '',
+      seed: 42,
+      worldWidth: 'invalid-width',
+      worldHeight: -4,
+      initialPopulation: 0,
+      minimumPopulation: 999,
+      initialFoodCount: 999,
+      foodSpawnChance: 2,
+      foodEnergyValue: -1,
+      maxFood: 10,
+      mutationRate: -0.5,
+      mutationStrength: 2
+    }));
+
+    expect(loadSimulationConfig()).toEqual({
+      name: 'New Simulation',
+      seed: '',
+      worldWidth: 800,
+      worldHeight: 480,
+      initialPopulation: 12,
+      minimumPopulation: 12,
+      initialFoodCount: 30,
+      foodSpawnChance: 0.04,
+      foodEnergyValue: 5,
+      maxFood: 120,
+      mutationRate: 0.05,
+      mutationStrength: 0.1,
+      resolvedSeed: undefined
+    });
   });
 });

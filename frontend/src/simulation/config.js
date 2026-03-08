@@ -213,6 +213,50 @@ function getStorage() {
   return storage;
 }
 
+function isFiniteInRange(value, min, max) {
+  return Number.isFinite(value) && value >= min && value <= max;
+}
+
+function sanitizeLoadedConfigDraft(parsed) {
+  const source = parsed && typeof parsed === 'object' ? parsed : {};
+
+  const numericConstraints = {
+    worldWidth: [100, 3000],
+    worldHeight: [100, 3000],
+    initialPopulation: [1, 500],
+    minimumPopulation: [1, 500],
+    initialFoodCount: [0, 1000],
+    foodSpawnChance: [0, 1],
+    foodEnergyValue: [1, 100],
+    maxFood: [1, 2000],
+    mutationRate: [0, 1],
+    mutationStrength: [0, 1]
+  };
+
+  const resolvedSeed = typeof source.resolvedSeed === 'string' ? source.resolvedSeed.trim() : '';
+
+  const sanitized = {
+    ...DEFAULT_CONFIG,
+    name: String(source.name ?? '').trim() || DEFAULT_CONFIG.name,
+    seed: typeof source.seed === 'string'
+      ? source.seed.trim()
+      : resolvedSeed || DEFAULT_CONFIG.seed,
+    resolvedSeed: resolvedSeed || undefined
+  };
+
+  for (const [field, [min, max]] of Object.entries(numericConstraints)) {
+    const candidate = Number(source[field]);
+    sanitized[field] = isFiniteInRange(candidate, min, max) ? candidate : DEFAULT_CONFIG[field];
+  }
+
+  if (sanitized.maxFood < sanitized.initialFoodCount) {
+    sanitized.initialFoodCount = DEFAULT_CONFIG.initialFoodCount;
+    sanitized.maxFood = DEFAULT_CONFIG.maxFood;
+  }
+
+  return sanitized;
+}
+
 export function saveSimulationConfig(config) {
   const storage = getStorage();
   if (!storage) {
@@ -235,11 +279,7 @@ export function loadSimulationConfig() {
 
   try {
     const parsed = JSON.parse(raw);
-    return {
-      ...DEFAULT_CONFIG,
-      ...parsed,
-      seed: parsed.seed ?? parsed.resolvedSeed ?? ''
-    };
+    return sanitizeLoadedConfigDraft(parsed);
   } catch {
     return null;
   }
