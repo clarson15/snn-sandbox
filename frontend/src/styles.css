@@ -349,6 +349,44 @@ canvas {
   margin: 0;
 }
 
+.inspector-trend-strip {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.65rem;
+  border: 1px solid #334155;
+  border-radius: 0.5rem;
+  background: #06172e;
+  padding: 0.65rem 0.75rem;
+}
+
+.inspector-trend-strip h4 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.inspector-trend-strip svg {
+  width: 100%;
+  max-width: 280px;
+  border: 1px solid #1e293b;
+  border-radius: 0.4rem;
+  background: #020617;
+}
+
+.inspector-trend-strip-legend {
+  margin: 0;
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.82rem;
+}
+
+.inspector-trend-strip-legend span:first-child {
+  color: #22c55e;
+}
+
+.inspector-trend-strip-legend span:last-child {
+  color: #38bdf8;
+}
+
 .inspector-sections-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);

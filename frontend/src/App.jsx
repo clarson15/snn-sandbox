@@ -52,11 +52,19 @@ import {
 } from './simulation/api';
 import { useToasts } from './toasts';
 import { deriveInspectorComparisonRows } from './inspectorComparison';
+import {
+  deriveInspectorTrendSeries,
+  formatTrendPolyline,
+  INSPECTOR_TREND_WINDOW_TICKS,
+  reduceInspectorTrendState
+} from './inspectorTrend';
 
 const TICK_MS = 1000 / 30;
 const SPEED_OPTIONS = [1, 2, 5, 10];
 const SIMULATION_VERSION = 'snn-sandbox-v1';
 const INSPECTOR_COMPACT_BREAKPOINT_PX = 980;
+const INSPECTOR_TREND_STRIP_WIDTH = 280;
+const INSPECTOR_TREND_STRIP_HEIGHT = 72;
 const INSPECTOR_SECTION_ORDER = ['lifecycle', 'traits', 'genome', 'brainSummary'];
 const INSPECTOR_SECTION_LABELS = {
   lifecycle: 'Lifecycle',
@@ -153,6 +161,7 @@ function App() {
   }));
   const [activeInspectorSectionIndex, setActiveInspectorSectionIndex] = useState(0);
   const [pinnedOrganismSnapshot, setPinnedOrganismSnapshot] = useState(null);
+  const [inspectorTrendState, setInspectorTrendState] = useState(() => ({ selectedOrganismId: null, samples: [] }));
   const [isCompactInspectorLayout, setIsCompactInspectorLayout] = useState(() => window.innerWidth <= INSPECTOR_COMPACT_BREAKPOINT_PX);
   const [activeSynapseId, setActiveSynapseId] = useState(null);
   const [brainGraphTransform, setBrainGraphTransform] = useState(() => ({ scale: 1, translateX: 0, translateY: 0 }));
@@ -401,6 +410,15 @@ function App() {
     inspectorSelectionHeadingRef.current?.focus();
   }, [selectedOrganism?.id]);
 
+  useEffect(() => {
+    setInspectorTrendState((previous) => reduceInspectorTrendState(previous, {
+      selectedOrganismId,
+      selectedOrganism,
+      tick: displayWorld?.tick ?? tickDisplay,
+      windowSize: INSPECTOR_TREND_WINDOW_TICKS
+    }));
+  }, [displayWorld?.tick, selectedOrganismId, selectedOrganism, tickDisplay]);
+
   const deterministicOrganismIds = useMemo(() => {
     if (!displayWorld) {
       return [];
@@ -531,6 +549,18 @@ function App() {
   };
 
   const inspectorOrganism = selectedOrganism ?? (inspectorPinned ? pinnedOrganismSnapshot : null);
+  const inspectorTrendSeries = useMemo(
+    () => deriveInspectorTrendSeries(inspectorTrendState.samples),
+    [inspectorTrendState.samples]
+  );
+  const inspectorEnergyTrendPoints = useMemo(
+    () => formatTrendPolyline(inspectorTrendSeries.energy, INSPECTOR_TREND_STRIP_WIDTH, INSPECTOR_TREND_STRIP_HEIGHT),
+    [inspectorTrendSeries.energy]
+  );
+  const inspectorAgeTrendPoints = useMemo(
+    () => formatTrendPolyline(inspectorTrendSeries.age, INSPECTOR_TREND_STRIP_WIDTH, INSPECTOR_TREND_STRIP_HEIGHT),
+    [inspectorTrendSeries.age]
+  );
   const inspectorNearestFoodDistance = useMemo(() => {
     if (!inspectorOrganism || !displayWorld?.food?.length) {
       return null;
@@ -2318,6 +2348,37 @@ function App() {
               <p><strong>Generation:</strong> {inspectorOrganism.generation}</p>
               <p><strong>Food distance:</strong> {inspectorNearestFoodDistance === null ? 'Unavailable' : inspectorNearestFoodDistance.toFixed(3)}</p>
             </section>
+            {selectedOrganismId && inspectorTrendState.samples.length > 1 ? (
+              <section className="inspector-trend-strip" aria-label="selected organism trend strip">
+                <h4>Recent trend ({inspectorTrendState.samples.length} ticks)</h4>
+                <svg
+                  viewBox={`0 0 ${INSPECTOR_TREND_STRIP_WIDTH} ${INSPECTOR_TREND_STRIP_HEIGHT}`}
+                  role="img"
+                  aria-label={`Selected organism trend strip for energy and age over the most recent ${inspectorTrendState.samples.length} ticks`}
+                >
+                  <polyline
+                    points={inspectorEnergyTrendPoints}
+                    fill="none"
+                    stroke="#22c55e"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <polyline
+                    points={inspectorAgeTrendPoints}
+                    fill="none"
+                    stroke="#38bdf8"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                <p className="inspector-trend-strip-legend">
+                  <span>Energy</span>
+                  <span>Age</span>
+                </p>
+              </section>
+            ) : null}
             <div
               className={`inspector-sections-layout${isCompactInspectorLayout ? ' is-compact' : ''}`}
               data-layout-mode={isCompactInspectorLayout ? 'compact' : 'desktop'}
