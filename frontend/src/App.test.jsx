@@ -2387,6 +2387,60 @@ describe('App', () => {
     expect(screen.queryByText(/pinned neuron metadata — id:/i)).not.toBeInTheDocument();
   });
 
+  it('supports keyboard-accessible brain focus mode controls and safely resets on invalid neuron selection', () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/seed/i), { target: { value: 'fixture-seed' } });
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    const fixtureConfig = normalizeSimulationConfig(
+      {
+        name: 'Fixture',
+        seed: 'fixture-seed',
+        worldWidth: 800,
+        worldHeight: 480,
+        initialPopulation: 12,
+        initialFoodCount: 30,
+        foodSpawnChance: 0.04,
+        foodEnergyValue: 5,
+        maxFood: 120
+      },
+      'fixture-seed'
+    );
+    const fixtureWorld = createInitialWorldFromConfig(fixtureConfig);
+    const firstTarget = fixtureWorld.organisms[0];
+
+    const canvas = screen.getByLabelText(/simulation world/i);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 800,
+      height: 480,
+      right: 800,
+      bottom: 480,
+      toJSON: () => ({})
+    });
+
+    fireEvent.click(canvas, { clientX: firstTarget.x, clientY: firstTarget.y });
+
+    const selectedNeuronControl = screen.getByLabelText(/selected neuron for focus mode/i);
+    const optionText = selectedNeuronControl.querySelector('option[value]:not([value=""])')?.textContent;
+    expect(optionText).toBeTruthy();
+
+    fireEvent.change(selectedNeuronControl, { target: { value: optionText } });
+    fireEvent.click(screen.getByRole('radio', { name: /incoming only/i }));
+
+    expect(screen.getByText(/focus mode:/i)).toHaveTextContent(/incoming/i);
+    expect(screen.getByText(/selected neuron:/i)).not.toHaveTextContent(/none/i);
+
+    fireEvent.change(screen.getByLabelText(/minimum neuron activation threshold/i), { target: { value: '1' } });
+
+    expect(screen.getByText(/focus mode:/i)).toHaveTextContent(/full/i);
+    expect(screen.getByText(/selected neuron:/i)).toHaveTextContent(/none/i);
+  });
+
   it('keeps inspector and synapse controls keyboard-operable with deterministic focus after selection changes', async () => {
     render(<App />);
 

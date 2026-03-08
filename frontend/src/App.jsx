@@ -170,6 +170,8 @@ function App() {
   const [brainFilterTypes, setBrainFilterTypes] = useState(() => ({ input: true, hidden: true, output: true }));
   const [brainMinActivationThreshold, setBrainMinActivationThreshold] = useState(0);
   const [pinnedBrainNeuronId, setPinnedBrainNeuronId] = useState(null);
+  const [selectedBrainNeuronId, setSelectedBrainNeuronId] = useState(null);
+  const [brainFocusMode, setBrainFocusMode] = useState('full');
   const [errors, setErrors] = useState({});
   const [savedSimulations, setSavedSimulations] = useState([]);
   const [saveStatus, setSaveStatus] = useState('');
@@ -537,6 +539,16 @@ function App() {
     setBrainFilterTypes({ input: true, hidden: true, output: true });
     setBrainMinActivationThreshold(0);
     setPinnedBrainNeuronId(null);
+    setSelectedBrainNeuronId(null);
+    setBrainFocusMode('full');
+  };
+
+  const onSelectBrainNeuron = (nextNeuronId) => {
+    const normalizedId = typeof nextNeuronId === 'string' && nextNeuronId.length > 0 ? nextNeuronId : null;
+    setSelectedBrainNeuronId(normalizedId);
+    if (!normalizedId) {
+      setBrainFocusMode('full');
+    }
   };
 
   const acknowledgeUnavailableSelection = () => {
@@ -601,7 +613,9 @@ function App() {
     return deriveFilteredBrainGraphModel(emphasizedModel, {
       visibleNeuronTypes: visibleBrainNeuronTypes,
       minActivationThreshold: brainMinActivationThreshold,
-      pinnedNeuronId: pinnedBrainNeuronId
+      pinnedNeuronId: pinnedBrainNeuronId,
+      selectedNeuronId: selectedBrainNeuronId,
+      focusMode: brainFocusMode
     });
   }, [
     baseBrainGraphModel,
@@ -609,7 +623,9 @@ function App() {
     strongestBrainEdgeCount,
     visibleBrainNeuronTypes,
     brainMinActivationThreshold,
-    pinnedBrainNeuronId
+    pinnedBrainNeuronId,
+    selectedBrainNeuronId,
+    brainFocusMode
   ]);
 
   const brainGraphNodeById = useMemo(() => {
@@ -652,6 +668,8 @@ function App() {
 
   useEffect(() => {
     setPinnedBrainNeuronId(null);
+    setSelectedBrainNeuronId(null);
+    setBrainFocusMode('full');
   }, [inspectorOrganism?.id]);
 
   useEffect(() => {
@@ -674,6 +692,17 @@ function App() {
       setPinnedBrainNeuronId(null);
     }
   }, [brainGraphModel, pinnedBrainNeuronId]);
+
+  useEffect(() => {
+    if (!brainGraphModel || !selectedBrainNeuronId) {
+      return;
+    }
+
+    if (!brainGraphModel.nodes.some((node) => node.id === selectedBrainNeuronId)) {
+      setSelectedBrainNeuronId(null);
+      setBrainFocusMode('full');
+    }
+  }, [brainGraphModel, selectedBrainNeuronId]);
 
   const pinnedComparisonCandidate = inspectorPinned ? pinnedOrganismSnapshot : null;
   const hasComparisonPair = Boolean(
@@ -2537,6 +2566,54 @@ function App() {
                               />
                               <button type="button" onClick={onClearBrainFiltersAndPin}>Clear filters + pin</button>
                             </div>
+                            <div className="brain-graph-controls" role="group" aria-label="brain visualizer focus mode controls">
+                              <label htmlFor="brain-focus-neuron-select">Selected neuron</label>
+                              <select
+                                id="brain-focus-neuron-select"
+                                aria-label="selected neuron for focus mode"
+                                value={selectedBrainNeuronId ?? ''}
+                                onChange={(event) => onSelectBrainNeuron(event.target.value)}
+                              >
+                                <option value="">None</option>
+                                {brainGraphModel.nodes.map((node) => (
+                                  <option key={`focus-neuron-${node.id}`} value={node.id}>{node.id}</option>
+                                ))}
+                              </select>
+                              <div role="radiogroup" aria-label="brain focus mode">
+                                <label>
+                                  <input
+                                    type="radio"
+                                    name="brain-focus-mode"
+                                    value="full"
+                                    checked={brainFocusMode === 'full'}
+                                    onChange={() => setBrainFocusMode('full')}
+                                  /> Full graph
+                                </label>
+                                <label>
+                                  <input
+                                    type="radio"
+                                    name="brain-focus-mode"
+                                    value="incoming"
+                                    checked={brainFocusMode === 'incoming'}
+                                    onChange={() => setBrainFocusMode('incoming')}
+                                    disabled={!selectedBrainNeuronId}
+                                  /> Incoming only
+                                </label>
+                                <label>
+                                  <input
+                                    type="radio"
+                                    name="brain-focus-mode"
+                                    value="outgoing"
+                                    checked={brainFocusMode === 'outgoing'}
+                                    onChange={() => setBrainFocusMode('outgoing')}
+                                    disabled={!selectedBrainNeuronId}
+                                  /> Outgoing only
+                                </label>
+                              </div>
+                            </div>
+                            <p aria-live="polite">
+                              Focus mode: <strong>{brainFocusMode}</strong> · Selected neuron: {selectedBrainNeuronId || 'none'}
+                            </p>
                             <p aria-live="polite">Pinned neuron: {brainGraphModel.pinnedNeuronId || 'none'}</p>
                             <ul aria-label="pin neuron controls">
                               {brainGraphModel.nodes.map((node) => {
@@ -2544,7 +2621,13 @@ function App() {
 
                                 return (
                                   <li key={`pin-control-${node.id}`}>
-                                    <button type="button" onClick={() => setPinnedBrainNeuronId((current) => (current === node.id ? null : node.id))}>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setPinnedBrainNeuronId((current) => (current === node.id ? null : node.id));
+                                        onSelectBrainNeuron(node.id);
+                                      }}
+                                    >
                                       {isPinnedNode ? `Unpin neuron ${node.id}` : `Pin neuron ${node.id}`}
                                     </button>
                                   </li>
@@ -2612,11 +2695,15 @@ function App() {
                                       role="button"
                                       tabIndex={0}
                                       aria-label={`Pin neuron ${node.id}`}
-                                      onClick={() => setPinnedBrainNeuronId((current) => (current === node.id ? null : node.id))}
+                                      onClick={() => {
+                                        setPinnedBrainNeuronId((current) => (current === node.id ? null : node.id));
+                                        onSelectBrainNeuron(node.id);
+                                      }}
                                       onKeyDown={(event) => {
                                         if (event.key === 'Enter' || event.key === ' ') {
                                           event.preventDefault();
                                           setPinnedBrainNeuronId((current) => (current === node.id ? null : node.id));
+                                          onSelectBrainNeuron(node.id);
                                         }
                                       }}
                                     >

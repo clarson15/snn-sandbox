@@ -230,6 +230,60 @@ describe('deriveFilteredBrainGraphModel', () => {
     expect(first.filterSettings).toEqual(second.filterSettings);
     expect(mapBrainLayoutChecksum(first)).toBe(mapBrainLayoutChecksum(second));
   });
+
+  it('supports deterministic incoming/outgoing focus modes for a selected neuron', () => {
+    const base = mapBrainToVisualizerModel({
+      neurons: [
+        { id: 'in-a', type: 'input', value: 0.9 },
+        { id: 'h-a', type: 'hidden', value: 0.45 },
+        { id: 'out-a', type: 'output', value: 0.7 }
+      ],
+      synapses: [
+        { id: 's-1', sourceId: 'in-a', targetId: 'h-a', weight: 0.4 },
+        { id: 's-2', sourceId: 'h-a', targetId: 'out-a', weight: -0.3 },
+        { id: 's-3', sourceId: 'in-a', targetId: 'out-a', weight: 0.2 }
+      ]
+    });
+
+    const incomingFirst = deriveFilteredBrainGraphModel(base, {
+      visibleNeuronTypes: ['input', 'hidden', 'output'],
+      minActivationThreshold: 0,
+      selectedNeuronId: 'h-a',
+      focusMode: 'incoming',
+      pinnedNeuronId: 'h-a'
+    });
+    const incomingSecond = deriveFilteredBrainGraphModel(structuredClone(base), {
+      visibleNeuronTypes: ['output', 'hidden', 'input'],
+      minActivationThreshold: 0,
+      selectedNeuronId: 'h-a',
+      focusMode: 'incoming',
+      pinnedNeuronId: 'h-a'
+    });
+
+    expect(incomingFirst.edges.map((edge) => edge.id)).toEqual(['s-1']);
+    expect(incomingFirst.nodes.map((node) => node.id)).toEqual(['h-a', 'in-a']);
+    expect(incomingFirst.focusMode).toBe('incoming');
+    expect(incomingFirst.selectedNeuronId).toBe('h-a');
+    expect(mapBrainLayoutChecksum(incomingFirst)).toBe(mapBrainLayoutChecksum(incomingSecond));
+
+    const outgoing = deriveFilteredBrainGraphModel(base, {
+      visibleNeuronTypes: ['input', 'hidden', 'output'],
+      minActivationThreshold: 0,
+      selectedNeuronId: 'h-a',
+      focusMode: 'outgoing',
+      pinnedNeuronId: 'h-a'
+    });
+
+    expect(outgoing.edges.map((edge) => edge.id)).toEqual(['s-2']);
+    expect(outgoing.nodes.map((node) => node.id)).toEqual(['h-a', 'out-a']);
+    expect(outgoing.pinnedNeuronMetadata).toEqual({
+      id: 'h-a',
+      type: 'hidden',
+      activation: 0.45,
+      inboundDegree: 0,
+      outboundDegree: 1
+    });
+  });
 });
 
 describe('brain graph viewport transforms', () => {
