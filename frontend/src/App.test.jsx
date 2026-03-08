@@ -1310,6 +1310,7 @@ describe('App', () => {
 
     const recoveryAlert = await screen.findByRole('alert');
     fireEvent.click(within(recoveryAlert).getByRole('button', { name: /delete broken save/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /confirm delete/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/deleted\./i)).toBeInTheDocument();
@@ -1320,7 +1321,15 @@ describe('App', () => {
   it('deletes a snapshot after explicit confirmation and updates the list', async () => {
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: /delete/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /^delete$/i }));
+
+    const dialog = await screen.findByRole('dialog', { name: /delete saved simulation confirmation/i });
+    expect(within(dialog).getByText(/name: fixture snapshot/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/seed: fixture-seed/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/tick: 0/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/last updated:/i)).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: /confirm delete/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/deleted\./i)).toBeInTheDocument();
@@ -1328,11 +1337,11 @@ describe('App', () => {
     });
   });
 
-  it('cancels delete when confirmation is declined', async () => {
-    window.confirm.mockReturnValue(false);
+  it('cancels delete from the confirmation modal without mutating the list', async () => {
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: /delete/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /^delete$/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /^cancel$/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/delete cancelled\./i)).toBeInTheDocument();
@@ -1366,7 +1375,8 @@ describe('App', () => {
     }));
 
     render(<App />);
-    fireEvent.click(await screen.findByRole('button', { name: /delete/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /^delete$/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /confirm delete/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/failed to delete snapshot\./i)).toBeInTheDocument();

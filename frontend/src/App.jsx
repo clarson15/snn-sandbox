@@ -103,6 +103,7 @@ function App() {
   const [loadStatus, setLoadStatus] = useState('');
   const [loadRecoveryBySnapshotId, setLoadRecoveryBySnapshotId] = useState({});
   const [loadingSnapshotById, setLoadingSnapshotById] = useState({});
+  const [pendingDeleteSnapshot, setPendingDeleteSnapshot] = useState(null);
   const [deleteStatus, setDeleteStatus] = useState('');
   const [copyMetadataStatus, setCopyMetadataStatus] = useState('');
   const [seedControlStatus, setSeedControlStatus] = useState('');
@@ -153,6 +154,7 @@ function App() {
   const canvasRef = useRef(null);
   const keyboardShortcutsTriggerRef = useRef(null);
   const keyboardShortcutsCloseButtonRef = useRef(null);
+  const deleteConfirmButtonRef = useRef(null);
   const replayInteractionRegionRef = useRef(null);
   const rngRef = useRef(null);
   const stepParamsRef = useRef(null);
@@ -883,6 +885,27 @@ function App() {
   }, [keyboardShortcutsModalOpen]);
 
   useEffect(() => {
+    if (!pendingDeleteSnapshot) {
+      return;
+    }
+
+    deleteConfirmButtonRef.current?.focus();
+
+    const onModalKeyDown = (event) => {
+      if (event.key !== 'Escape') {
+        return;
+      }
+
+      event.preventDefault();
+      setPendingDeleteSnapshot(null);
+      setDeleteStatus('Delete cancelled.');
+    };
+
+    window.addEventListener('keydown', onModalKeyDown);
+    return () => window.removeEventListener('keydown', onModalKeyDown);
+  }, [pendingDeleteSnapshot]);
+
+  useEffect(() => {
     const isTypingTarget = (target) => {
       if (!(target instanceof HTMLElement)) {
         return false;
@@ -897,7 +920,7 @@ function App() {
     };
 
     const onKeyDown = (event) => {
-      if (keyboardShortcutsModalOpen || isTypingTarget(event.target) || replayContextRef.current || !worldRef.current || !rngRef.current) {
+      if (keyboardShortcutsModalOpen || pendingDeleteSnapshot || isTypingTarget(event.target) || replayContextRef.current || !worldRef.current || !rngRef.current) {
         return;
       }
 
@@ -960,6 +983,7 @@ function App() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [
     keyboardShortcutsModalOpen,
+    pendingDeleteSnapshot,
     onAdjustSpeedByStep,
     onSelectNextOrganism,
     onSelectPreviousOrganism,
@@ -1094,13 +1118,26 @@ function App() {
     }
   };
 
-  const onDeleteSimulation = async (snapshotSummary) => {
-    const confirmed = window.confirm(`Delete snapshot "${snapshotSummary.name}"? This cannot be undone.`);
-    if (!confirmed) {
-      setDeleteStatus('Delete cancelled.');
+  const onDeleteSimulation = (snapshotSummary) => {
+    if (loadingSnapshotById[snapshotSummary.id]) {
       return;
     }
 
+    setPendingDeleteSnapshot(snapshotSummary);
+  };
+
+  const onCancelDeleteSimulation = () => {
+    setPendingDeleteSnapshot(null);
+    setDeleteStatus('Delete cancelled.');
+  };
+
+  const onConfirmDeleteSimulation = async () => {
+    if (!pendingDeleteSnapshot) {
+      return;
+    }
+
+    const snapshotSummary = pendingDeleteSnapshot;
+    setPendingDeleteSnapshot(null);
     setDeleteStatus('Deleting…');
 
     try {
@@ -1571,6 +1608,26 @@ function App() {
               </div>
             </dl>
             <p>Press Escape to close this dialog.</p>
+          </section>
+        </div>
+      ) : null}
+
+      {pendingDeleteSnapshot ? (
+        <div className="modal-backdrop" role="presentation">
+          <section className="modal-panel" role="dialog" aria-modal="true" aria-label="delete saved simulation confirmation">
+            <div className="modal-header-row">
+              <h2>Delete saved simulation?</h2>
+            </div>
+            <p>This action cannot be undone.</p>
+            <p>Name: {pendingDeleteSnapshot.name}</p>
+            <p>Seed: {pendingDeleteSnapshot.seed || 'unknown'}</p>
+            <p>Tick: {pendingDeleteSnapshot.tickCount}</p>
+            <p>Last updated: {formatTimestamp(pendingDeleteSnapshot.updatedAt)}</p>
+            <div className="field-row">
+              <button type="button" onClick={onConfirmDeleteSimulation} ref={deleteConfirmButtonRef}>Confirm delete</button>
+              <button type="button" onClick={onCancelDeleteSimulation}>Cancel</button>
+            </div>
+            <p>Press Escape to cancel.</p>
           </section>
         </div>
       ) : null}
