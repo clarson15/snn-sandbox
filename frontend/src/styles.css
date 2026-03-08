@@ -331,6 +331,21 @@ canvas {
   }
 }
 
+.inspector-section {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.inspector-section-toggle {
+  width: 100%;
+  text-align: left;
+}
+
+.inspector-section-toggle:focus-visible {
+  outline: 2px solid #67e8f9;
+  outline-offset: 2px;
+}
+
 .brain-graph-controls {
   display: flex;
   flex-wrap: wrap;

@@ -55,6 +55,13 @@ import { deriveInspectorComparisonRows } from './inspectorComparison';
 const TICK_MS = 1000 / 30;
 const SPEED_OPTIONS = [1, 2, 5, 10];
 const SIMULATION_VERSION = 'snn-sandbox-v1';
+const INSPECTOR_SECTION_ORDER = ['lifecycle', 'traits', 'genome', 'brainSummary'];
+const INSPECTOR_SECTION_LABELS = {
+  lifecycle: 'Lifecycle',
+  traits: 'Traits',
+  genome: 'Genome',
+  brainSummary: 'Brain Summary'
+};
 const FORM_FIELDS = [
   'name',
   'seed',
@@ -136,6 +143,13 @@ function App() {
   const [selectedOrganismId, setSelectedOrganismId] = useState(null);
   const [selectedOrganismUnavailable, setSelectedOrganismUnavailable] = useState(false);
   const [inspectorPinned, setInspectorPinned] = useState(false);
+  const [inspectorSectionExpanded, setInspectorSectionExpanded] = useState(() => ({
+    lifecycle: true,
+    traits: true,
+    genome: true,
+    brainSummary: true
+  }));
+  const [activeInspectorSectionIndex, setActiveInspectorSectionIndex] = useState(0);
   const [pinnedOrganismSnapshot, setPinnedOrganismSnapshot] = useState(null);
   const [activeSynapseId, setActiveSynapseId] = useState(null);
   const [brainGraphTransform, setBrainGraphTransform] = useState(() => ({ scale: 1, translateX: 0, translateY: 0 }));
@@ -185,6 +199,7 @@ function App() {
   const deleteConfirmButtonRef = useRef(null);
   const replayInteractionRegionRef = useRef(null);
   const inspectorSelectionHeadingRef = useRef(null);
+  const inspectorSectionButtonRefs = useRef(new Map());
   const rngRef = useRef(null);
   const stepParamsRef = useRef(null);
   const schedulerCarryMsRef = useRef(0);
@@ -1106,6 +1121,30 @@ function App() {
         return;
       }
 
+      if (inspectorOrganism && (event.key === '[' || event.key === ']')) {
+        event.preventDefault();
+        const offset = event.key === '[' ? -1 : 1;
+        const nextIndex = (activeInspectorSectionIndex + offset + INSPECTOR_SECTION_ORDER.length) % INSPECTOR_SECTION_ORDER.length;
+        setActiveInspectorSectionIndex(nextIndex);
+        const nextSectionKey = INSPECTOR_SECTION_ORDER[nextIndex];
+        inspectorSectionButtonRefs.current.get(nextSectionKey)?.focus();
+        return;
+      }
+
+      if (inspectorOrganism && event.key === 'Enter') {
+        const activeElement = document.activeElement;
+        const activeSectionEntry = [...inspectorSectionButtonRefs.current.entries()].find(([, button]) => button === activeElement);
+        const sectionKey = activeSectionEntry?.[0] ?? INSPECTOR_SECTION_ORDER[activeInspectorSectionIndex];
+        if (sectionKey) {
+          event.preventDefault();
+          setInspectorSectionExpanded((previous) => ({
+            ...previous,
+            [sectionKey]: !previous[sectionKey]
+          }));
+        }
+        return;
+      }
+
       if (event.key === '[') {
         event.preventDefault();
         onAdjustSpeedByStep(-1);
@@ -1136,6 +1175,8 @@ function App() {
   }, [
     keyboardShortcutsModalOpen,
     pendingDeleteSnapshot,
+    inspectorOrganism,
+    activeInspectorSectionIndex,
     onAdjustSpeedByStep,
     onSelectNextOrganism,
     onSelectPreviousOrganism,
@@ -1758,7 +1799,7 @@ function App() {
         >
           Keyboard Shortcuts
         </button>
-        <p className="shortcut-hints">Shortcuts: Space pause/play · [ / ] step speed down/up (Pause/1x/2x/5x/10x) · . single-step (paused)</p>
+        <p className="shortcut-hints">Shortcuts: Space pause/play · . single-step (paused) · 1/2/3/4 set speed (1x/2x/5x/10x)</p>
       </section>
 
       {keyboardShortcutsModalOpen ? (
@@ -1782,7 +1823,11 @@ function App() {
               </div>
               <div>
                 <dt>[ / ]</dt>
-                <dd>Step speed down / up through Pause, 1x, 2x, 5x, 10x.</dd>
+                <dd>Move focus between inspector sections (Lifecycle, Traits, Genome, Brain Summary).</dd>
+              </div>
+              <div>
+                <dt>Enter</dt>
+                <dd>Toggle the focused inspector section.</dd>
               </div>
               <div>
                 <dt>1 / 2 / 3 / 4</dt>
@@ -2141,7 +2186,7 @@ function App() {
             {inspectorPinned ? 'Unpin inspector' : 'Pin inspector'}
           </button>
         </div>
-        <p className="shortcut-hints">Inspector shortcuts: ←/→ previous/next organism · P pin/unpin inspector</p>
+        <p className="shortcut-hints">Inspector shortcuts: ←/→ previous/next organism · P pin/unpin inspector · [/] section focus · Enter toggle section</p>
         <p role="status" aria-live="polite">Pin mode: {inspectorPinned ? 'Enabled' : 'Disabled'}</p>
         {inspectorOrganism ? (
           <>
@@ -2186,136 +2231,193 @@ function App() {
               Selected organism details
             </h3>
             <p><strong>ID:</strong> {inspectorOrganism.id}</p>
-            <p><strong>Generation:</strong> {inspectorOrganism.generation}</p>
-            <p><strong>Age:</strong> {inspectorOrganism.age}</p>
-            <p><strong>Energy:</strong> {inspectorOrganism.energy.toFixed(3)}</p>
-            <p><strong>Position:</strong> ({inspectorOrganism.x.toFixed(3)}, {inspectorOrganism.y.toFixed(3)})</p>
-            <h3>Physical traits</h3>
-            <ul>
-              <li>Size: {inspectorOrganism.traits.size}</li>
-              <li>Speed: {inspectorOrganism.traits.speed}</li>
-              <li>Vision range: {inspectorOrganism.traits.visionRange}</li>
-              <li>Turn rate: {inspectorOrganism.traits.turnRate}</li>
-              <li>Metabolism: {inspectorOrganism.traits.metabolism}</li>
-            </ul>
+            {INSPECTOR_SECTION_ORDER.map((sectionKey, index) => {
+              const expanded = Boolean(inspectorSectionExpanded[sectionKey]);
+              const buttonId = `inspector-${sectionKey}-toggle`;
+              const regionId = `inspector-${sectionKey}-region`;
 
-            <h3>Brain visualizer (read-only)</h3>
-            {brainGraphModel ? (
-              <>
-                <p>
-                  <strong>Neurons:</strong> {brainGraphModel.nodes.length} | <strong>Synapses:</strong> {baseBrainGraphModel?.edges.length ?? 0} |{' '}
-                  <strong>Rendered edges:</strong> {brainGraphModel.edges.length}
-                </p>
-                <div aria-label="brain graph legend">
-                  <p><strong>Neuron legend:</strong></p>
-                  <ul>
-                    <li>Input neurons: left column in the graph.</li>
-                    <li>Hidden neurons: center column in the graph.</li>
-                    <li>Output neurons: right column in the graph.</li>
-                  </ul>
-                  <p aria-label="brain graph weight legend">
-                    Synapse weights (fixed scale -1.0 to +1.0): <span style={{ color: '#22c55e' }}>green = excitatory (+)</span>,{' '}
-                    <span style={{ color: '#ef4444' }}>red = inhibitory (-)</span>, thicker edge = stronger magnitude.
-                  </p>
-                </div>
-                <p><strong>Layout checksum:</strong> <code>{brainGraphLayoutChecksum || 'n/a'}</code></p>
-                <p>
-                  Deterministic viewport policy: fit transform is applied whenever the inspected organism changes; Reset View restores that same fit transform.
-                </p>
-                <div className="brain-graph-controls" role="group" aria-label="brain visualizer viewport controls">
-                  <button type="button" onClick={onFitBrainGraphViewport}>Fit</button>
-                  <button type="button" onClick={() => onZoomBrainGraphViewport(1)}>Zoom In</button>
-                  <button type="button" onClick={() => onZoomBrainGraphViewport(-1)}>Zoom Out</button>
-                  <button type="button" onClick={onFitBrainGraphViewport}>Reset View</button>
-                </div>
-                <div className="brain-graph-controls" role="group" aria-label="brain visualizer signal emphasis controls">
-                  <label>
-                    <input
-                      type="checkbox"
-                      aria-label="hide near-zero-weight synapses"
-                      checked={hideNearZeroBrainEdges}
-                      onChange={(event) => setHideNearZeroBrainEdges(event.target.checked)}
-                    />{' '}
-                    Hide near-zero-weight synapses (|w| &lt; 0.1)
-                  </label>
-                  <label htmlFor="strongest-synapse-count-input">
-                    Highlight strongest synapses
-                  </label>
-                  <input
-                    id="strongest-synapse-count-input"
-                    aria-label="highlight strongest synapse count"
-                    type="number"
-                    min="0"
-                    max={baseBrainGraphModel?.edges.length ?? 0}
-                    value={strongestBrainEdgeCount}
-                    onChange={(event) => {
-                      const numeric = Number(event.target.value);
-                      if (!Number.isFinite(numeric)) {
-                        setStrongestBrainEdgeCount(0);
-                        return;
-                      }
-                      const clamped = Math.max(0, Math.min(baseBrainGraphModel?.edges.length ?? 0, Math.floor(numeric)));
-                      setStrongestBrainEdgeCount(clamped);
-                    }}
-                  />
-                </div>
-                <p aria-label="brain graph emphasis checksum"><strong>Emphasis checksum:</strong> <code>{brainGraphEmphasisChecksum || 'n/a'}</code></p>
-                <p role="status" aria-live="polite" aria-label="brain graph selected synapse details">
-                  {activeSynapse
-                    ? `Selected synapse ${activeSynapse.id}: ${activeSynapse.sourceId} → ${activeSynapse.targetId}, ${activeSynapse.polarityLabel}, weight ${activeSynapse.weightLabel}`
-                    : 'Select or hover a synapse to inspect source, target, and exact weight.'}
-                </p>
-                <svg viewBox="0 0 640 300" role="img" aria-label="organism brain graph" className="brain-graph">
-                  <g transform={`translate(${brainGraphTransform.translateX} ${brainGraphTransform.translateY}) scale(${brainGraphTransform.scale})`}>
-                    {brainGraphModel.edges.map((edge) => {
-                      const source = brainGraphNodeById.get(edge.sourceId);
-                      const target = brainGraphNodeById.get(edge.targetId);
-                      if (!source || !target) {
-                        return null;
-                      }
+              return (
+                <div key={sectionKey} className="inspector-section">
+                  <h3>
+                    <button
+                      id={buttonId}
+                      type="button"
+                      className="inspector-section-toggle"
+                      aria-expanded={expanded}
+                      aria-controls={regionId}
+                      onClick={() => {
+                        setActiveInspectorSectionIndex(index);
+                        setInspectorSectionExpanded((previous) => ({
+                          ...previous,
+                          [sectionKey]: !previous[sectionKey]
+                        }));
+                      }}
+                      onFocus={() => setActiveInspectorSectionIndex(index)}
+                      ref={(element) => {
+                        if (element) {
+                          inspectorSectionButtonRefs.current.set(sectionKey, element);
+                        } else {
+                          inspectorSectionButtonRefs.current.delete(sectionKey);
+                        }
+                      }}
+                    >
+                      {INSPECTOR_SECTION_LABELS[sectionKey]}
+                    </button>
+                  </h3>
+                  <div id={regionId} role="region" aria-labelledby={buttonId} hidden={!expanded}>
+                    {sectionKey === 'lifecycle' ? (
+                      <>
+                        <p><strong>Generation:</strong> {inspectorOrganism.generation}</p>
+                        <p><strong>Age:</strong> {inspectorOrganism.age}</p>
+                        <p><strong>Energy:</strong> {inspectorOrganism.energy.toFixed(3)}</p>
+                        <p><strong>Position:</strong> ({inspectorOrganism.x.toFixed(3)}, {inspectorOrganism.y.toFixed(3)})</p>
+                      </>
+                    ) : null}
+                    {sectionKey === 'traits' ? (
+                      <ul>
+                        <li>Size: {inspectorOrganism.traits.size}</li>
+                        <li>Speed: {inspectorOrganism.traits.speed}</li>
+                        <li>Vision range: {inspectorOrganism.traits.visionRange}</li>
+                        <li>Turn rate: {inspectorOrganism.traits.turnRate}</li>
+                        <li>Metabolism: {inspectorOrganism.traits.metabolism}</li>
+                      </ul>
+                    ) : null}
+                    {sectionKey === 'genome' ? (
+                      <>
+                        <p><strong>Genome signature:</strong> {(inspectorOrganism.brain?.neurons?.length ?? 0)}N-{(inspectorOrganism.brain?.synapses?.length ?? 0)}S</p>
+                        <p>
+                          <strong>Neuron IDs:</strong>{' '}
+                          {(inspectorOrganism.brain?.neurons ?? [])
+                            .map((neuron, neuronIndex) => neuron?.id ?? `n${neuronIndex + 1}`)
+                            .join(', ') || 'n/a'}
+                        </p>
+                      </>
+                    ) : null}
+                    {sectionKey === 'brainSummary' ? (
+                      <>
+                        <h4>Brain visualizer (read-only)</h4>
+                        {brainGraphModel ? (
+                          <>
+                            <p>
+                              <strong>Neurons:</strong> {brainGraphModel.nodes.length} | <strong>Synapses:</strong> {baseBrainGraphModel?.edges.length ?? 0} |{' '}
+                              <strong>Rendered edges:</strong> {brainGraphModel.edges.length}
+                            </p>
+                            <div aria-label="brain graph legend">
+                              <p><strong>Neuron legend:</strong></p>
+                              <ul>
+                                <li>Input neurons: left column in the graph.</li>
+                                <li>Hidden neurons: center column in the graph.</li>
+                                <li>Output neurons: right column in the graph.</li>
+                              </ul>
+                              <p aria-label="brain graph weight legend">
+                                Synapse weights (fixed scale -1.0 to +1.0): <span style={{ color: '#22c55e' }}>green = excitatory (+)</span>,{' '}
+                                <span style={{ color: '#ef4444' }}>red = inhibitory (-)</span>, thicker edge = stronger magnitude.
+                              </p>
+                            </div>
+                            <p><strong>Layout checksum:</strong> <code>{brainGraphLayoutChecksum || 'n/a'}</code></p>
+                            <p>
+                              Deterministic viewport policy: fit transform is applied whenever the inspected organism changes; Reset View restores that same fit transform.
+                            </p>
+                            <div className="brain-graph-controls" role="group" aria-label="brain visualizer viewport controls">
+                              <button type="button" onClick={onFitBrainGraphViewport}>Fit</button>
+                              <button type="button" onClick={() => onZoomBrainGraphViewport(1)}>Zoom In</button>
+                              <button type="button" onClick={() => onZoomBrainGraphViewport(-1)}>Zoom Out</button>
+                              <button type="button" onClick={onFitBrainGraphViewport}>Reset View</button>
+                            </div>
+                            <div className="brain-graph-controls" role="group" aria-label="brain visualizer signal emphasis controls">
+                              <label>
+                                <input
+                                  type="checkbox"
+                                  aria-label="hide near-zero-weight synapses"
+                                  checked={hideNearZeroBrainEdges}
+                                  onChange={(event) => setHideNearZeroBrainEdges(event.target.checked)}
+                                />{' '}
+                                Hide near-zero-weight synapses (|w| &lt; 0.1)
+                              </label>
+                              <label htmlFor="strongest-synapse-count-input">
+                                Highlight strongest synapses
+                              </label>
+                              <input
+                                id="strongest-synapse-count-input"
+                                aria-label="highlight strongest synapse count"
+                                type="number"
+                                min="0"
+                                max={baseBrainGraphModel?.edges.length ?? 0}
+                                value={strongestBrainEdgeCount}
+                                onChange={(event) => {
+                                  const numeric = Number(event.target.value);
+                                  if (!Number.isFinite(numeric)) {
+                                    setStrongestBrainEdgeCount(0);
+                                    return;
+                                  }
+                                  const clamped = Math.max(0, Math.min(baseBrainGraphModel?.edges.length ?? 0, Math.floor(numeric)));
+                                  setStrongestBrainEdgeCount(clamped);
+                                }}
+                              />
+                            </div>
+                            <p aria-label="brain graph emphasis checksum"><strong>Emphasis checksum:</strong> <code>{brainGraphEmphasisChecksum || 'n/a'}</code></p>
+                            <p role="status" aria-live="polite" aria-label="brain graph selected synapse details">
+                              {activeSynapse
+                                ? `Selected synapse ${activeSynapse.id}: ${activeSynapse.sourceId} → ${activeSynapse.targetId}, ${activeSynapse.polarityLabel}, weight ${activeSynapse.weightLabel}`
+                                : 'Select or hover a synapse to inspect source, target, and exact weight.'}
+                            </p>
+                            <svg viewBox="0 0 640 300" role="img" aria-label="organism brain graph" className="brain-graph">
+                              <g transform={`translate(${brainGraphTransform.translateX} ${brainGraphTransform.translateY}) scale(${brainGraphTransform.scale})`}>
+                                {brainGraphModel.edges.map((edge) => {
+                                  const source = brainGraphNodeById.get(edge.sourceId);
+                                  const target = brainGraphNodeById.get(edge.targetId);
+                                  if (!source || !target) {
+                                    return null;
+                                  }
 
-                      return (
-                        <line
-                          key={edge.id}
-                          x1={source.x}
-                          y1={source.y}
-                          x2={target.x}
-                          y2={target.y}
-                          stroke={edge.color}
-                          strokeWidth={edge.emphasisStrokeWidth}
-                          opacity={activeSynapse?.id === edge.id ? '1' : String(edge.emphasisOpacity)}
-                          className="brain-graph-synapse-edge"
-                          style={{ cursor: 'pointer' }}
-                          onMouseEnter={() => setActiveSynapseId(edge.id)}
-                          onFocus={() => setActiveSynapseId(edge.id)}
-                          onClick={() => setActiveSynapseId(edge.id)}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                              event.preventDefault();
-                              setActiveSynapseId(edge.id);
-                            }
-                          }}
-                          tabIndex={0}
-                          role="button"
-                          aria-keyshortcuts="Enter Space"
-                          aria-label={`Synapse ${edge.id}: ${source.id} to ${target.id}, weight ${edge.weightLabel}`}
-                        >
-                          <title>{`${source.id} → ${target.id}: ${edge.polarityLabel}, weight ${edge.weightLabel}`}</title>
-                        </line>
-                      );
-                    })}
-                    {brainGraphModel.nodes.map((node) => (
-                      <g key={node.id}>
-                        <circle cx={node.x} cy={node.y} r="10" fill={node.fillColor} stroke="#94a3b8" strokeWidth="1.5" />
-                        <text x={node.x + 14} y={node.y + 4} fill={node.labelColor} fontSize="12">{node.id} ({node.value.toFixed(2)})</text>
-                      </g>
-                    ))}
-                  </g>
-                </svg>
-              </>
-            ) : (
-              <p>Brain data unavailable for this organism.</p>
-            )}
+                                  return (
+                                    <line
+                                      key={edge.id}
+                                      x1={source.x}
+                                      y1={source.y}
+                                      x2={target.x}
+                                      y2={target.y}
+                                      stroke={edge.color}
+                                      strokeWidth={edge.emphasisStrokeWidth}
+                                      opacity={activeSynapse?.id === edge.id ? '1' : String(edge.emphasisOpacity)}
+                                      className="brain-graph-synapse-edge"
+                                      style={{ cursor: 'pointer' }}
+                                      onMouseEnter={() => setActiveSynapseId(edge.id)}
+                                      onFocus={() => setActiveSynapseId(edge.id)}
+                                      onClick={() => setActiveSynapseId(edge.id)}
+                                      onKeyDown={(event) => {
+                                        if (event.key === 'Enter' || event.key === ' ') {
+                                          event.preventDefault();
+                                          setActiveSynapseId(edge.id);
+                                        }
+                                      }}
+                                      tabIndex={0}
+                                      role="button"
+                                      aria-keyshortcuts="Enter Space"
+                                      aria-label={`Synapse ${edge.id}: ${source.id} to ${target.id}, weight ${edge.weightLabel}`}
+                                    >
+                                      <title>{`${source.id} → ${target.id}: ${edge.polarityLabel}, weight ${edge.weightLabel}`}</title>
+                                    </line>
+                                  );
+                                })}
+                                {brainGraphModel.nodes.map((node) => (
+                                  <g key={node.id}>
+                                    <circle cx={node.x} cy={node.y} r="10" fill={node.fillColor} stroke="#94a3b8" strokeWidth="1.5" />
+                                    <text x={node.x + 14} y={node.y + 4} fill={node.labelColor} fontSize="12">{node.id} ({node.value.toFixed(2)})</text>
+                                  </g>
+                                ))}
+                              </g>
+                            </svg>
+                          </>
+                        ) : (
+                          <p>Brain data unavailable for this organism.</p>
+                        )}
+                      </>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
           </>
         ) : selectedOrganismUnavailable ? (
           <>
