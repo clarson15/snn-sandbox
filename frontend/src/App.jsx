@@ -17,6 +17,7 @@ import {
   BRAIN_GRAPH_VIEWBOX,
   createBrainViewportFitTransform,
   deriveEmphasizedBrainGraphModel,
+  deriveFilteredBrainGraphModel,
   mapBrainEmphasisChecksum,
   mapBrainLayoutChecksum,
   mapBrainToVisualizerModel
@@ -155,6 +156,9 @@ function App() {
   const [brainGraphTransform, setBrainGraphTransform] = useState(() => ({ scale: 1, translateX: 0, translateY: 0 }));
   const [hideNearZeroBrainEdges, setHideNearZeroBrainEdges] = useState(false);
   const [strongestBrainEdgeCount, setStrongestBrainEdgeCount] = useState(0);
+  const [brainFilterTypes, setBrainFilterTypes] = useState(() => ({ input: true, hidden: true, output: true }));
+  const [brainMinActivationThreshold, setBrainMinActivationThreshold] = useState(0);
+  const [pinnedBrainNeuronId, setPinnedBrainNeuronId] = useState(null);
   const [errors, setErrors] = useState({});
   const [savedSimulations, setSavedSimulations] = useState([]);
   const [saveStatus, setSaveStatus] = useState('');
@@ -489,6 +493,19 @@ function App() {
     }));
   };
 
+  const onToggleBrainNeuronType = (type) => {
+    setBrainFilterTypes((previous) => ({
+      ...previous,
+      [type]: !previous[type]
+    }));
+  };
+
+  const onClearBrainFiltersAndPin = () => {
+    setBrainFilterTypes({ input: true, hidden: true, output: true });
+    setBrainMinActivationThreshold(0);
+    setPinnedBrainNeuronId(null);
+  };
+
   const acknowledgeUnavailableSelection = () => {
     if (!selectedOrganismUnavailable || inspectorPinned) {
       return false;
@@ -507,14 +524,33 @@ function App() {
     return mapBrainToVisualizerModel(inspectorOrganism.brain);
   }, [inspectorOrganism]);
 
-  const brainGraphModel = useMemo(
-    () => deriveEmphasizedBrainGraphModel(baseBrainGraphModel, {
+  const visibleBrainNeuronTypes = useMemo(
+    () => Object.entries(brainFilterTypes)
+      .filter(([, enabled]) => enabled)
+      .map(([type]) => type),
+    [brainFilterTypes]
+  );
+
+  const brainGraphModel = useMemo(() => {
+    const emphasizedModel = deriveEmphasizedBrainGraphModel(baseBrainGraphModel, {
       hideNearZeroWeights: hideNearZeroBrainEdges,
       nearZeroThreshold: 0.1,
       strongestEdgeCount: strongestBrainEdgeCount
-    }),
-    [baseBrainGraphModel, hideNearZeroBrainEdges, strongestBrainEdgeCount]
-  );
+    });
+
+    return deriveFilteredBrainGraphModel(emphasizedModel, {
+      visibleNeuronTypes: visibleBrainNeuronTypes,
+      minActivationThreshold: brainMinActivationThreshold,
+      pinnedNeuronId: pinnedBrainNeuronId
+    });
+  }, [
+    baseBrainGraphModel,
+    hideNearZeroBrainEdges,
+    strongestBrainEdgeCount,
+    visibleBrainNeuronTypes,
+    brainMinActivationThreshold,
+    pinnedBrainNeuronId
+  ]);
 
   const brainGraphNodeById = useMemo(() => {
     if (!brainGraphModel) {
@@ -555,6 +591,10 @@ function App() {
   }, [brainGraphModel, inspectorOrganism?.id]);
 
   useEffect(() => {
+    setPinnedBrainNeuronId(null);
+  }, [inspectorOrganism?.id]);
+
+  useEffect(() => {
     if (!brainGraphModel || !activeSynapseId) {
       setActiveSynapseId(null);
       return;
@@ -564,6 +604,16 @@ function App() {
       setActiveSynapseId(null);
     }
   }, [activeSynapseId, brainGraphModel]);
+
+  useEffect(() => {
+    if (!brainGraphModel || !pinnedBrainNeuronId) {
+      return;
+    }
+
+    if (!brainGraphModel.nodes.some((node) => node.id === pinnedBrainNeuronId)) {
+      setPinnedBrainNeuronId(null);
+    }
+  }, [brainGraphModel, pinnedBrainNeuronId]);
 
   const pinnedComparisonCandidate = inspectorPinned ? pinnedOrganismSnapshot : null;
   const hasComparisonPair = Boolean(
@@ -2355,6 +2405,57 @@ function App() {
                                 }}
                               />
                             </div>
+                            <div className="brain-graph-controls" role="group" aria-label="brain visualizer neuron filter controls">
+                              <label>
+                                <input type="checkbox" checked={brainFilterTypes.input} onChange={() => onToggleBrainNeuronType('input')} /> Input
+                              </label>
+                              <label>
+                                <input type="checkbox" checked={brainFilterTypes.hidden} onChange={() => onToggleBrainNeuronType('hidden')} /> Hidden
+                              </label>
+                              <label>
+                                <input type="checkbox" checked={brainFilterTypes.output} onChange={() => onToggleBrainNeuronType('output')} /> Output
+                              </label>
+                              <label htmlFor="brain-min-activation-threshold">Min activation</label>
+                              <input
+                                id="brain-min-activation-threshold"
+                                aria-label="minimum neuron activation threshold"
+                                type="number"
+                                min="0"
+                                max="1"
+                                step="0.05"
+                                value={brainMinActivationThreshold}
+                                onChange={(event) => {
+                                  const nextValue = Number(event.target.value);
+                                  if (!Number.isFinite(nextValue)) {
+                                    setBrainMinActivationThreshold(0);
+                                    return;
+                                  }
+                                  setBrainMinActivationThreshold(Math.max(0, Math.min(1, Number(nextValue.toFixed(3)))));
+                                }}
+                              />
+                              <button type="button" onClick={onClearBrainFiltersAndPin}>Clear filters + pin</button>
+                            </div>
+                            <p aria-live="polite">Pinned neuron: {brainGraphModel.pinnedNeuronId || 'none'}</p>
+                            <ul aria-label="pin neuron controls">
+                              {brainGraphModel.nodes.map((node) => {
+                                const isPinnedNode = brainGraphModel.pinnedNeuronId === node.id;
+
+                                return (
+                                  <li key={`pin-control-${node.id}`}>
+                                    <button type="button" onClick={() => setPinnedBrainNeuronId((current) => (current === node.id ? null : node.id))}>
+                                      {isPinnedNode ? `Unpin neuron ${node.id}` : `Pin neuron ${node.id}`}
+                                    </button>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                            {brainGraphModel.pinnedNeuronMetadata ? (
+                              <p>
+                                Pinned neuron metadata — id: {brainGraphModel.pinnedNeuronMetadata.id}, type: {brainGraphModel.pinnedNeuronMetadata.type}, activation:{' '}
+                                {brainGraphModel.pinnedNeuronMetadata.activation.toFixed(3)}, in/out degree: {brainGraphModel.pinnedNeuronMetadata.inboundDegree}/
+                                {brainGraphModel.pinnedNeuronMetadata.outboundDegree}
+                              </p>
+                            ) : null}
                             <p aria-label="brain graph emphasis checksum"><strong>Emphasis checksum:</strong> <code>{brainGraphEmphasisChecksum || 'n/a'}</code></p>
                             <p role="status" aria-live="polite" aria-label="brain graph selected synapse details">
                               {activeSynapse
@@ -2400,12 +2501,28 @@ function App() {
                                     </line>
                                   );
                                 })}
-                                {brainGraphModel.nodes.map((node) => (
-                                  <g key={node.id}>
-                                    <circle cx={node.x} cy={node.y} r="10" fill={node.fillColor} stroke="#94a3b8" strokeWidth="1.5" />
-                                    <text x={node.x + 14} y={node.y + 4} fill={node.labelColor} fontSize="12">{node.id} ({node.value.toFixed(2)})</text>
-                                  </g>
-                                ))}
+                                {brainGraphModel.nodes.map((node) => {
+                                  const isPinnedNode = brainGraphModel.pinnedNeuronId === node.id;
+
+                                  return (
+                                    <g
+                                      key={node.id}
+                                      role="button"
+                                      tabIndex={0}
+                                      aria-label={`Pin neuron ${node.id}`}
+                                      onClick={() => setPinnedBrainNeuronId((current) => (current === node.id ? null : node.id))}
+                                      onKeyDown={(event) => {
+                                        if (event.key === 'Enter' || event.key === ' ') {
+                                          event.preventDefault();
+                                          setPinnedBrainNeuronId((current) => (current === node.id ? null : node.id));
+                                        }
+                                      }}
+                                    >
+                                      <circle cx={node.x} cy={node.y} r="10" fill={node.fillColor} stroke={isPinnedNode ? '#f8fafc' : '#94a3b8'} strokeWidth={isPinnedNode ? '3' : '1.5'} />
+                                      <text x={node.x + 14} y={node.y + 4} fill={node.labelColor} fontSize="12">{node.id} ({node.value.toFixed(2)})</text>
+                                    </g>
+                                  );
+                                })}
                               </g>
                             </svg>
                           </>
