@@ -25,6 +25,41 @@ function deterministicChecksum(worldState) {
   return JSON.stringify(worldState);
 }
 
+function normalizeAngle(angle) {
+  const fullTurn = Math.PI * 2;
+  const normalized = angle % fullTurn;
+  return normalized < 0 ? normalized + fullTurn : normalized;
+}
+
+function deriveRotationDelta(organism) {
+  const turnRate = Number(organism?.traits?.turnRate ?? 0);
+  if (!Number.isFinite(turnRate) || turnRate === 0) {
+    return 0;
+  }
+
+  const synapses = Array.isArray(organism?.brain?.synapses) ? organism.brain.synapses : [];
+  if (synapses.length === 0) {
+    return 0;
+  }
+
+  let leftSignal = 0;
+  let rightSignal = 0;
+
+  for (const synapse of synapses) {
+    if (!synapse || !Number.isFinite(synapse.weight)) {
+      continue;
+    }
+
+    if (synapse.targetId === 'out-turn-left') {
+      leftSignal += synapse.weight;
+    } else if (synapse.targetId === 'out-turn-right') {
+      rightSignal += synapse.weight;
+    }
+  }
+
+  return (rightSignal - leftSignal) * turnRate;
+}
+
 function stepWorldWithLegacyFoodLookup(state, rng, params = {}) {
   const movementDelta = params.movementDelta ?? 1;
   const metabolismPerTick = params.metabolismPerTick ?? 0.1;
@@ -41,7 +76,7 @@ function stepWorldWithLegacyFoodLookup(state, rng, params = {}) {
     const dy = (rng.nextFloat() * 2 - 1) * movementDelta;
     const movementDistance = Math.hypot(dx, dy);
     const energySpent = metabolismPerTick + movementDistance * movementCostMultiplier;
-    const direction = movementDistance > 0 ? Math.atan2(dy, dx) : (organism.direction ?? 0);
+    const direction = normalizeAngle((organism.direction ?? 0) + deriveRotationDelta(organism));
 
     return {
       ...organism,
@@ -513,5 +548,69 @@ describe('simulation engine skeleton', () => {
     const runB = runTicks(state, createSeededPrng('floor-deterministic'), 3, params);
 
     expect(runA).toEqual(runB);
+  });
+
+  it('keeps heading unchanged when rotate outputs have no effective input signal', () => {
+    const state = createWorldState({
+      tick: 0,
+      organisms: [
+        {
+          id: 'org-no-rotate-signal',
+          x: 10,
+          y: 10,
+          energy: 20,
+          age: 0,
+          generation: 1,
+          direction: 1.234,
+          traits: { size: 1, speed: 1, visionRange: 20, turnRate: 0.07, metabolism: 0.05 },
+          brain: {
+            neurons: [],
+            synapses: [{ id: 'syn-forward', sourceId: 'in-energy', targetId: 'out-forward', weight: 0.9 }]
+          }
+        }
+      ],
+      food: []
+    });
+
+    const next = runTicks(state, createSeededPrng('no-rotate-signal'), 5, {
+      movementDelta: 1.5,
+      metabolismPerTick: 0.05,
+      movementCostMultiplier: 0.03,
+      foodSpawnChance: 0
+    });
+
+    expect(next.organisms[0].direction).toBeCloseTo(1.234, 10);
+  });
+
+  it('rotates deterministically when rotate output synapses are present', () => {
+    const state = createWorldState({
+      tick: 0,
+      organisms: [
+        {
+          id: 'org-rotate-right',
+          x: 10,
+          y: 10,
+          energy: 20,
+          age: 0,
+          generation: 1,
+          direction: 0.5,
+          traits: { size: 1, speed: 1, visionRange: 20, turnRate: 0.1, metabolism: 0.05 },
+          brain: {
+            neurons: [],
+            synapses: [{ id: 'syn-right', sourceId: 'in-energy', targetId: 'out-turn-right', weight: 0.4 }]
+          }
+        }
+      ],
+      food: []
+    });
+
+    const next = runTicks(state, createSeededPrng('rotate-right-signal'), 3, {
+      movementDelta: 0,
+      metabolismPerTick: 0,
+      movementCostMultiplier: 0,
+      foodSpawnChance: 0
+    });
+
+    expect(next.organisms[0].direction).toBeCloseTo(0.62, 10);
   });
 });
