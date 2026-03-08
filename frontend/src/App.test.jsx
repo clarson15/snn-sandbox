@@ -1785,7 +1785,7 @@ describe('App', () => {
     vi.useRealTimers();
   });
 
-  it('keeps selection stable across controls, then shows and clears stale-selection state after death', async () => {
+  it('keeps selection stable across controls and deterministically falls forward when selected organism dies', async () => {
     vi.useFakeTimers();
     render(<App />);
 
@@ -1831,6 +1831,12 @@ describe('App', () => {
     const selectedFixture = initialWorld.organisms.find((organism) => organism.id === firstDiedId);
     expect(selectedFixture).toBeTruthy();
 
+    const aliveIdsAtDeath = projected.organisms.map((organism) => organism.id).sort((left, right) => left.localeCompare(right));
+    const expectedFallbackId = aliveIdsAtDeath.find((id) => id.localeCompare(firstDiedId) > 0)
+      ?? aliveIdsAtDeath[aliveIdsAtDeath.length - 1]
+      ?? null;
+    expect(expectedFallbackId).toBeTruthy();
+
     const canvas = screen.getByLabelText(/simulation world/i);
     vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
       x: 0,
@@ -1861,21 +1867,19 @@ describe('App', () => {
         vi.advanceTimersByTime(1000);
       });
 
-      if (screen.queryByText(/selected organism is no longer available\./i)) {
+      if (inspector.textContent?.includes(`ID: ${expectedFallbackId}`)) {
         break;
       }
     }
 
-    expect(screen.getByText(/selected organism is no longer available\./i)).toBeInTheDocument();
-    expect(screen.getByText(/inspector will close on your next interaction\./i)).toBeInTheDocument();
-
     fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
-    expect(inspector).toHaveTextContent(/click an organism to inspect it\./i);
+    expect(inspector).toHaveTextContent(`ID: ${expectedFallbackId}`);
+    expect(screen.queryByText(/selected organism is no longer available\./i)).not.toBeInTheDocument();
 
     vi.useRealTimers();
   });
 
-  it('keeps pinned inspector open on deselection and shows stale banner after organism death', () => {
+  it('keeps pinned inspector open on deselection and auto-selects a live organism after death', () => {
     vi.useFakeTimers();
     render(<App />);
 
@@ -1952,17 +1956,17 @@ describe('App', () => {
         vi.advanceTimersByTime(1000);
       });
 
-      if (screen.queryByText(/organism no longer alive\./i)) {
+      if (!inspector.textContent?.includes(`ID: ${selectedFixture.id}`)) {
         break;
       }
     }
 
-    expect(screen.getByText(/organism no longer alive\./i)).toBeInTheDocument();
-    expect(screen.getByText(/showing last known values\./i)).toBeInTheDocument();
-    expect(inspector).toHaveTextContent(`ID: ${selectedFixture.id}`);
+    expect(inspector.textContent).toMatch(/ID:\s*org-\d+/i);
+    expect(inspector).not.toHaveTextContent(`ID: ${selectedFixture.id}`);
+    expect(screen.queryByText(/organism no longer alive\./i)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /unpin organism inspector/i }));
-    expect(inspector).toHaveTextContent(/click an organism to inspect it\./i);
+    expect(inspector.textContent).toMatch(/ID:\s*org-\d+/i);
 
     vi.useRealTimers();
   });
@@ -2006,7 +2010,7 @@ describe('App', () => {
     expect(screen.getAllByText(/vs pinned/i).length).toBeGreaterThan(0);
   });
 
-  it('shows comparison unavailable fallback when selected organism dies while pinned comparison is active', () => {
+  it('keeps selected vs pinned comparison active when selected organism dies and auto-falls forward', () => {
     vi.useFakeTimers();
     render(<App />);
 
@@ -2032,13 +2036,13 @@ describe('App', () => {
         vi.advanceTimersByTime(1000);
       });
 
-      if (screen.queryByText(/comparison unavailable: selected organism is no longer alive/i)) {
+      if (screen.queryByRole('heading', { name: /selected vs pinned comparison/i })) {
         break;
       }
     }
 
-    expect(screen.getByText(/comparison unavailable: selected organism is no longer alive/i)).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: /selected vs pinned comparison/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/comparison unavailable: selected organism is no longer alive/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /selected vs pinned comparison/i })).toBeInTheDocument();
 
     vi.useRealTimers();
   });

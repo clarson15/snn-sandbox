@@ -52,6 +52,7 @@ import {
 } from './simulation/api';
 import { useToasts } from './toasts';
 import { deriveInspectorComparisonRows } from './inspectorComparison';
+import { deriveDeterministicOrganismIds, resolveDeadSelectionFallback } from './inspectorSelection';
 import {
   deriveInspectorTrendSeries,
   formatTrendPolyline,
@@ -421,15 +422,10 @@ function App() {
     }));
   }, [displayWorld?.tick, selectedOrganismId, selectedOrganism, tickDisplay]);
 
-  const deterministicOrganismIds = useMemo(() => {
-    if (!displayWorld) {
-      return [];
-    }
-
-    return [...displayWorld.organisms]
-      .map((organism) => organism.id)
-      .sort((left, right) => left.localeCompare(right));
-  }, [displayWorld, tickDisplay]);
+  const deterministicOrganismIds = useMemo(
+    () => deriveDeterministicOrganismIds(displayWorld?.organisms),
+    [displayWorld, tickDisplay]
+  );
 
   useEffect(() => {
     if (!selectedOrganism || inspectorPinned) {
@@ -447,15 +443,25 @@ function App() {
       return;
     }
 
-    if (!selectedOrganism) {
-      setSelectedOrganismUnavailable(true);
+    if (selectedOrganism) {
+      if (selectedOrganismUnavailable) {
+        setSelectedOrganismUnavailable(false);
+      }
       return;
     }
 
-    if (selectedOrganismUnavailable) {
-      setSelectedOrganismUnavailable(false);
+    const fallbackOrganismId = resolveDeadSelectionFallback(deterministicOrganismIds, selectedOrganismId);
+    if (fallbackOrganismId) {
+      setSelectedOrganismId(fallbackOrganismId);
+      if (selectedOrganismUnavailable) {
+        setSelectedOrganismUnavailable(false);
+      }
+      return;
     }
-  }, [selectedOrganismId, selectedOrganism, selectedOrganismUnavailable]);
+
+    setSelectedOrganismId(null);
+    setSelectedOrganismUnavailable(true);
+  }, [deterministicOrganismIds, selectedOrganismId, selectedOrganism, selectedOrganismUnavailable]);
 
   const clearSelection = () => {
     setSelectedOrganismId(null);
