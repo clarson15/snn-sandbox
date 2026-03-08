@@ -1923,6 +1923,7 @@ describe('App', () => {
     expect(screen.getByText(/^average organism energy:/i)).toHaveTextContent('Average organism energy: 0.0');
     expect(screen.getByText(/^tick count:/i)).toHaveTextContent('Tick count: 0');
     expect(screen.getByText(/^time elapsed:/i)).toHaveTextContent('Time elapsed: 0.0s');
+    expect(screen.getByText(/^tick budget clamp:/i)).toHaveTextContent('Tick budget clamp: Inactive');
   });
 
   it('renders deterministic seed/tick in stats HUD and reports copy feedback', async () => {

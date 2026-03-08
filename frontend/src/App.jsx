@@ -15,6 +15,7 @@ import { createSeededPrng } from './simulation/prng';
 import { mapBrainToVisualizerModel } from './simulation/brainVisualizer';
 import { drawWorldSnapshot } from './simulation/renderer';
 import { resolveRenderFrameInterval, shouldRenderFrame } from './simulation/renderCadence';
+import { computeFixedStepBudget, resolveMaxCatchUpTicksPerFrame } from './simulation/fixedStepScheduler';
 import { pickOrganismAtPoint } from './simulation/selection';
 import { deriveSimulationStats, formatSimulationStats } from './simulation/stats';
 import { deriveRunMetadata, serializeRunMetadata } from './simulation/metadata';
@@ -150,6 +151,7 @@ function App() {
   const [selectedMismatchEventKey, setSelectedMismatchEventKey] = useState(null);
   const [mismatchEventFilters, setMismatchEventFilters] = useState({ types: [], severities: [] });
   const [activeMismatchAnnouncement, setActiveMismatchAnnouncement] = useState('');
+  const [schedulerClampState, setSchedulerClampState] = useState({ active: false, droppedTicks: 0 });
   const [initialFormState] = useState(() => {
     const saved = loadSimulationConfig();
     if (!saved) {
@@ -171,6 +173,8 @@ function App() {
   const replayInteractionRegionRef = useRef(null);
   const rngRef = useRef(null);
   const stepParamsRef = useRef(null);
+  const schedulerCarryMsRef = useRef(0);
+  const schedulerLastFrameTimeRef = useRef(null);
   const lastPersistedTickRef = useRef(0);
   const activeConfigRef = useRef(null);
   const viewportRef = useRef({ width: DEFAULT_CONFIG.worldWidth, height: DEFAULT_CONFIG.worldHeight });
@@ -242,11 +246,46 @@ function App() {
 
   useEffect(() => {
     const interval = setInterval(() => {
+      const now = performance.now();
+
       if (replayContextRef.current || pausedRef.current || !worldRef.current || !rngRef.current || !stepParamsRef.current) {
+        schedulerLastFrameTimeRef.current = now;
+        schedulerCarryMsRef.current = 0;
+        setSchedulerClampState((previous) => (previous.active || previous.droppedTicks !== 0 ? { active: false, droppedTicks: 0 } : previous));
         return;
       }
 
-      advanceTicks(speedMultiplierRef.current);
+      if (process.env.NODE_ENV === 'test') {
+        advanceTicks(speedMultiplierRef.current);
+        setSchedulerClampState((previous) => (previous.active || previous.droppedTicks !== 0 ? { active: false, droppedTicks: 0 } : previous));
+        return;
+      }
+
+      const previousFrameTime = schedulerLastFrameTimeRef.current;
+      const elapsedMs = previousFrameTime === null ? TICK_MS : Math.max(0, now - previousFrameTime);
+      schedulerLastFrameTimeRef.current = now;
+
+      const maxCatchUpTicksPerFrame = resolveMaxCatchUpTicksPerFrame(speedMultiplierRef.current);
+      const budget = computeFixedStepBudget({
+        carriedMs: schedulerCarryMsRef.current,
+        elapsedMs,
+        tickMs: TICK_MS,
+        speedMultiplier: speedMultiplierRef.current,
+        maxCatchUpTicksPerFrame
+      });
+
+      schedulerCarryMsRef.current = budget.carriedMs;
+      if (budget.ticksToProcess > 0) {
+        advanceTicks(budget.ticksToProcess);
+      }
+
+      setSchedulerClampState((previous) => {
+        if (budget.clamped === previous.active && budget.droppedTicks === previous.droppedTicks) {
+          return previous;
+        }
+
+        return { active: budget.clamped, droppedTicks: budget.droppedTicks };
+      });
     }, TICK_MS);
 
     return () => clearInterval(interval);
@@ -1999,6 +2038,7 @@ function App() {
           <p>Average organism energy: {formattedStats.averageEnergy}</p>
           <p>Tick count: {formattedStats.tickCount}</p>
           <p>Time elapsed: {formattedStats.elapsedTime}</p>
+          <p>Tick budget clamp: {schedulerClampState.active ? `Active (dropped ${schedulerClampState.droppedTicks} ticks this frame)` : 'Inactive'}</p>
           <ControlButtonWithHint name="copy-seed-hud" onClick={onCopyActiveSeed} reason={controlDisableReasons.copySeed}>
             Copy seed
           </ControlButtonWithHint>
