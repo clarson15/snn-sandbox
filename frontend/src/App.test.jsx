@@ -1874,6 +1874,20 @@ describe('App', () => {
     expect(comparisonTable).toBeInTheDocument();
     expect(within(comparisonTable).getByText(/^generation$/i)).toBeInTheDocument();
     expect(within(comparisonTable).getByText(/^vision range$/i)).toBeInTheDocument();
+    const fieldOrder = within(comparisonTable)
+      .getAllByRole('rowheader')
+      .map((cell) => cell.textContent?.trim())
+      .filter(Boolean);
+    expect(fieldOrder).toEqual([
+      'Generation',
+      'Age',
+      'Energy',
+      'Size',
+      'Speed',
+      'Vision range',
+      'Turn rate',
+      'Metabolism'
+    ]);
     expect(screen.getAllByText(/vs pinned/i).length).toBeGreaterThan(0);
   });
 
