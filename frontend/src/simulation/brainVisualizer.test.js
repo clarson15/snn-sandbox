@@ -329,6 +329,48 @@ describe('deriveFilteredBrainGraphModel', () => {
       outboundDegree: 1
     });
   });
+
+  it('emphasizes incoming paths for selected output neuron without dropping non-related edges', () => {
+    const base = mapBrainToVisualizerModel({
+      neurons: [
+        { id: 'in-a', type: 'input', value: 0.9 },
+        { id: 'in-b', type: 'input', value: 0.6 },
+        { id: 'h-a', type: 'hidden', value: 0.45 },
+        { id: 'out-a', type: 'output', value: 0.7 },
+        { id: 'out-b', type: 'output', value: 0.4 }
+      ],
+      synapses: [
+        { id: 's-bg', sourceId: 'in-a', targetId: 'out-b', weight: 0.15 },
+        { id: 's-in-1', sourceId: 'in-b', targetId: 'out-a', weight: 0.2 },
+        { id: 's-in-2', sourceId: 'h-a', targetId: 'out-a', weight: -0.35 }
+      ]
+    });
+
+    const first = deriveFilteredBrainGraphModel(base, {
+      visibleNeuronTypes: ['input', 'hidden', 'output'],
+      minActivationThreshold: 0,
+      emphasizedOutputNeuronId: 'out-a',
+      focusMode: 'full'
+    });
+    const second = deriveFilteredBrainGraphModel(structuredClone(base), {
+      visibleNeuronTypes: ['output', 'hidden', 'input'],
+      minActivationThreshold: 0,
+      emphasizedOutputNeuronId: 'out-a',
+      focusMode: 'full'
+    });
+
+    expect(first.edges.map((edge) => edge.id)).toEqual(['s-bg', 's-in-1', 's-in-2']);
+    expect(first.edges.find((edge) => edge.id === 's-bg')?.emphasisOpacity).toBe(0.2);
+    expect(first.edges.find((edge) => edge.id === 's-in-1')?.isIncomingToEmphasizedOutput).toBe(true);
+    expect(first.nodes.find((node) => node.id === 'out-a')?.isEmphasizedOutputTarget).toBe(true);
+    expect(first.nodes.find((node) => node.id === 'h-a')?.isEmphasizedOutputSource).toBe(true);
+    expect(first.emphasizedOutputNeuronMetadata).toEqual({
+      id: 'out-a',
+      incomingEdgeCount: 2,
+      sourceNeuronCount: 2
+    });
+    expect(mapBrainLayoutChecksum(first)).toBe(mapBrainLayoutChecksum(second));
+  });
 });
 
 describe('brain graph viewport transforms', () => {

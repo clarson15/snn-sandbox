@@ -176,6 +176,7 @@ function App() {
   const [brainFilterTypes, setBrainFilterTypes] = useState(() => ({ input: true, hidden: true, output: true }));
   const [brainMinActivationThreshold, setBrainMinActivationThreshold] = useState(0);
   const [pinnedBrainNeuronId, setPinnedBrainNeuronId] = useState(null);
+  const [emphasizedOutputNeuronId, setEmphasizedOutputNeuronId] = useState(null);
   const [selectedBrainNeuronId, setSelectedBrainNeuronId] = useState(null);
   const [brainFocusMode, setBrainFocusMode] = useState('full');
   const [errors, setErrors] = useState({});
@@ -539,6 +540,7 @@ function App() {
     setBrainFilterTypes({ input: true, hidden: true, output: true });
     setBrainMinActivationThreshold(0);
     setPinnedBrainNeuronId(null);
+    setEmphasizedOutputNeuronId(null);
     setSelectedBrainNeuronId(null);
     setBrainFocusMode('full');
   };
@@ -618,6 +620,7 @@ function App() {
       visibleNeuronTypes: visibleBrainNeuronTypes,
       minActivationThreshold: brainMinActivationThreshold,
       pinnedNeuronId: pinnedBrainNeuronId,
+      emphasizedOutputNeuronId,
       selectedNeuronId: selectedBrainNeuronId,
       focusMode: brainFocusMode
     });
@@ -628,6 +631,7 @@ function App() {
     visibleBrainNeuronTypes,
     brainMinActivationThreshold,
     pinnedBrainNeuronId,
+    emphasizedOutputNeuronId,
     selectedBrainNeuronId,
     brainFocusMode
   ]);
@@ -672,6 +676,7 @@ function App() {
 
   useEffect(() => {
     setPinnedBrainNeuronId(null);
+    setEmphasizedOutputNeuronId(null);
     setSelectedBrainNeuronId(null);
     setBrainFocusMode('full');
   }, [inspectorOrganism?.id]);
@@ -696,6 +701,16 @@ function App() {
       setPinnedBrainNeuronId(null);
     }
   }, [brainGraphModel, pinnedBrainNeuronId]);
+
+  useEffect(() => {
+    if (!brainGraphModel || !emphasizedOutputNeuronId) {
+      return;
+    }
+
+    if (!brainGraphModel.nodes.some((node) => node.id === emphasizedOutputNeuronId && node.type === 'output')) {
+      setEmphasizedOutputNeuronId(null);
+    }
+  }, [brainGraphModel, emphasizedOutputNeuronId]);
 
   useEffect(() => {
     if (!brainGraphModel || !selectedBrainNeuronId) {
@@ -2627,9 +2642,18 @@ function App() {
                               Focus mode: <strong>{brainFocusMode}</strong> · Selected neuron: {selectedBrainNeuronId || 'none'}
                             </p>
                             <p aria-live="polite">Pinned neuron: {brainGraphModel.pinnedNeuronId || 'none'}</p>
+                            <p aria-live="polite">Emphasized output neuron: {brainGraphModel.emphasizedOutputNeuronId || 'none'}</p>
+                            {brainGraphModel.emphasizedOutputNeuronMetadata ? (
+                              <p>
+                                Output emphasis metadata — id: {brainGraphModel.emphasizedOutputNeuronMetadata.id}, incoming edges:{' '}
+                                {brainGraphModel.emphasizedOutputNeuronMetadata.incomingEdgeCount}, source neurons: {brainGraphModel.emphasizedOutputNeuronMetadata.sourceNeuronCount}
+                              </p>
+                            ) : null}
+                            <button type="button" onClick={() => setEmphasizedOutputNeuronId(null)}>Clear output emphasis</button>
                             <ul aria-label="pin neuron controls">
                               {brainGraphModel.nodes.map((node) => {
                                 const isPinnedNode = brainGraphModel.pinnedNeuronId === node.id;
+                                const isEmphasizedOutputNode = node.type === 'output' && brainGraphModel.emphasizedOutputNeuronId === node.id;
 
                                 return (
                                   <li key={`pin-control-${node.id}`}>
@@ -2637,10 +2661,14 @@ function App() {
                                       type="button"
                                       onClick={() => {
                                         setPinnedBrainNeuronId((current) => (current === node.id ? null : node.id));
+                                        if (node.type === 'output') {
+                                          setEmphasizedOutputNeuronId((current) => (current === node.id ? null : node.id));
+                                        }
                                         onSelectBrainNeuron(node.id);
                                       }}
                                     >
                                       {isPinnedNode ? `Unpin neuron ${node.id}` : `Pin neuron ${node.id}`}
+                                      {node.type === 'output' ? (isEmphasizedOutputNode ? ' · clear output emphasis' : ' · emphasize incoming edges') : ''}
                                     </button>
                                   </li>
                                 );
@@ -2700,6 +2728,24 @@ function App() {
                                 })}
                                 {brainGraphModel.nodes.map((node) => {
                                   const isPinnedNode = brainGraphModel.pinnedNeuronId === node.id;
+                                  const isEmphasizedOutputTarget = Boolean(node.isEmphasizedOutputTarget);
+                                  const isEmphasizedOutputSource = Boolean(node.isEmphasizedOutputSource);
+                                  const nodeStroke = isPinnedNode
+                                    ? '#f8fafc'
+                                    : isEmphasizedOutputTarget
+                                      ? '#38bdf8'
+                                      : isEmphasizedOutputSource
+                                        ? '#facc15'
+                                        : '#94a3b8';
+                                  const nodeStrokeWidth = isPinnedNode || isEmphasizedOutputTarget ? '3' : isEmphasizedOutputSource ? '2.25' : '1.5';
+
+                                  const handleNodeToggle = () => {
+                                    setPinnedBrainNeuronId((current) => (current === node.id ? null : node.id));
+                                    if (node.type === 'output') {
+                                      setEmphasizedOutputNeuronId((current) => (current === node.id ? null : node.id));
+                                    }
+                                    onSelectBrainNeuron(node.id);
+                                  };
 
                                   return (
                                     <g
@@ -2707,19 +2753,16 @@ function App() {
                                       role="button"
                                       tabIndex={0}
                                       aria-label={`Pin neuron ${node.id}`}
-                                      onClick={() => {
-                                        setPinnedBrainNeuronId((current) => (current === node.id ? null : node.id));
-                                        onSelectBrainNeuron(node.id);
-                                      }}
+                                      opacity={String(node.emphasisOpacity ?? 1)}
+                                      onClick={handleNodeToggle}
                                       onKeyDown={(event) => {
                                         if (event.key === 'Enter' || event.key === ' ') {
                                           event.preventDefault();
-                                          setPinnedBrainNeuronId((current) => (current === node.id ? null : node.id));
-                                          onSelectBrainNeuron(node.id);
+                                          handleNodeToggle();
                                         }
                                       }}
                                     >
-                                      <circle cx={node.x} cy={node.y} r="10" fill={node.fillColor} stroke={isPinnedNode ? '#f8fafc' : '#94a3b8'} strokeWidth={isPinnedNode ? '3' : '1.5'} />
+                                      <circle cx={node.x} cy={node.y} r="10" fill={node.fillColor} stroke={nodeStroke} strokeWidth={nodeStrokeWidth} />
                                       <text x={node.x + 14} y={node.y + 4} fill={node.labelColor} fontSize="12">{node.id} ({node.value.toFixed(2)})</text>
                                     </g>
                                   );
