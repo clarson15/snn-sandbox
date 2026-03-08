@@ -2155,4 +2155,61 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: /close organism inspector/i }));
     expect(inspector).toHaveTextContent(/click an organism to inspect it/i);
   });
+
+  it('keeps inspector and synapse controls keyboard-operable with deterministic focus after selection changes', async () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/seed/i), { target: { value: 'fixture-seed' } });
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    const fixtureConfig = normalizeSimulationConfig(
+      {
+        name: 'Fixture',
+        seed: 'fixture-seed',
+        worldWidth: 800,
+        worldHeight: 480,
+        initialPopulation: 12,
+        initialFoodCount: 30,
+        foodSpawnChance: 0.04,
+        foodEnergyValue: 5,
+        maxFood: 120
+      },
+      'fixture-seed'
+    );
+    const fixtureWorld = createInitialWorldFromConfig(fixtureConfig);
+    const firstTarget = fixtureWorld.organisms[0];
+
+    const canvas = screen.getByLabelText(/simulation world/i);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 800,
+      height: 480,
+      right: 800,
+      bottom: 480,
+      toJSON: () => ({})
+    });
+
+    fireEvent.click(canvas, { clientX: firstTarget.x, clientY: firstTarget.y });
+
+    const selectionHeading = screen.getByRole('heading', { name: /inspector selection details/i });
+    await waitFor(() => {
+      expect(selectionHeading).toHaveFocus();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /select next organism/i }));
+    await waitFor(() => {
+      expect(selectionHeading).toHaveFocus();
+    });
+
+    expect(screen.getByRole('group', { name: /brain visualizer viewport controls/i })).toBeInTheDocument();
+
+    const synapseControl = screen.getAllByRole('button', { name: /synapse/i })[0];
+    synapseControl.focus();
+    fireEvent.keyDown(synapseControl, { key: 'Enter' });
+
+    expect(screen.getByLabelText(/brain graph selected synapse details/i).textContent).toMatch(/selected synapse/i);
+  });
 });
