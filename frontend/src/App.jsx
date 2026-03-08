@@ -44,6 +44,36 @@ import { useToasts } from './toasts';
 const TICK_MS = 1000 / 30;
 const SPEED_OPTIONS = [1, 2, 5, 10];
 const SIMULATION_VERSION = 'snn-sandbox-v1';
+const FORM_FIELDS = [
+  'name',
+  'seed',
+  'worldWidth',
+  'worldHeight',
+  'initialPopulation',
+  'minimumPopulation',
+  'initialFoodCount',
+  'foodSpawnChance',
+  'foodEnergyValue',
+  'maxFood',
+  'mutationRate',
+  'mutationStrength'
+];
+
+function createFormStateFromConfig(config) {
+  return {
+    ...config,
+    worldWidth: String(config.worldWidth),
+    worldHeight: String(config.worldHeight),
+    initialPopulation: String(config.initialPopulation),
+    minimumPopulation: String(config.minimumPopulation ?? config.initialPopulation),
+    initialFoodCount: String(config.initialFoodCount),
+    foodSpawnChance: String(config.foodSpawnChance),
+    foodEnergyValue: String(config.foodEnergyValue),
+    maxFood: String(config.maxFood),
+    mutationRate: String(config.mutationRate ?? DEFAULT_CONFIG.mutationRate),
+    mutationStrength: String(config.mutationStrength ?? DEFAULT_CONFIG.mutationStrength)
+  };
+}
 
 function getControlDisableReasons({ hasSimulation, replayActive, paused }) {
   const simulationRequiredReason = 'Start a simulation to enable this control.';
@@ -119,38 +149,16 @@ function App() {
   const [selectedMismatchEventKey, setSelectedMismatchEventKey] = useState(null);
   const [mismatchEventFilters, setMismatchEventFilters] = useState({ types: [], severities: [] });
   const [activeMismatchAnnouncement, setActiveMismatchAnnouncement] = useState('');
-  const [formState, setFormState] = useState(() => {
+  const [initialFormState] = useState(() => {
     const saved = loadSimulationConfig();
     if (!saved) {
-      return {
-        ...DEFAULT_CONFIG,
-        worldWidth: String(DEFAULT_CONFIG.worldWidth),
-        worldHeight: String(DEFAULT_CONFIG.worldHeight),
-        initialPopulation: String(DEFAULT_CONFIG.initialPopulation),
-        minimumPopulation: String(DEFAULT_CONFIG.minimumPopulation),
-        initialFoodCount: String(DEFAULT_CONFIG.initialFoodCount),
-        foodSpawnChance: String(DEFAULT_CONFIG.foodSpawnChance),
-        foodEnergyValue: String(DEFAULT_CONFIG.foodEnergyValue),
-        maxFood: String(DEFAULT_CONFIG.maxFood),
-        mutationRate: String(DEFAULT_CONFIG.mutationRate),
-        mutationStrength: String(DEFAULT_CONFIG.mutationStrength)
-      };
+      return createFormStateFromConfig(DEFAULT_CONFIG);
     }
 
-    return {
-      ...saved,
-      worldWidth: String(saved.worldWidth),
-      worldHeight: String(saved.worldHeight),
-      initialPopulation: String(saved.initialPopulation),
-      minimumPopulation: String(saved.minimumPopulation ?? saved.initialPopulation),
-      initialFoodCount: String(saved.initialFoodCount),
-      foodSpawnChance: String(saved.foodSpawnChance),
-      foodEnergyValue: String(saved.foodEnergyValue),
-      maxFood: String(saved.maxFood),
-      mutationRate: String(saved.mutationRate ?? DEFAULT_CONFIG.mutationRate),
-      mutationStrength: String(saved.mutationStrength ?? DEFAULT_CONFIG.mutationStrength)
-    };
+    return createFormStateFromConfig(saved);
   });
+  const [formState, setFormState] = useState(initialFormState);
+  const [formBaselineState, setFormBaselineState] = useState(initialFormState);
 
   const worldRef = useRef(null);
   const pausedRef = useRef(paused);
@@ -171,6 +179,11 @@ function App() {
 
   const displayWorld = replayWorldState ?? worldRef.current;
   const replayActive = Boolean(replayContextRef.current);
+  const dirtyFormFields = useMemo(
+    () => FORM_FIELDS.filter((field) => formState[field] !== formBaselineState[field]),
+    [formBaselineState, formState]
+  );
+  const hasUnsavedFormChanges = dirtyFormFields.length > 0;
 
   useEffect(() => {
     [
@@ -199,6 +212,20 @@ function App() {
   useEffect(() => {
     speedMultiplierRef.current = speedMultiplier;
   }, [speedMultiplier]);
+
+  useEffect(() => {
+    const onBeforeUnload = (event) => {
+      if (!hasUnsavedFormChanges) {
+        return;
+      }
+
+      event.preventDefault();
+      event.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [hasUnsavedFormChanges]);
 
   const advanceOneTick = () => {
     if (!worldRef.current || !rngRef.current || !stepParamsRef.current) {
@@ -441,6 +468,19 @@ function App() {
     });
   };
 
+  const confirmDiscardUnsavedFormChanges = () => {
+    if (!hasUnsavedFormChanges) {
+      return true;
+    }
+
+    return window.confirm('You have unsaved setup changes. Discard them and continue?');
+  };
+
+  const onResetConfigToDefaults = () => {
+    setFormState(createFormStateFromConfig(DEFAULT_CONFIG));
+    setErrors({});
+  };
+
   const deriveToastVariant = (message) => {
     const normalized = message.toLowerCase();
     if (
@@ -509,19 +549,9 @@ function App() {
     lastPersistedTickRef.current = loadedWorld.tick;
 
     saveSimulationConfig(loadedConfig);
-    setFormState({
-      ...loadedConfig,
-      worldWidth: String(loadedConfig.worldWidth),
-      worldHeight: String(loadedConfig.worldHeight),
-      initialPopulation: String(loadedConfig.initialPopulation),
-      minimumPopulation: String(loadedConfig.minimumPopulation),
-      initialFoodCount: String(loadedConfig.initialFoodCount),
-      foodSpawnChance: String(loadedConfig.foodSpawnChance),
-      foodEnergyValue: String(loadedConfig.foodEnergyValue),
-      maxFood: String(loadedConfig.maxFood),
-      mutationRate: String(loadedConfig.mutationRate),
-      mutationStrength: String(loadedConfig.mutationStrength)
-    });
+    const loadedFormState = createFormStateFromConfig(loadedConfig);
+    setFormState(loadedFormState);
+    setFormBaselineState(loadedFormState);
 
     replayContextRef.current = {
       baseWorldState: createWorldState(loadedWorld),
@@ -595,7 +625,11 @@ function App() {
     setLoadStatus('');
     setCopyMetadataStatus('');
     saveSimulationConfig(config);
-    setFormState((prev) => ({ ...prev, seed: config.seed || config.resolvedSeed }));
+    setFormState((prev) => {
+      const next = { ...prev, seed: config.seed || config.resolvedSeed };
+      setFormBaselineState(next);
+      return next;
+    });
   };
 
   const startSimulation = () => {
@@ -1080,6 +1114,11 @@ function App() {
       return;
     }
 
+    if (!confirmDiscardUnsavedFormChanges()) {
+      setLoadStatus('Load cancelled.');
+      return;
+    }
+
     setLoadingSnapshotById((previous) => ({
       ...previous,
       [snapshotSummary.id]: true
@@ -1385,6 +1424,11 @@ function App() {
   };
 
   const onApplyReplayPreset = (preset) => {
+    if (!confirmDiscardUnsavedFormChanges()) {
+      setReplayPresetStatus('Apply preset cancelled.');
+      return;
+    }
+
     const validatedPreset = validateReplayComparisonPreset(preset);
     if (!validatedPreset) {
       setReplayPresetStatus('Preset payload is invalid and cannot be applied.');
@@ -1534,9 +1578,17 @@ function App() {
           </label>
         </div>
 
-        <button type="button" onClick={startSimulation}>
-          Start simulation
-        </button>
+        <div className="field-row">
+          <button type="button" onClick={onResetConfigToDefaults}>
+            Reset to defaults
+          </button>
+          <button type="button" onClick={startSimulation}>
+            Start simulation
+          </button>
+        </div>
+        {hasUnsavedFormChanges ? (
+          <p aria-live="polite">Unsaved setup changes in: {dirtyFormFields.join(', ')}.</p>
+        ) : null}
       </section>
 
       {resolvedSeed ? <p className="seed-banner">Resolved seed: {resolvedSeed}</p> : null}
