@@ -2,6 +2,7 @@ import { createWorldState } from './engine.js';
 import { createSeededPrng } from './prng.js';
 
 export const STORAGE_KEY = 'snn-sandbox.latest-simulation-config';
+export const SEED_FALLBACK_COUNTER_KEY = 'snn-sandbox.seed-fallback-counter';
 
 export const DEFAULT_CONFIG = {
   name: 'New Simulation',
@@ -30,7 +31,15 @@ export function resolveSeed(seedInput) {
     return bytes[0].toString(16);
   }
 
-  return 'seed-fallback';
+  const storage = getStorage();
+  if (storage) {
+    const priorCount = Number.parseInt(storage.getItem(SEED_FALLBACK_COUNTER_KEY) ?? '0', 10);
+    const nextCount = Number.isFinite(priorCount) && priorCount >= 0 ? priorCount + 1 : 1;
+    storage.setItem(SEED_FALLBACK_COUNTER_KEY, String(nextCount));
+    return `seed-${nextCount.toString(16).padStart(8, '0')}`;
+  }
+
+  return 'seed-00000001';
 }
 
 export function validateSimulationConfig(input) {
