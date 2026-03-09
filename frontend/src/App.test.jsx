@@ -233,7 +233,8 @@ describe('App', () => {
 
     fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '950' } });
 
-    const resumeButton = await screen.findByRole('button', { name: /^resume$/i });
+    const savedSimulationsPanel = await screen.findByRole('region', { name: /saved simulations/i });
+    const resumeButton = await within(savedSimulationsPanel).findByRole('button', { name: /^resume$/i });
     fireEvent.click(resumeButton);
 
     expect(window.confirm).toHaveBeenCalledWith('You have unsaved setup changes. Discard them and continue?');
