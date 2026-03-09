@@ -66,6 +66,7 @@ import {
 import { INSPECTOR_PLACEHOLDER, formatInspectorSnapshot } from './inspectorFormatting';
 import { deriveNeuronDetailPanel } from './inspectorNeuronDetail';
 import { deriveInspectorTraitSections, INSPECTOR_TRAIT_SECTION_SCHEMA } from './inspectorTraitSchema';
+import { deriveInspectorTraitDeltaModel } from './inspectorTraitDelta';
 
 const TICK_MS = 1000 / 30;
 const SPEED_OPTIONS = [1, 2, 5, 10];
@@ -636,6 +637,10 @@ function App() {
   const inspectorTraitSections = useMemo(
     () => deriveInspectorTraitSections(formattedInspector),
     [formattedInspector]
+  );
+  const inspectorTraitDeltaModel = useMemo(
+    () => deriveInspectorTraitDeltaModel(inspectorOrganism, displayWorld?.organisms),
+    [inspectorOrganism, displayWorld?.organisms]
   );
 
   const baseBrainGraphModel = useMemo(() => {
@@ -2611,6 +2616,34 @@ function App() {
               <p><strong>Age:</strong> {formattedInspector.age}</p>
               <p><strong>Generation:</strong> {formattedInspector.generation}</p>
               <p><strong>Food distance:</strong> {formattedInspector.nearestFoodDistance}</p>
+            </section>
+            <section aria-label="trait delta vs parent">
+              <h4>Trait Delta vs Parent</h4>
+              {inspectorTraitDeltaModel.hasParent ? (
+                <table>
+                  <caption>Selected organism trait delta versus immediate parent</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Trait</th>
+                      <th scope="col">Parent ({inspectorTraitDeltaModel.parentId})</th>
+                      <th scope="col">Selected ({inspectorOrganism.id})</th>
+                      <th scope="col">Δ selected-parent</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {inspectorTraitDeltaModel.rows.map((row) => (
+                      <tr key={row.key}>
+                        <th scope="row">{row.label}</th>
+                        <td>{row.parentDisplay}</td>
+                        <td>{row.selectedDisplay}</td>
+                        <td>{row.deltaDisplay}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p>{inspectorTraitDeltaModel.message}</p>
+              )}
             </section>
             {selectedOrganismId && inspectorTrendState.samples.length > 1 ? (
               <section className="inspector-trend-strip" aria-label="selected organism trend strip">
