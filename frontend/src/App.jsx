@@ -268,6 +268,7 @@ function App() {
       || persistedRunMetadata.snapshotId !== currentRunLifecycleMetadata.snapshotId
       || persistedRunMetadata.simulationVersion !== currentRunLifecycleMetadata.simulationVersion;
   }, [persistedRunMetadata, resolvedSeed, currentRunLifecycleMetadata]);
+  const runSaveStatusLabel = hasUnsavedRunChanges ? 'Unsaved' : 'Saved';
 
   useEffect(() => {
     [
@@ -2032,6 +2033,15 @@ function App() {
         <p role="status" aria-live="polite">
           Runtime state: {replayActive ? 'Replay active' : paused ? 'Paused' : `Running at ${speedMultiplier}x`}
         </p>
+        {hasSimulation ? (
+          <p
+            className={`save-status-badge ${hasUnsavedRunChanges ? 'is-unsaved' : 'is-saved'}`}
+            role="status"
+            aria-live="polite"
+          >
+            Save status: {runSaveStatusLabel}
+          </p>
+        ) : null}
         <ControlButtonWithHint
           name="pause"
           onClick={onPause}

@@ -262,6 +262,32 @@ describe('App', () => {
     expect(screen.getByText(/load cancelled\./i)).toBeInTheDocument();
   });
 
+  it('shows deterministic save-status badge transitions and hides badge with no active run', async () => {
+    render(<App />);
+
+    expect(screen.queryByText(/^save status:/i)).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'status-seed' } });
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/^save status: saved$/i)).toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      expect(Number.parseInt(screen.getByText(/^tick count:/i).textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(0);
+    });
+
+    expect(screen.getByText(/^save status: unsaved$/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /save snapshot/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/^save status: saved$/i)).toBeInTheDocument();
+    });
+  });
+
   it('generates a seed when omitted and persists config', async () => {
     const canReadWriteStorage = (() => {
       const storage = window.localStorage;
