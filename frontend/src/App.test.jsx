@@ -241,6 +241,27 @@ describe('App', () => {
     expect(screen.getByText(/load cancelled\./i)).toBeInTheDocument();
   });
 
+  it('prompts before discarding dirty run changes when starting or loading another simulation', async () => {
+    window.confirm.mockReturnValue(false);
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'dirty-run-seed' } });
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    await waitFor(() => {
+      expect(Number.parseInt(screen.getByText(/^tick count:/i).textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(0);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+    expect(window.confirm).toHaveBeenCalledWith('You have unsaved simulation changes for this run. Discard changes and continue?');
+    expect(screen.getByText(/start cancelled\./i)).toBeInTheDocument();
+
+    const savedSimulationsPanel = await screen.findByRole('region', { name: /saved simulations/i });
+    fireEvent.click(within(savedSimulationsPanel).getByRole('button', { name: /^resume$/i }));
+    expect(window.confirm).toHaveBeenCalledWith('You have unsaved simulation changes for this run. Discard changes and continue?');
+    expect(screen.getByText(/load cancelled\./i)).toBeInTheDocument();
+  });
+
   it('generates a seed when omitted and persists config', async () => {
     const canReadWriteStorage = (() => {
       const storage = window.localStorage;
