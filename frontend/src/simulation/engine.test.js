@@ -312,9 +312,9 @@ describe('simulation engine skeleton', () => {
     const state = createWorldState({
       tick: 0,
       organisms: [
-        { id: 'org-a', x: 4.9, y: 4.9, energy: 10, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 1, turnRate: 1, metabolism: 1 } },
-        { id: 'org-b', x: 5.1, y: 4.9, energy: 10, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 1, turnRate: 1, metabolism: 1 } },
-        { id: 'org-c', x: 9.8, y: 4.9, energy: 10, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 1, turnRate: 1, metabolism: 1 } }
+        { id: 'org-a', x: 4.9, y: 4.9, energy: 10, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 1, turnRate: 1, metabolism: 0 } },
+        { id: 'org-b', x: 5.1, y: 4.9, energy: 10, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 1, turnRate: 1, metabolism: 0 } },
+        { id: 'org-c', x: 9.8, y: 4.9, energy: 10, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 1, turnRate: 1, metabolism: 0 } }
       ],
       food: []
     });
@@ -612,5 +612,87 @@ describe('simulation engine skeleton', () => {
     });
 
     expect(next.organisms[0].direction).toBeCloseTo(0.62, 10);
+  });
+
+  it('applies deterministic per-organism metabolism-based energy loss', () => {
+    // Two organisms with different metabolism traits should lose energy at different rates
+    const state = createWorldState({
+      tick: 0,
+      organisms: [
+        // High metabolism organism
+        { id: 'org-high', x: 10, y: 10, energy: 100, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, metabolism: 0.2 } },
+        // Low metabolism organism
+        { id: 'org-low', x: 20, y: 20, energy: 100, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, metabolism: 0.02 } }
+      ],
+      food: []
+    });
+
+    // Use movementDelta: 0 to isolate metabolism cost from movement cost
+    const params = {
+      movementDelta: 0,
+      metabolismPerTick: 0.1, // This should be overridden by organism's traits
+      movementCostMultiplier: 0,
+      foodSpawnChance: 0
+    };
+
+    const rng = createSeededPrng('metabolism-test');
+    const result = runTicks(state, rng, 10, params);
+
+    const highMetabolismOrg = result.organisms.find((o) => o.id === 'org-high');
+    const lowMetabolismOrg = result.organisms.find((o) => o.id === 'org-low');
+
+    // High metabolism (0.2) should lose ~2.0 energy over 10 ticks
+    // Low metabolism (0.02) should lose ~0.2 energy over 10 ticks
+    expect(highMetabolismOrg.energy).toBeLessThan(lowMetabolismOrg.energy);
+    expect(highMetabolismOrg.energy).toBeCloseTo(98, 0); // 100 - (0.2 * 10) = 98
+    expect(lowMetabolismOrg.energy).toBeCloseTo(99.8, 1); // 100 - (0.02 * 10) = 99.8
+  });
+
+  it('is deterministic: same metabolism produces identical energy loss across runs', () => {
+    const state = createWorldState({
+      tick: 0,
+      organisms: [
+        { id: 'org-1', x: 5, y: 5, energy: 50, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, metabolism: 0.075 } }
+      ],
+      food: []
+    });
+
+    const params = {
+      movementDelta: 0,
+      metabolismPerTick: 0.1,
+      movementCostMultiplier: 0,
+      foodSpawnChance: 0
+    };
+
+    const run1 = runTicks(state, createSeededPrng('det-metabolism-1'), 25, params);
+    const run2 = runTicks(state, createSeededPrng('det-metabolism-1'), 25, params);
+
+    expect(run1.organisms[0].energy).toEqual(run2.organisms[0].energy);
+    // 50 - (0.075 * 25) = 48.125
+    expect(run1.organisms[0].energy).toBeCloseTo(48.125, 3);
+  });
+
+  it('falls back to metabolismPerTick param when organism has no metabolism trait', () => {
+    const state = createWorldState({
+      tick: 0,
+      organisms: [
+        // No metabolism trait - should use fallback
+        { id: 'org-fallback', x: 5, y: 5, energy: 50, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05 } }
+      ],
+      food: []
+    });
+
+    const params = {
+      movementDelta: 0,
+      metabolismPerTick: 0.15, // Fallback value
+      movementCostMultiplier: 0,
+      foodSpawnChance: 0
+    };
+
+    const rng = createSeededPrng('fallback-test');
+    const result = runTicks(state, rng, 10, params);
+
+    // Should use the fallback 0.15 instead of undefined
+    expect(result.organisms[0].energy).toBeCloseTo(48.5, 1); // 50 - (0.15 * 10) = 48.5
   });
 });
