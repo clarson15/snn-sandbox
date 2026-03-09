@@ -51,6 +51,11 @@ import {
   validateReplayComparisonPreset
 } from './simulation/replayComparisonPresets';
 import {
+  HUD_VISIBILITY_PRESETS,
+  loadHudVisibilityPreset,
+  saveHudVisibilityPreset
+} from './simulation/hudVisibilityPreset';
+import {
   deleteSimulationSnapshot,
   getSimulationSnapshot,
   listSimulationSnapshots,
@@ -240,6 +245,7 @@ function App() {
   const [activeMismatchAnnouncement, setActiveMismatchAnnouncement] = useState('');
   const [schedulerClampState, setSchedulerClampState] = useState({ active: false, droppedTicks: 0 });
   const [statsTrendHistory, setStatsTrendHistory] = useState([]);
+  const [hudVisibilityPreset, setHudVisibilityPreset] = useState(() => loadHudVisibilityPreset());
   const [initialFormState] = useState(() => {
     const saved = loadSimulationConfig();
     if (!saved) {
@@ -1194,6 +1200,10 @@ function App() {
     [statsTrendHistory, derivedStats.tickCount]
   );
 
+  useEffect(() => {
+    saveHudVisibilityPreset(hudVisibilityPreset);
+  }, [hudVisibilityPreset]);
+
   const runMetadata = useMemo(
     () => deriveRunMetadata({
       resolvedSeed,
@@ -1207,6 +1217,7 @@ function App() {
   const serializedRunMetadata = useMemo(() => serializeRunMetadata(runMetadata), [runMetadata]);
 
   const hudSeedLabel = runMetadata.seed.trim() || 'Seed unavailable';
+  const isDetailedHudVisible = hudVisibilityPreset === HUD_VISIBILITY_PRESETS.DETAILED;
 
   const replaySummaryStrip = useMemo(
     () => deriveReplaySummaryStrip({
@@ -2672,14 +2683,32 @@ function App() {
       <section className="simulation-stage" aria-label="simulation stage">
         <section className="simulation-stats-hud" aria-label="simulation stats hud">
           <h2>Simulation stats</h2>
+          <div className="field-row" role="group" aria-label="stats visibility presets">
+            <button
+              type="button"
+              onClick={() => setHudVisibilityPreset(HUD_VISIBILITY_PRESETS.MINIMAL)}
+              aria-pressed={hudVisibilityPreset === HUD_VISIBILITY_PRESETS.MINIMAL}
+            >
+              Minimal
+            </button>
+            <button
+              type="button"
+              onClick={() => setHudVisibilityPreset(HUD_VISIBILITY_PRESETS.DETAILED)}
+              aria-pressed={hudVisibilityPreset === HUD_VISIBILITY_PRESETS.DETAILED}
+            >
+              Detailed
+            </button>
+          </div>
           <p>Seed: {hudSeedLabel}</p>
           <p>Population: {formattedStats.population} ({formatTrendIndicator(statsTrends.population)})</p>
-          <p>Food count: {formattedStats.foodCount}</p>
-          <p>Average generation: {formattedStats.averageGeneration}</p>
-          <p>Average organism energy: {formattedStats.averageEnergy} ({formatTrendIndicator(statsTrends.averageEnergy)})</p>
+          {isDetailedHudVisible ? <p>Food count: {formattedStats.foodCount}</p> : null}
+          {isDetailedHudVisible ? <p>Average generation: {formattedStats.averageGeneration}</p> : null}
+          {isDetailedHudVisible ? <p>Average organism energy: {formattedStats.averageEnergy} ({formatTrendIndicator(statsTrends.averageEnergy)})</p> : null}
           <p>Tick count: {formattedStats.tickCount}</p>
           <p>Time elapsed: {formattedStats.elapsedTime}</p>
-          <p>Tick budget clamp: {schedulerClampState.active ? `Active (dropped ${schedulerClampState.droppedTicks} ticks this frame)` : 'Inactive'}</p>
+          {isDetailedHudVisible ? (
+            <p>Tick budget clamp: {schedulerClampState.active ? `Active (dropped ${schedulerClampState.droppedTicks} ticks this frame)` : 'Inactive'}</p>
+          ) : null}
           <ControlButtonWithHint name="copy-seed-hud" onClick={onCopyActiveSeed} reason={controlDisableReasons.copySeed}>
             Copy seed
           </ControlButtonWithHint>
