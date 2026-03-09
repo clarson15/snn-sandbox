@@ -52,6 +52,11 @@ import {
 } from './simulation/api';
 import { formatSimulationTimestamp } from './simulation/timestamp';
 import { generateDeterministicCopyName } from './simulation/saveName';
+import {
+  DEFAULT_SAVED_SIMULATION_LIST_VIEW_STATE,
+  deriveSavedSimulationListView,
+  SAVED_SIMULATION_SORT_OPTIONS
+} from './simulation/savedSimulationListView';
 import { useToasts } from './toasts';
 import { deriveInspectorComparisonRows } from './inspectorComparison';
 import {
@@ -199,6 +204,7 @@ function App() {
   const [brainFocusMode, setBrainFocusMode] = useState('full');
   const [errors, setErrors] = useState({});
   const [savedSimulations, setSavedSimulations] = useState([]);
+  const [savedSimulationListViewState, setSavedSimulationListViewState] = useState(DEFAULT_SAVED_SIMULATION_LIST_VIEW_STATE);
   const [savedSimulationsError, setSavedSimulationsError] = useState('');
   const [saveStatus, setSaveStatus] = useState('');
   const [saveErrorDetail, setSaveErrorDetail] = useState('');
@@ -449,6 +455,25 @@ function App() {
         setSavedSimulationsError('Unable to load saved simulations. Retry from a fresh page load.');
       });
   }, []);
+
+  const savedSimulationListView = useMemo(
+    () => deriveSavedSimulationListView(savedSimulations, savedSimulationListViewState),
+    [savedSimulations, savedSimulationListViewState]
+  );
+
+  useEffect(() => {
+    setSavedSimulationListViewState((previous) => {
+      const nextSelectedSnapshotId = savedSimulationListView.selectedSnapshotId;
+      if (previous.selectedSnapshotId === nextSelectedSnapshotId) {
+        return previous;
+      }
+
+      return {
+        ...previous,
+        selectedSnapshotId: nextSelectedSnapshotId
+      };
+    });
+  }, [savedSimulationListView.selectedSnapshotId]);
 
   const selectedOrganism = useMemo(() => {
     if (!selectedOrganismId || !displayWorld) {
@@ -1995,6 +2020,29 @@ function App() {
     setReplayPresetStatus(`Deleted preset: ${presetName}.`);
   };
 
+  const onSavedSimulationSortChange = (event) => {
+    const nextSortKey = event.target.value;
+    setSavedSimulationListViewState((previous) => ({
+      ...previous,
+      sortKey: nextSortKey
+    }));
+  };
+
+  const onSavedSimulationFilterChange = (event) => {
+    const nextFilter = event.target.value;
+    setSavedSimulationListViewState((previous) => ({
+      ...previous,
+      nameFilter: nextFilter
+    }));
+  };
+
+  const onSavedSimulationSelect = (snapshotId) => {
+    setSavedSimulationListViewState((previous) => ({
+      ...previous,
+      selectedSnapshotId: snapshotId
+    }));
+  };
+
   return (
     <main className="app-shell">
       <header className="app-header">
@@ -2533,20 +2581,45 @@ function App() {
 
       <section className="config-panel" aria-label="saved simulations">
         <h2>Saved simulations</h2>
+        <div className="field-row" aria-label="saved simulation list controls">
+          <label>
+            Sort saves
+            <select value={savedSimulationListViewState.sortKey} onChange={onSavedSimulationSortChange}>
+              {SAVED_SIMULATION_SORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Filter by name
+            <input
+              type="text"
+              value={savedSimulationListViewState.nameFilter}
+              onChange={onSavedSimulationFilterChange}
+              placeholder="Type to filter saves"
+            />
+          </label>
+        </div>
         {savedSimulationsError ? <p role="alert">{savedSimulationsError}</p> : null}
         {savedSimulations.length === 0 ? (
           <p>{savedSimulationsError ? 'Saved simulations unavailable.' : 'No saved simulations yet.'}</p>
+        ) : savedSimulationListView.visibleItems.length === 0 ? (
+          <p>No saved simulations match the current filter.</p>
         ) : (
           <ul>
-            {savedSimulations.map((snapshot) => {
+            {savedSimulationListView.visibleItems.map((snapshot) => {
               const isLoadingSnapshot = Boolean(loadingSnapshotById[snapshot.id]);
               const hasValidMetadata = snapshot.metadataValid !== false;
               const seedLabel = hasValidMetadata ? (snapshot.seed || 'unknown') : 'metadata unavailable';
               const tickLabel = hasValidMetadata ? snapshot.tickCount : 'metadata unavailable';
+              const isSelected = savedSimulationListView.selectedSnapshotId === snapshot.id;
 
               return (
-                <li key={snapshot.id}>
+                <li key={snapshot.id} aria-current={isSelected ? 'true' : undefined}>
                   <strong>{snapshot.name}</strong> — updated {formatSimulationTimestamp(snapshot.updatedAt)} · seed {seedLabel} · tick {tickLabel} · population {snapshot.populationCount ?? 'metadata unavailable'} · config {snapshot.configSummary ?? 'metadata unavailable'}{' '}
+                  <button type="button" onClick={() => onSavedSimulationSelect(snapshot.id)} aria-pressed={isSelected}>
+                    {isSelected ? 'Selected' : 'Select'}
+                  </button>{' '}
                   <button type="button" onClick={() => onLoadSimulation(snapshot)} disabled={isLoadingSnapshot || !hasValidMetadata}>
                     {isLoadingSnapshot ? 'Loading…' : 'Resume'}
                   </button>{' '}
