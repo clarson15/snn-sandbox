@@ -9,16 +9,24 @@ function compareSynapses(left, right) {
     return targetDelta;
   }
 
-  const weightDelta = left.weight - right.weight;
-  if (weightDelta !== 0) {
-    return weightDelta;
-  }
-
   return left.id.localeCompare(right.id);
 }
 
-function formatThresholdValue(value) {
+function formatMetricValue(value) {
   return Number.isFinite(value) ? value.toFixed(3) : 'Unavailable';
+}
+
+function resolveSpikeState(rawNeuron, currentPotential, thresholdValue) {
+  const explicitSpikeState = rawNeuron?.spikeState ?? rawNeuron?.isSpiking ?? rawNeuron?.spiked ?? rawNeuron?.fired;
+  if (typeof explicitSpikeState === 'boolean') {
+    return explicitSpikeState ? 'Spiking' : 'Idle';
+  }
+
+  if (Number.isFinite(currentPotential) && Number.isFinite(thresholdValue)) {
+    return currentPotential >= thresholdValue ? 'Spiking' : 'Idle';
+  }
+
+  return 'Unavailable';
 }
 
 export function deriveNeuronDetailPanel(model, rawBrain, neuronId) {
@@ -35,6 +43,7 @@ export function deriveNeuronDetailPanel(model, rawBrain, neuronId) {
     ? rawBrain.neurons.find((candidate) => candidate?.id === neuronId)
     : null;
   const thresholdValue = Number(rawNeuron?.threshold);
+  const currentPotential = Number(neuron?.value);
 
   const incomingSynapses = model.edges
     .filter((edge) => edge.targetId === neuronId)
@@ -48,7 +57,9 @@ export function deriveNeuronDetailPanel(model, rawBrain, neuronId) {
     role: neuron.type,
     incomingCount: incomingSynapses.length,
     outgoingCount: outgoingSynapses.length,
-    thresholdLabel: formatThresholdValue(thresholdValue),
+    thresholdLabel: formatMetricValue(thresholdValue),
+    currentPotentialLabel: formatMetricValue(currentPotential),
+    spikeStateLabel: resolveSpikeState(rawNeuron, currentPotential, thresholdValue),
     incomingSynapses,
     outgoingSynapses
   };

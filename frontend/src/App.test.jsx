@@ -2737,6 +2737,8 @@ describe('App', () => {
     fireEvent.change(selectedNeuronControl, { target: { value: optionValue } });
 
     expect(screen.getByLabelText(/brain neuron detail panel/i)).toHaveTextContent(/Neuron detail:/i);
+    expect(screen.getByLabelText(/brain neuron detail panel/i)).toHaveTextContent(/potential/i);
+    expect(screen.getByLabelText(/brain neuron detail panel/i)).toHaveTextContent(/spike state/i);
 
     fireEvent.click(screen.getByRole('button', { name: /select next organism/i }));
 
