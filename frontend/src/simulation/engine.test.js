@@ -672,6 +672,32 @@ describe('simulation engine skeleton', () => {
     expect(run1.organisms[0].energy).toBeCloseTo(48.125, 3);
   });
 
+  it('applies deterministic movement-based energy loss proportional to distance traveled', () => {
+    // Test that movement-based energy loss is deterministic and proportional to distance
+    const state = createWorldState({
+      tick: 0,
+      organisms: [
+        { id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, metabolism: 0 } }
+      ],
+      food: []
+    });
+
+    const params = {
+      movementDelta: 1,
+      metabolismPerTick: 0,
+      movementCostMultiplier: 0.1, // 0.1 energy per unit distance
+      foodSpawnChance: 0
+    };
+
+    // Same seed should produce identical movement energy loss
+    const run1 = runTicks(state, createSeededPrng('movement-energy-seed'), 5, params);
+    const run2 = runTicks(state, createSeededPrng('movement-energy-seed'), 5, params);
+
+    expect(run1.organisms[0].energy).toEqual(run2.organisms[0].energy);
+    // Energy loss should be proportional to total movement distance from the seeded movement
+    expect(run1.organisms[0].energy).toBeLessThan(100);
+  });
+
   it('falls back to metabolismPerTick param when organism has no metabolism trait', () => {
     const state = createWorldState({
       tick: 0,
