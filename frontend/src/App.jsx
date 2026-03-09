@@ -2337,11 +2337,14 @@ function App() {
           <ul>
             {savedSimulations.map((snapshot) => {
               const isLoadingSnapshot = Boolean(loadingSnapshotById[snapshot.id]);
+              const hasValidMetadata = snapshot.metadataValid !== false;
+              const seedLabel = hasValidMetadata ? (snapshot.seed || 'unknown') : 'metadata unavailable';
+              const tickLabel = hasValidMetadata ? snapshot.tickCount : 'metadata unavailable';
 
               return (
                 <li key={snapshot.id}>
-                  <strong>{snapshot.name}</strong> — updated {formatTimestamp(snapshot.updatedAt)} · seed {snapshot.seed || 'unknown'} · tick {snapshot.tickCount} · population {snapshot.populationCount ?? 'metadata unavailable'} · config {snapshot.configSummary ?? 'metadata unavailable'}{' '}
-                  <button type="button" onClick={() => onLoadSimulation(snapshot)} disabled={isLoadingSnapshot}>
+                  <strong>{snapshot.name}</strong> — updated {formatTimestamp(snapshot.updatedAt)} · seed {seedLabel} · tick {tickLabel} · population {snapshot.populationCount ?? 'metadata unavailable'} · config {snapshot.configSummary ?? 'metadata unavailable'}{' '}
+                  <button type="button" onClick={() => onLoadSimulation(snapshot)} disabled={isLoadingSnapshot || !hasValidMetadata}>
                     {isLoadingSnapshot ? 'Loading…' : 'Resume'}
                   </button>{' '}
                   <button type="button" onClick={() => onDeleteSimulation(snapshot)} disabled={isLoadingSnapshot}>Delete</button>
