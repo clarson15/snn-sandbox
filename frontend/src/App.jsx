@@ -9,6 +9,7 @@ import {
   resolveSeed,
   saveSimulationConfig,
   toEngineStepParams,
+  validateAndNormalizeLoadedSnapshot,
   validateSimulationConfig
 } from './simulation/config';
 import { createSeededPrng } from './simulation/prng';
@@ -996,34 +997,24 @@ function App() {
     enqueueToast(`Control update: ${normalizedMessage}`, deriveToastVariant(message));
   };
 
-  const validateLoadedSnapshot = (snapshot) => {
-    if (!snapshot || typeof snapshot !== 'object') {
-      throw new Error('Snapshot payload missing.');
-    }
-
-    if (!snapshot.parameters || typeof snapshot.parameters !== 'object') {
-      throw new Error('Snapshot parameters are missing.');
-    }
-
-    if (!snapshot.worldState || typeof snapshot.worldState !== 'object') {
-      throw new Error('Snapshot world state is missing.');
-    }
-
-    if (!Number.isInteger(snapshot.tickCount) || snapshot.tickCount < 0) {
-      throw new Error('Snapshot tick count is invalid.');
-    }
-
-    if (snapshot.worldState.tick !== snapshot.tickCount) {
-      throw new Error('Snapshot tick count does not match world state tick.');
-    }
-  };
-
   const applyLoadedSimulation = (snapshot) => {
-    validateLoadedSnapshot(snapshot);
+    // Use deterministic validation with fallback rules
+    const validation = validateAndNormalizeLoadedSnapshot(snapshot);
+    
+    // If there are critical errors, show warning but still apply with fallbacks
+    if (validation.errors.length > 0) {
+      for (const err of validation.errors) {
+        enqueueToast(`Load warning: ${err}`, 'warning');
+      }
+    }
+    
+    // Show warnings as toasts for visibility
+    for (const warning of validation.warnings) {
+      enqueueToast(`Load: ${warning}`, 'info');
+    }
 
-    const loadedConfig = normalizeSimulationConfig(snapshot.parameters, String(snapshot.seed));
-    const loadedWorld = createWorldState(snapshot.worldState);
-    const loadedRng = createSeededPrng(loadedConfig.resolvedSeed, snapshot.rngState);
+    const { config: loadedConfig, world: loadedWorld, rngState: loadedRngState, tickCount } = validation;
+    const loadedRng = createSeededPrng(loadedConfig.resolvedSeed, loadedRngState);
 
     worldRef.current = loadedWorld;
     rngRef.current = loadedRng;
@@ -1042,7 +1033,7 @@ function App() {
 
     replayContextRef.current = {
       baseWorldState: createWorldState(loadedWorld),
-      baseRngState: snapshot.rngState,
+      baseRngState: loadedRngState,
       resolvedSeed: loadedConfig.resolvedSeed,
       stepParams: toEngineStepParams(loadedConfig)
     };
