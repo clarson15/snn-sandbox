@@ -75,6 +75,23 @@ function resolveNeuronValue(neuron) {
   return 0;
 }
 
+function assignDeterministicNeuronCoordinates(neurons) {
+  const layerCounts = new Map();
+  for (const neuron of neurons) {
+    layerCounts.set(neuron.type, (layerCounts.get(neuron.type) ?? 0) + 1);
+  }
+
+  const layerOffsets = new Map();
+  for (const neuron of neurons) {
+    const used = layerOffsets.get(neuron.type) ?? 0;
+    const total = layerCounts.get(neuron.type) ?? 1;
+    layerOffsets.set(neuron.type, used + 1);
+
+    neuron.x = 120 + layerRank(neuron.type) * 180;
+    neuron.y = 60 + ((used + 1) / (total + 1)) * 180;
+  }
+}
+
 export function mapNeuronValueToColor(value) {
   const numericValue = Number(value);
   const clamped = Number.isFinite(numericValue)
@@ -509,20 +526,7 @@ export function mapBrainToVisualizerModel(brain) {
     return null;
   }
 
-  const layerCounts = new Map();
-  for (const neuron of neurons) {
-    layerCounts.set(neuron.type, (layerCounts.get(neuron.type) ?? 0) + 1);
-  }
-
-  const layerOffsets = new Map();
-  for (const neuron of neurons) {
-    const used = layerOffsets.get(neuron.type) ?? 0;
-    const total = layerCounts.get(neuron.type) ?? 1;
-    layerOffsets.set(neuron.type, used + 1);
-
-    neuron.x = 120 + layerRank(neuron.type) * 180;
-    neuron.y = 60 + ((used + 1) / (total + 1)) * 180;
-  }
+  assignDeterministicNeuronCoordinates(neurons);
 
   const nodeById = new Map(neurons.map((node) => [node.id, node]));
 
