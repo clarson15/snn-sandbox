@@ -16,6 +16,7 @@ import {
   applyBrainViewportZoom,
   BRAIN_GRAPH_VIEWBOX,
   createBrainViewportFitTransform,
+  createBrainViewportFitSelectionTransform,
   deriveEmphasizedBrainGraphModel,
   deriveFilteredBrainGraphModel,
   mapBrainEmphasisChecksum,
@@ -571,7 +572,7 @@ function App() {
     selectAdjacentOrganism(1);
   };
 
-  const onFitBrainGraphViewport = () => {
+  const onResetBrainGraphViewport = () => {
     if (!brainGraphModel) {
       return;
     }
@@ -580,6 +581,21 @@ function App() {
       createBrainViewportFitTransform(brainGraphModel, {
         width: BRAIN_GRAPH_VIEWBOX.width,
         height: BRAIN_GRAPH_VIEWBOX.height
+      })
+    );
+  };
+
+  const onFitSelectionBrainGraphViewport = () => {
+    if (!brainGraphModel) {
+      return;
+    }
+
+    setBrainGraphTransform(
+      createBrainViewportFitSelectionTransform(brainGraphModel, {
+        width: BRAIN_GRAPH_VIEWBOX.width,
+        height: BRAIN_GRAPH_VIEWBOX.height,
+        selectedNeuronId: selectedBrainNeuronId,
+        selectedSynapseId: selectedSynapseHighlightId
       })
     );
   };
@@ -2957,13 +2973,13 @@ function App() {
                             </div>
                             <p><strong>Layout checksum:</strong> <code>{brainGraphLayoutChecksum || 'n/a'}</code></p>
                             <p>
-                              Deterministic viewport policy: fit transform is applied whenever the inspected organism changes; Reset View restores that same fit transform.
+                              Deterministic viewport policy: fit transform is applied whenever the inspected organism changes; Reset View restores that same canonical fit transform, while Fit Selection deterministically frames the currently selected neuron/synapse context.
                             </p>
                             <div className="brain-graph-controls" role="group" aria-label="brain visualizer viewport controls">
-                              <button type="button" onClick={onFitBrainGraphViewport}>Fit</button>
+                              <button type="button" onClick={onFitSelectionBrainGraphViewport}>Fit Selection</button>
                               <button type="button" onClick={() => onZoomBrainGraphViewport(1)}>Zoom In</button>
                               <button type="button" onClick={() => onZoomBrainGraphViewport(-1)}>Zoom Out</button>
-                              <button type="button" onClick={onFitBrainGraphViewport}>Reset View</button>
+                              <button type="button" onClick={onResetBrainGraphViewport}>Reset View</button>
                             </div>
                             <div className="brain-graph-controls" role="group" aria-label="brain visualizer signal emphasis controls">
                               <label>
