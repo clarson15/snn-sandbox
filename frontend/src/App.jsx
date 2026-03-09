@@ -73,6 +73,10 @@ import {
   TRAIT_EMPTY_MESSAGE,
   deriveInspectorGenomeMutationSummaryModel
 } from './inspectorGenomeMutationSummary';
+import {
+  deriveInspectorSynapseTableRows,
+  INSPECTOR_SYNAPSE_TABLE_EMPTY_STATE
+} from './inspectorSynapseTable';
 
 const TICK_MS = 1000 / 30;
 const SPEED_OPTIONS = [1, 2, 5, 10];
@@ -651,6 +655,10 @@ function App() {
   const inspectorGenomeMutationSummaryModel = useMemo(
     () => deriveInspectorGenomeMutationSummaryModel(inspectorOrganism, displayWorld?.organisms),
     [inspectorOrganism, displayWorld?.organisms]
+  );
+  const inspectorSynapseTableRows = useMemo(
+    () => deriveInspectorSynapseTableRows(inspectorOrganism),
+    [inspectorOrganism]
   );
 
   const baseBrainGraphModel = useMemo(() => {
@@ -2626,6 +2634,32 @@ function App() {
               <p><strong>Age:</strong> {formattedInspector.age}</p>
               <p><strong>Generation:</strong> {formattedInspector.generation}</p>
               <p><strong>Food distance:</strong> {formattedInspector.nearestFoodDistance}</p>
+            </section>
+            <section aria-label="synapse table">
+              <h4>Synapse Table</h4>
+              {inspectorSynapseTableRows.length > 0 ? (
+                <table>
+                  <caption>Selected organism synapses sorted deterministically</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Source neuron</th>
+                      <th scope="col">Target neuron</th>
+                      <th scope="col">Weight</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {inspectorSynapseTableRows.map((row) => (
+                      <tr key={row.key}>
+                        <td>{row.sourceNeuron}</td>
+                        <td>{row.targetNeuron}</td>
+                        <td>{row.weight}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p>{INSPECTOR_SYNAPSE_TABLE_EMPTY_STATE}</p>
+              )}
             </section>
             <section aria-label="trait delta vs parent">
               <h4>Trait Delta vs Parent</h4>
