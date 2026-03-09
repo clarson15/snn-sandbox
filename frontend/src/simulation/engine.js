@@ -59,6 +59,12 @@
  * @property {number} [reproductionThreshold=Infinity] minimum energy required for organism to reproduce
  * @property {number} [reproductionCost=0] energy deducted from parent on reproduction
  * @property {number} [offspringStartEnergy=0] energy given to offspring on creation
+ * @property {number} [traitMutationRate=0.1] probability of mutating each trait (0-1)
+ * @property {number} [traitMutationMagnitude=0.2] max absolute change to trait values
+ * @property {number} [brainMutationRate=0.1] probability of mutating each synapse weight (0-1)
+ * @property {number} [brainMutationMagnitude=0.2] max absolute change to synapse weights
+ * @property {number} [brainAddSynapseChance=0.05] probability of adding a new synapse (0-1)
+ * @property {number} [brainRemoveSynapseChance=0.05] probability of removing a synapse (0-1)
  */
 
 /**
@@ -266,6 +272,84 @@ function countNeighborsWithLegacyLookup(organism, organismsByStableOrder, radius
 }
 
 /**
+ * Apply deterministic mutations to offspring traits.
+ * @param {object} parentTraits - traits object from parent organism
+ * @param {StepRng} rng - seeded random number generator
+ * @param {number} mutationRate - probability of mutating each trait
+ * @param {number} mutationMagnitude - max absolute change to trait values
+ * @returns {object} mutated traits
+ */
+function mutateTraits(parentTraits, rng, mutationRate, mutationMagnitude) {
+  const mutatedTraits = { ...parentTraits };
+  for (const traitName of Object.keys(mutatedTraits)) {
+    if (rng.nextFloat() < mutationRate) {
+      // Apply random mutation within [-mutationMagnitude, +mutationMagnitude]
+      const mutation = (rng.nextFloat() * 2 - 1) * mutationMagnitude;
+      mutatedTraits[traitName] = Math.max(0, mutatedTraits[traitName] + mutation);
+    }
+  }
+  return mutatedTraits;
+}
+
+/**
+ * Apply deterministic mutations to offspring brain (synapses).
+ * @param {object} parentBrain - brain object from parent organism
+ * @param {StepRng} rng - seeded random number generator
+ * @param {number} mutationRate - probability of mutating each synapse weight
+ * @param {number} mutationMagnitude - max absolute change to synapse weights
+ * @param {number} addSynapseChance - probability of adding a new synapse
+ * @param {number} removeSynapseChance - probability of removing a synapse
+ * @returns {object} mutated brain
+ */
+function mutateBrain(parentBrain, rng, mutationRate, mutationMagnitude, addSynapseChance, removeSynapseChance) {
+  if (!parentBrain || !parentBrain.synapses) {
+    // Create empty brain with possibility of adding initial synapses
+    const brain = { synapses: [] };
+    // Chance to add initial synapse
+    if (rng.nextFloat() < addSynapseChance * 3) {
+      brain.synapses.push({
+        sourceId: 'in-energy',
+        targetId: 'out-turn-left',
+        weight: (rng.nextFloat() * 2 - 1) * mutationMagnitude
+      });
+    }
+    return brain;
+  }
+
+  // Copy synapses
+  let synapses = parentBrain.synapses.map((s) => ({ ...s }));
+
+  // Remove synapses with probability
+  if (removeSynapseChance > 0 && synapses.length > 0) {
+    synapses = synapses.filter(() => rng.nextFloat() >= removeSynapseChance);
+  }
+
+  // Mutate existing synapse weights
+  for (const synapse of synapses) {
+    if (rng.nextFloat() < mutationRate) {
+      const weightMutation = (rng.nextFloat() * 2 - 1) * mutationMagnitude;
+      synapse.weight += weightMutation;
+    }
+  }
+
+  // Add new synapses with probability
+  if (rng.nextFloat() < addSynapseChance) {
+    // Add a new synapse with random source/target
+    const possibleSources = ['in-energy', 'in-age', 'in-x', 'in-y', 'in-direction', 'in-size', 'in-speed'];
+    const possibleTargets = ['out-turn-left', 'out-turn-right', 'out-move', 'out-gamma'];
+    const sourceId = possibleSources[Math.floor(rng.nextFloat() * possibleSources.length)];
+    const targetId = possibleTargets[Math.floor(rng.nextFloat() * possibleTargets.length)];
+    synapses.push({
+      sourceId,
+      targetId,
+      weight: (rng.nextFloat() * 2 - 1) * mutationMagnitude
+    });
+  }
+
+  return { ...parentBrain, synapses };
+}
+
+/**
  * Advance the simulation by one deterministic tick.
  *
  * @param {WorldState} state
@@ -291,6 +375,12 @@ export function stepWorld(state, rng, params = {}) {
   const reproductionThreshold = params.reproductionThreshold ?? Number.POSITIVE_INFINITY;
   const reproductionCost = params.reproductionCost ?? 0;
   const offspringStartEnergy = params.offspringStartEnergy ?? 0;
+  const traitMutationRate = params.traitMutationRate ?? 0.1;
+  const traitMutationMagnitude = params.traitMutationMagnitude ?? 0.2;
+  const brainMutationRate = params.brainMutationRate ?? 0.1;
+  const brainMutationMagnitude = params.brainMutationMagnitude ?? 0.2;
+  const brainAddSynapseChance = params.brainAddSynapseChance ?? 0.05;
+  const brainRemoveSynapseChance = params.brainRemoveSynapseChance ?? 0.05;
 
   const movedOrganisms = state.organisms.map((organism) => {
     const dx = (rng.nextFloat() * 2 - 1) * movementDelta;
@@ -431,6 +521,10 @@ export function stepWorld(state, rng, params = {}) {
       const offspringX = organism.x + (rng.nextFloat() * 2 - 1) * offsetRange;
       const offspringY = organism.y + (rng.nextFloat() * 2 - 1) * offsetRange;
 
+      // Apply deterministic mutations to traits and brain
+      const mutatedTraits = mutateTraits(organism.traits, rng, traitMutationRate, traitMutationMagnitude);
+      const mutatedBrain = mutateBrain(organism.brain, rng, brainMutationRate, brainMutationMagnitude, brainAddSynapseChance, brainRemoveSynapseChance);
+
       offspringOrganisms.push({
         id: offspringId,
         x: Math.max(0, Math.min(worldWidth, offspringX)),
@@ -439,8 +533,8 @@ export function stepWorld(state, rng, params = {}) {
         age: 0,
         generation: organism.generation + 1,
         direction: organism.direction,
-        traits: { ...organism.traits },
-        brain: organism.brain ? { ...organism.brain, synapses: [...(organism.brain.synapses || [])] } : { synapses: [] }
+        traits: mutatedTraits,
+        brain: mutatedBrain
       });
 
       // Deduct energy from parent
