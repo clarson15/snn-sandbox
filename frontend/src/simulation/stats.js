@@ -14,6 +14,16 @@ function toNonNegativeInteger(value) {
   return Math.max(0, Math.trunc(value));
 }
 
+export const STATS_TREND_WINDOW_TICKS = 120;
+export const STATS_TREND_DIRECTIONS = {
+  UP: 'up',
+  FLAT: 'flat',
+  DOWN: 'down'
+};
+
+const POPULATION_TREND_EPSILON = 0;
+const AVERAGE_ENERGY_TREND_EPSILON = 0.1;
+
 export function deriveSimulationStats(worldState) {
   const organisms = Array.isArray(worldState?.organisms) ? worldState.organisms : [];
   const food = Array.isArray(worldState?.food) ? worldState.food : [];
@@ -55,4 +65,69 @@ export function formatSimulationStats(stats) {
     averageGeneration: averageGeneration.toFixed(1),
     averageEnergy: averageEnergy.toFixed(1)
   };
+}
+
+export function reduceStatsTrendHistory(history, stats, maxWindowTicks = STATS_TREND_WINDOW_TICKS) {
+  const safeHistory = Array.isArray(history) ? history : [];
+  const safeTick = toNonNegativeInteger(stats?.tickCount);
+
+  const nextSample = {
+    tick: safeTick,
+    population: toNonNegativeInteger(stats?.population),
+    averageEnergy: toFiniteNumber(stats?.averageEnergy)
+  };
+
+  const tail = safeHistory[safeHistory.length - 1];
+  if (tail && safeTick < tail.tick) {
+    return [nextSample];
+  }
+
+  const appended = tail?.tick === nextSample.tick ? safeHistory : [...safeHistory, nextSample];
+  const minTick = Math.max(0, safeTick - Math.max(0, toNonNegativeInteger(maxWindowTicks)));
+
+  return appended.filter((sample) => sample.tick >= minTick);
+}
+
+function deriveDirectionalTrend(delta, epsilon) {
+  if (Math.abs(delta) <= epsilon) {
+    return STATS_TREND_DIRECTIONS.FLAT;
+  }
+
+  return delta > 0 ? STATS_TREND_DIRECTIONS.UP : STATS_TREND_DIRECTIONS.DOWN;
+}
+
+function deriveMetricTrend(history, currentTick, metric, epsilon, windowTicks = STATS_TREND_WINDOW_TICKS) {
+  if (!Array.isArray(history) || history.length < 2) {
+    return STATS_TREND_DIRECTIONS.FLAT;
+  }
+
+  const minTick = Math.max(0, currentTick - windowTicks);
+  const startSample = history.find((sample) => sample.tick >= minTick);
+  const endSample = history[history.length - 1];
+
+  if (!startSample || !endSample || endSample.tick - startSample.tick < windowTicks) {
+    return STATS_TREND_DIRECTIONS.FLAT;
+  }
+
+  return deriveDirectionalTrend(toFiniteNumber(endSample[metric]) - toFiniteNumber(startSample[metric]), epsilon);
+}
+
+export function deriveStatsTrends(history, tickCount) {
+  const safeTick = toNonNegativeInteger(tickCount);
+
+  return {
+    population: deriveMetricTrend(history, safeTick, 'population', POPULATION_TREND_EPSILON),
+    averageEnergy: deriveMetricTrend(history, safeTick, 'averageEnergy', AVERAGE_ENERGY_TREND_EPSILON)
+  };
+}
+
+export function formatTrendIndicator(direction) {
+  switch (direction) {
+    case STATS_TREND_DIRECTIONS.UP:
+      return '↑ Up';
+    case STATS_TREND_DIRECTIONS.DOWN:
+      return '↓ Down';
+    default:
+      return '→ Flat';
+  }
 }

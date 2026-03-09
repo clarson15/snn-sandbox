@@ -2385,10 +2385,10 @@ describe('App', () => {
     const statsHud = screen.getByRole('region', { name: /simulation stats hud/i });
     expect(statsHud).toBeInTheDocument();
     expect(within(statsHud).getByText(/^seed:/i)).toHaveTextContent('Seed: Seed unavailable');
-    expect(within(statsHud).getByText(/^population:/i)).toHaveTextContent('Population: 0');
+    expect(within(statsHud).getByText(/^population:/i)).toHaveTextContent('Population: 0 (→ Flat)');
     expect(screen.getByText(/^food count:/i)).toHaveTextContent('Food count: 0');
     expect(screen.getByText(/^average generation:/i)).toHaveTextContent('Average generation: 0.0');
-    expect(screen.getByText(/^average organism energy:/i)).toHaveTextContent('Average organism energy: 0.0');
+    expect(screen.getByText(/^average organism energy:/i)).toHaveTextContent('Average organism energy: 0.0 (→ Flat)');
     expect(screen.getByText(/^tick count:/i)).toHaveTextContent('Tick count: 0');
     expect(screen.getByText(/^time elapsed:/i)).toHaveTextContent('Time elapsed: 0.0s');
     expect(screen.getByText(/^tick budget clamp:/i)).toHaveTextContent('Tick budget clamp: Inactive');
@@ -2447,7 +2447,7 @@ describe('App', () => {
     expect(screen.getByText(/^population:/i)).toBeInTheDocument();
     expect(screen.getByText(/^food count:/i)).toBeInTheDocument();
     expect(screen.getByText(/^average generation:/i).textContent).toMatch(/\d+\.\d$/);
-    expect(screen.getByText(/^average organism energy:/i).textContent).toMatch(/\d+\.\d$/);
+    expect(screen.getByText(/^average organism energy:/i).textContent).toMatch(/\d+\.\d \((↑ Up|→ Flat|↓ Down)\)$/);
     expect(screen.getByText(/^time elapsed:/i).textContent).toMatch(/\d+\.\ds$/);
 
     vi.useRealTimers();
