@@ -11,6 +11,7 @@ public record SaveSimulationSnapshotRequest(
     [property: JsonPropertyName("tickCount")] long TickCount,
     [property: JsonPropertyName("worldState")] JsonElement WorldState,
     [property: JsonPropertyName("rngState")] uint? RngState,
+    [property: JsonPropertyName("schemaVersion")] int SchemaVersion = 1,
     [property: JsonPropertyName("overwriteExisting")] bool OverwriteExisting = false,
     [property: JsonPropertyName("overwriteSnapshotId")] string? OverwriteSnapshotId = null
 );
@@ -23,6 +24,7 @@ public record SimulationSnapshotRecord(
     [property: JsonPropertyName("tickCount")] long TickCount,
     [property: JsonPropertyName("worldState")] JsonElement WorldState,
     [property: JsonPropertyName("rngState")] uint? RngState,
+    [property: JsonPropertyName("schemaVersion")] int SchemaVersion,
     [property: JsonPropertyName("updatedAt")] DateTimeOffset UpdatedAt
 );
 
@@ -97,6 +99,7 @@ public sealed class InMemorySimulationSnapshotStore : ISimulationSnapshotStore
         return _snapshots
             .Values
             .OrderByDescending(snapshot => snapshot.UpdatedAt)
+            .ThenBy(snapshot => snapshot.Id, StringComparer.Ordinal)
             .ToList();
     }
 
@@ -120,6 +123,7 @@ public sealed class InMemorySimulationSnapshotStore : ISimulationSnapshotStore
             TickCount: request.TickCount,
             WorldState: request.WorldState,
             RngState: request.RngState,
+            SchemaVersion: request.SchemaVersion,
             UpdatedAt: now
         );
     }

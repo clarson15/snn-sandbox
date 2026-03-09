@@ -54,6 +54,7 @@ public class UnitTest1 : IClassFixture<WebApplicationFactory<Program>>
         Assert.NotNull(loaded);
         Assert.Equal(saved.Id, loaded!.Id);
         Assert.Equal((uint)123, loaded.RngState);
+        Assert.Equal(1, loaded.SchemaVersion);
     }
 
     [Fact]
@@ -202,6 +203,45 @@ public class UnitTest1 : IClassFixture<WebApplicationFactory<Program>>
         Assert.Equal(HttpStatusCode.BadRequest, saveResponse.StatusCode);
     }
 
+    [Fact]
+    public async Task Save_RejectsTickMismatchBetweenRequestAndWorldState()
+    {
+        using var client = _factory.CreateClient();
+
+        var payload = new
+        {
+            name = "Mismatch Fixture",
+            seed = "seed-mismatch",
+            parameters = new { worldWidth = 800, worldHeight = 480 },
+            tickCount = 42,
+            worldState = new { tick = 41, organisms = Array.Empty<object>(), food = Array.Empty<object>() }
+        };
+
+        var saveResponse = await client.PostAsJsonAsync("/api/simulations/snapshots", payload);
+
+        Assert.Equal(HttpStatusCode.BadRequest, saveResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Save_RejectsUnsupportedSchemaVersion()
+    {
+        using var client = _factory.CreateClient();
+
+        var payload = new
+        {
+            name = "Schema Fixture",
+            seed = "seed-schema",
+            parameters = new { worldWidth = 800, worldHeight = 480 },
+            tickCount = 5,
+            schemaVersion = 2,
+            worldState = new { tick = 5, organisms = Array.Empty<object>(), food = Array.Empty<object>() }
+        };
+
+        var saveResponse = await client.PostAsJsonAsync("/api/simulations/snapshots", payload);
+
+        Assert.Equal(HttpStatusCode.BadRequest, saveResponse.StatusCode);
+    }
+
     private sealed class SimulationSnapshotRecordDto
     {
         public string Id { get; set; } = string.Empty;
@@ -213,6 +253,8 @@ public class UnitTest1 : IClassFixture<WebApplicationFactory<Program>>
         public long TickCount { get; set; }
 
         public uint? RngState { get; set; }
+
+        public int SchemaVersion { get; set; }
 
         public DateTimeOffset UpdatedAt { get; set; }
     }
