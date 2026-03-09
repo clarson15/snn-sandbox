@@ -51,6 +51,7 @@ import {
   SnapshotNameConflictError
 } from './simulation/api';
 import { formatSimulationTimestamp } from './simulation/timestamp';
+import { generateDeterministicCopyName } from './simulation/saveName';
 import { useToasts } from './toasts';
 import { deriveInspectorComparisonRows } from './inspectorComparison';
 import {
@@ -203,6 +204,7 @@ function App() {
   const [saveErrorDetail, setSaveErrorDetail] = useState('');
   const [saveAsDraftName, setSaveAsDraftName] = useState('');
   const [saveAsValidationError, setSaveAsValidationError] = useState('');
+  const [saveConflictResolution, setSaveConflictResolution] = useState(null);
   const [loadStatus, setLoadStatus] = useState('');
   const [loadRecoveryBySnapshotId, setLoadRecoveryBySnapshotId] = useState({});
   const [loadingSnapshotById, setLoadingSnapshotById] = useState({});
@@ -1558,24 +1560,20 @@ function App() {
       const items = await listSimulationSnapshots();
       setSavedSimulations(items);
       setSavedSimulationsError('');
+      setSaveConflictResolution(null);
       setSaveStatus('Saved.');
       return savedSnapshot;
     } catch (error) {
       if (error instanceof SnapshotNameConflictError && error.conflictingSnapshot) {
-        const confirmed = window.confirm(
-          `A saved simulation named "${saveName}" already exists (tick ${error.conflictingSnapshot.tickCount}).\n\n` +
-            'Click OK to overwrite it with the current simulation state, or Cancel to keep the existing save.'
-        );
-        if (confirmed) {
-          await onSaveSimulation({
-            forceOverwrite: true,
-            overwriteSnapshotId: error.conflictingSnapshot.id,
-            saveName,
-            activateSavedSnapshot
-          });
-          return null;
-        }
-        setSaveStatus('Save cancelled.');
+        const generatedCopyName = generateDeterministicCopyName(saveName, savedSimulations);
+        setSaveConflictResolution({
+          saveName,
+          conflictingSnapshot: error.conflictingSnapshot,
+          overwriteSnapshotId: error.conflictingSnapshot.id,
+          generatedCopyName,
+          activateSavedSnapshot
+        });
+        setSaveStatus(`Name conflict: "${saveName}" already exists.`);
         return null;
       }
 
@@ -1610,6 +1608,40 @@ function App() {
     if (savedSnapshot) {
       setSaveAsDraftName('');
     }
+  };
+
+  const onResolveSaveConflictOverwrite = async () => {
+    if (!saveConflictResolution) {
+      return;
+    }
+
+    await onSaveSimulation({
+      forceOverwrite: true,
+      overwriteSnapshotId: saveConflictResolution.overwriteSnapshotId,
+      saveName: saveConflictResolution.saveName,
+      activateSavedSnapshot: saveConflictResolution.activateSavedSnapshot
+    });
+  };
+
+  const onResolveSaveConflictCopy = async () => {
+    if (!saveConflictResolution) {
+      return;
+    }
+
+    const copyName = generateDeterministicCopyName(saveConflictResolution.saveName, savedSimulations);
+    const savedSnapshot = await onSaveSimulation({
+      saveName: copyName,
+      activateSavedSnapshot: true
+    });
+
+    if (savedSnapshot) {
+      setSaveAsDraftName('');
+    }
+  };
+
+  const onCancelSaveConflictResolution = () => {
+    setSaveConflictResolution(null);
+    setSaveStatus('Save cancelled.');
   };
 
   const onLoadSimulation = async (snapshotSummary) => {
@@ -2162,6 +2194,9 @@ function App() {
               if (saveAsValidationError) {
                 setSaveAsValidationError('');
               }
+              if (saveConflictResolution) {
+                setSaveConflictResolution(null);
+              }
             }}
             placeholder={activeConfigRef.current?.name ?? 'New Simulation copy'}
           />
@@ -2472,6 +2507,19 @@ function App() {
         <p role="alert">
           Save error: {saveErrorDetail} <button type="button" onClick={onSaveSimulation}>Retry save</button>
         </p>
+      ) : null}
+      {saveConflictResolution ? (
+        <section aria-label="save name conflict resolution">
+          <p>
+            A saved simulation named "{saveConflictResolution.saveName}" already exists (tick {saveConflictResolution.conflictingSnapshot.tickCount}).
+            Choose overwrite or save as "{saveConflictResolution.generatedCopyName}".
+          </p>
+          <div className="field-row">
+            <button type="button" onClick={onResolveSaveConflictOverwrite}>Overwrite existing</button>
+            <button type="button" onClick={onResolveSaveConflictCopy}>Save as "{saveConflictResolution.generatedCopyName}"</button>
+            <button type="button" onClick={onCancelSaveConflictResolution}>Cancel</button>
+          </div>
+        </section>
       ) : null}
       {loadStatus ? <p>{loadStatus}</p> : null}
       {deleteStatus ? <p>{deleteStatus}</p> : null}

@@ -426,6 +426,102 @@ describe('App', () => {
     expect(postCalls).toHaveLength(0);
   });
 
+  it('shows deterministic conflict choices and saves to generated copy name', async () => {
+    let postCount = 0;
+    vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
+      if (url === '/api/simulations/snapshots' && (!options.method || options.method === 'GET')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ([
+            { id: 'sim-fixture', name: 'Fixture snapshot', seed: 'fixture-seed', tickCount: 10, updatedAt: '2026-03-09T05:41:00.000Z' },
+            { id: 'sim-copy-1', name: 'Fixture snapshot (copy 1)', seed: 'fixture-seed', tickCount: 11, updatedAt: '2026-03-09T05:40:00.000Z' },
+            { id: 'sim-copy-3', name: 'Fixture snapshot (copy 3)', seed: 'fixture-seed', tickCount: 12, updatedAt: '2026-03-09T05:39:00.000Z' }
+          ])
+        };
+      }
+
+      if (url === '/api/simulations/snapshots' && options.method === 'POST') {
+        postCount += 1;
+        if (postCount === 1) {
+          return {
+            ok: false,
+            status: 409,
+            json: async () => ({
+              error: 'A saved simulation named "Fixture snapshot" already exists.',
+              conflictSnapshot: { id: 'sim-fixture', tickCount: 10 }
+            })
+          };
+        }
+
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({ id: 'sim-copy-2', updatedAt: '2026-03-09T05:45:00.000Z' })
+        };
+      }
+
+      if (String(url).startsWith('/api/simulations/snapshots/') && (!options.method || options.method === 'GET')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            id: 'sim-fixture',
+            name: 'Fixture snapshot',
+            seed: 'fixture-seed',
+            parameters: {
+              name: 'Fixture', seed: 'fixture-seed', resolvedSeed: 'fixture-seed', worldWidth: 800, worldHeight: 480,
+              initialPopulation: 12, initialFoodCount: 30, foodSpawnChance: 0.04, foodEnergyValue: 5, maxFood: 120
+            },
+            tickCount: 10,
+            rngState: 123,
+            worldState: createInitialWorldFromConfig(normalizeSimulationConfig({
+              name: 'Fixture', seed: 'fixture-seed', worldWidth: 800, worldHeight: 480, initialPopulation: 12,
+              initialFoodCount: 30, foodSpawnChance: 0.04, foodEnergyValue: 5, maxFood: 120
+            }, 'fixture-seed'))
+          })
+        };
+      }
+
+      return { ok: false, status: 404, json: async () => ({}) };
+    }));
+
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/^save status: unsaved$/i)).toBeInTheDocument();
+      expect(screen.getByText(/fixture snapshot \(copy 1\)/i)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /save snapshot/i }));
+
+    let saveAsConflictButton;
+    await waitFor(() => {
+      const resolutionRegion = screen.getByRole('region', { name: /save name conflict resolution/i });
+      expect(within(resolutionRegion).getByRole('button', { name: /overwrite existing/i })).toBeInTheDocument();
+      saveAsConflictButton = within(resolutionRegion).getByRole('button', { name: /save as/i });
+      expect(saveAsConflictButton).toBeInTheDocument();
+    });
+
+    fireEvent.click(saveAsConflictButton);
+
+    await waitFor(() => {
+      const postCalls = global.fetch.mock.calls.filter(
+        ([requestUrl, requestOptions]) => requestUrl === '/api/simulations/snapshots' && requestOptions?.method === 'POST'
+      );
+      expect(postCalls).toHaveLength(2);
+    });
+
+    const postCalls = global.fetch.mock.calls.filter(
+      ([requestUrl, requestOptions]) => requestUrl === '/api/simulations/snapshots' && requestOptions?.method === 'POST'
+    );
+    expect(postCalls).toHaveLength(2);
+    const secondPayload = JSON.parse(postCalls[1][1].body);
+    expect(secondPayload.overwriteExisting).toBe(false);
+    expect(secondPayload.name).toMatch(/^New Simulation \(copy \d+\)$/);
+  });
+
   it('generates a seed when omitted and persists config', async () => {
     const canReadWriteStorage = (() => {
       const storage = window.localStorage;
