@@ -119,12 +119,45 @@ const FORM_FIELDS = [
   'mutationStrength'
 ];
 
-function deriveRunLifecycleMetadata({ seed, tickCount, snapshotId, simulationVersion }) {
+function stableStringify(value) {
+  if (value === null || typeof value !== 'object') {
+    return JSON.stringify(value);
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(',')}]`;
+  }
+
+  const keys = Object.keys(value).sort();
+  const entries = keys.map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`);
+  return `{${entries.join(',')}}`;
+}
+
+function hashStableValue(value) {
+  const input = stableStringify(value);
+  let hash = 2166136261;
+
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+function deriveRunLifecycleMetadata({ seed, tickCount, snapshotId, simulationVersion, simulationId, lastSavedAt, lastSavedStateHash }) {
+  const normalizedTickCount = Number.isInteger(tickCount) && tickCount >= 0 ? tickCount : 0;
+  const normalizedSnapshotId = typeof snapshotId === 'string' && snapshotId.length > 0 ? snapshotId : 'No snapshot';
+
   return {
     seed: typeof seed === 'string' ? seed : '',
-    tickCount: Number.isInteger(tickCount) && tickCount >= 0 ? tickCount : 0,
-    snapshotId: typeof snapshotId === 'string' && snapshotId.length > 0 ? snapshotId : 'No snapshot',
-    simulationVersion: typeof simulationVersion === 'string' && simulationVersion.length > 0 ? simulationVersion : SIMULATION_VERSION
+    tickCount: normalizedTickCount,
+    snapshotId: normalizedSnapshotId,
+    simulationVersion: typeof simulationVersion === 'string' && simulationVersion.length > 0 ? simulationVersion : SIMULATION_VERSION,
+    simulationId: typeof simulationId === 'string' && simulationId.length > 0 ? simulationId : normalizedSnapshotId,
+    lastSavedTick: normalizedTickCount,
+    lastSavedAt: typeof lastSavedAt === 'string' && lastSavedAt.length > 0 ? lastSavedAt : 'Not saved yet',
+    lastSavedStateHash: typeof lastSavedStateHash === 'string' && lastSavedStateHash.length > 0 ? lastSavedStateHash : '00000000'
   };
 }
 
@@ -290,20 +323,25 @@ function App() {
       seed: resolvedSeed,
       tickCount: tickDisplay,
       snapshotId: activeLoadedMetadata?.id,
-      simulationVersion: SIMULATION_VERSION
+      simulationVersion: SIMULATION_VERSION,
+      simulationId: activeLoadedMetadata?.id ?? persistedRunMetadata?.simulationId ?? 'No snapshot',
+      lastSavedAt: persistedRunMetadata?.lastSavedAt,
+      lastSavedStateHash: persistedRunMetadata?.lastSavedStateHash
     }),
-    [resolvedSeed, tickDisplay, activeLoadedMetadata?.id]
+    [resolvedSeed, tickDisplay, activeLoadedMetadata?.id, persistedRunMetadata?.simulationId, persistedRunMetadata?.lastSavedAt, persistedRunMetadata?.lastSavedStateHash]
   );
   const hasUnsavedRunChanges = useMemo(() => {
     if (!persistedRunMetadata || !resolvedSeed) {
       return false;
     }
 
-    return persistedRunMetadata.seed !== currentRunLifecycleMetadata.seed
-      || persistedRunMetadata.tickCount !== currentRunLifecycleMetadata.tickCount
-      || persistedRunMetadata.snapshotId !== currentRunLifecycleMetadata.snapshotId
-      || persistedRunMetadata.simulationVersion !== currentRunLifecycleMetadata.simulationVersion;
-  }, [persistedRunMetadata, resolvedSeed, currentRunLifecycleMetadata]);
+    const simulationId = persistedRunMetadata.simulationId;
+    const lastSavedTick = persistedRunMetadata.lastSavedTick;
+    const lastSavedStateHash = persistedRunMetadata.lastSavedStateHash;
+    const dirtySignature = hashStableValue({ simulationId, currentTick: currentRunLifecycleMetadata.tickCount, lastSavedTick, lastSavedStateHash });
+    const cleanSignature = hashStableValue({ simulationId, currentTick: lastSavedTick, lastSavedTick, lastSavedStateHash });
+    return dirtySignature !== cleanSignature;
+  }, [persistedRunMetadata, resolvedSeed, currentRunLifecycleMetadata.tickCount]);
   const runSaveStatusLabel = hasUnsavedRunChanges ? 'Unsaved' : 'Saved';
 
   useEffect(() => {
@@ -1046,7 +1084,10 @@ function App() {
       seed: loadedConfig.resolvedSeed,
       tickCount: loadedWorld.tick,
       snapshotId: snapshot.id,
-      simulationVersion: snapshot.simulationVersion ?? SIMULATION_VERSION
+      simulationVersion: snapshot.simulationVersion ?? SIMULATION_VERSION,
+      simulationId: snapshot.id,
+      lastSavedAt: snapshot.updatedAt,
+      lastSavedStateHash: hashStableValue(snapshot.worldState ?? null)
     }));
   };
 
@@ -1082,7 +1123,9 @@ function App() {
       seed: config.resolvedSeed,
       tickCount: 0,
       snapshotId: null,
-      simulationVersion: SIMULATION_VERSION
+      simulationVersion: SIMULATION_VERSION,
+      simulationId: config.name,
+      lastSavedStateHash: hashStableValue(initialWorld)
     }));
     setLoadStatus('');
     setCopyMetadataStatus('');
@@ -1606,7 +1649,9 @@ function App() {
       });
       const activeSnapshotId = activateSavedSnapshot ? savedSnapshot.id : activeLoadedMetadata?.id;
       const activeSnapshotName = activateSavedSnapshot ? saveName : (activeLoadedMetadata?.name ?? saveName);
-      const activeSnapshotUpdatedAt = activateSavedSnapshot ? (savedSnapshot.updatedAt ?? new Date().toISOString()) : activeLoadedMetadata?.updatedAt;
+      const activeSnapshotUpdatedAt = activateSavedSnapshot
+        ? (savedSnapshot.updatedAt ?? persistedRunMetadata?.lastSavedAt ?? 'Not saved yet')
+        : (activeLoadedMetadata?.updatedAt ?? savedSnapshot.updatedAt ?? persistedRunMetadata?.lastSavedAt ?? 'Not saved yet');
 
       if (activateSavedSnapshot) {
         setActiveLoadedMetadata({
@@ -1621,7 +1666,10 @@ function App() {
         seed: resolvedSeed,
         tickCount: worldRef.current.tick,
         snapshotId: activeSnapshotId,
-        simulationVersion: SIMULATION_VERSION
+        simulationVersion: SIMULATION_VERSION,
+        simulationId: activeSnapshotId ?? activeSnapshotName,
+        lastSavedAt: activeSnapshotUpdatedAt,
+        lastSavedStateHash: hashStableValue(worldRef.current)
       }));
 
       const items = await listSimulationSnapshots();
@@ -2223,13 +2271,17 @@ function App() {
           Runtime state: {replayActive ? 'Replay active' : paused ? 'Paused' : `Running at ${speedMultiplier}x`}
         </p>
         {hasSimulation ? (
-          <p
-            className={`save-status-badge ${hasUnsavedRunChanges ? 'is-unsaved' : 'is-saved'}`}
-            role="status"
-            aria-live="polite"
-          >
-            Save status: {runSaveStatusLabel}
-          </p>
+          <>
+            <p
+              className={`save-status-badge ${hasUnsavedRunChanges ? 'is-unsaved' : 'is-saved'}`}
+              role="status"
+              aria-live="polite"
+            >
+              Save status: {runSaveStatusLabel}
+            </p>
+            <p>Last saved tick: {persistedRunMetadata?.lastSavedTick ?? 0}</p>
+            <p>Last saved at: {formatSimulationTimestamp(persistedRunMetadata?.lastSavedAt)}</p>
+          </>
         ) : null}
         <ControlButtonWithHint
           name="pause"
