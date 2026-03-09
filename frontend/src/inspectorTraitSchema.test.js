@@ -10,14 +10,16 @@ describe('deriveInspectorTraitSections', () => {
       offspringCount: '2',
       generation: '7',
       age: '14',
+      energy: '10.000',
       position: '(12.000, 8.000)',
       size: '1.100',
       speed: '2.200',
       turnRate: '0.300',
       visionRange: '42.000',
       nearestFoodDistance: '9.000',
-      energy: '10.000',
-      metabolism: '0.100'
+      metabolism: '0.100',
+      neuronCount: '5',
+      synapseCount: '8'
     };
 
     const first = deriveInspectorTraitSections(formattedInspector);
@@ -25,23 +27,20 @@ describe('deriveInspectorTraitSections', () => {
 
     expect(first).toEqual(second);
     expect(first.map((section) => section.key)).toEqual([
-      'identityLifecycle',
-      'movement',
-      'sensing',
-      'metabolism'
+      'lifecycle',
+      'physicalTraits',
+      'genomeBrain'
     ]);
     expect(first.map((section) => section.label)).toEqual([
-      'Identity/Lifecycle',
-      'Movement',
-      'Sensing',
-      'Metabolism'
+      'Lifecycle',
+      'Physical Traits',
+      'Genome/Brain'
     ]);
 
     expect(first.map((section) => section.fields.map((field) => field.key))).toEqual([
-      ['id', 'parentId', 'offspringCount', 'generation', 'age'],
-      ['position', 'size', 'speed', 'turnRate'],
-      ['visionRange', 'nearestFoodDistance'],
-      ['energy', 'metabolism']
+      ['id', 'parentId', 'offspringCount', 'generation', 'age', 'energy'],
+      ['position', 'size', 'speed', 'turnRate', 'visionRange', 'nearestFoodDistance', 'metabolism'],
+      ['neuronCount', 'synapseCount']
     ]);
   });
 

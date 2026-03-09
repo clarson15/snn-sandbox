@@ -2077,32 +2077,26 @@ describe('App', () => {
     expect(wrappedSelectedId).toBeTruthy();
     expect(wrappedSelectedId).not.toBe(restoredSelectedId);
 
-    const identityLifecycleToggle = screen.getByRole('button', { name: /^identity\/lifecycle$/i });
-    const movementToggle = screen.getByRole('button', { name: /^movement$/i });
-    const sensingToggle = screen.getByRole('button', { name: /^sensing$/i });
-    const metabolismToggle = screen.getByRole('button', { name: /^metabolism$/i });
-    const brainToggle = screen.getByRole('button', { name: /^brain$/i });
+    const lifecycleToggle = screen.getByRole('button', { name: /^lifecycle$/i });
+    const physicalTraitsToggle = screen.getByRole('button', { name: /^physical traits$/i });
+    const genomeBrainToggle = screen.getByRole('button', { name: /^genome\/brain$/i });
 
-    expect(identityLifecycleToggle).toHaveAttribute('aria-expanded', 'true');
+    expect(lifecycleToggle).toHaveAttribute('aria-expanded', 'true');
     fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
-    expect(movementToggle).toHaveFocus();
+    expect(physicalTraitsToggle).toHaveFocus();
     fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
-    expect(sensingToggle).toHaveFocus();
+    expect(genomeBrainToggle).toHaveFocus();
     fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
-    expect(metabolismToggle).toHaveFocus();
-    fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
-    expect(brainToggle).toHaveFocus();
+    expect(lifecycleToggle).toHaveFocus();
     fireEvent.keyDown(window, { key: '[', code: 'BracketLeft' });
-    expect(metabolismToggle).toHaveFocus();
+    expect(genomeBrainToggle).toHaveFocus();
 
-    fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
-    expect(brainToggle).toHaveFocus();
     fireEvent.keyDown(window, { key: 'Enter', code: 'Enter' });
-    expect(brainToggle).toHaveAttribute('aria-expanded', 'false');
+    expect(genomeBrainToggle).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByText(/genome signature:/i)).not.toBeVisible();
 
     fireEvent.keyDown(window, { key: 'Enter', code: 'Enter' });
-    expect(brainToggle).toHaveAttribute('aria-expanded', 'true');
+    expect(genomeBrainToggle).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByText(/genome signature:/i)).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: 'p', code: 'KeyP' });
@@ -2661,6 +2655,10 @@ describe('App', () => {
 
     fireEvent.click(canvas, { clientX: secondTarget.x, clientY: secondTarget.y });
     expect(inspector).toHaveTextContent(`ID: ${secondTarget.id}`);
+    expect(inspector).toHaveTextContent(`Generation: ${secondTarget.generation}`);
+    expect(inspector).toHaveTextContent(`Age: ${secondTarget.age}`);
+    expect(inspector).toHaveTextContent(`Neurons: ${secondTarget.brain.neurons.length}`);
+    expect(inspector).not.toHaveTextContent(`ID: ${firstTarget.id}`);
 
     fireEvent.click(canvas, { clientX: 799, clientY: 479 });
     expect(inspector).toHaveTextContent(/no organism selected/i);
@@ -3043,21 +3041,21 @@ describe('App', () => {
     fireEvent.click(canvas, { clientX: firstTarget.x, clientY: firstTarget.y });
 
     const sectionLabels = screen.getAllByRole('button', {
-      name: /^(Identity\/Lifecycle|Movement|Sensing|Metabolism|Brain)$/i
+      name: /^(Lifecycle|Physical Traits|Genome\/Brain)$/i
     }).map((element) => element.textContent);
-    expect(sectionLabels).toEqual([
-      ...INSPECTOR_TRAIT_SECTION_SCHEMA.map((section) => section.label),
-      'Brain'
-    ]);
+    expect(sectionLabels).toEqual(
+      INSPECTOR_TRAIT_SECTION_SCHEMA.map((section) => section.label)
+    );
 
     const traitSectionRows = INSPECTOR_TRAIT_SECTION_SCHEMA.map((section) => {
       const region = screen.getByRole('region', { name: section.label });
       return Array.from(region.querySelectorAll('p strong')).map((node) => node.textContent);
     });
 
-    expect(traitSectionRows).toEqual(
-      INSPECTOR_TRAIT_SECTION_SCHEMA.map((section) => section.fields.map((field) => `${field.label}:`))
-    );
+    const expectedSectionRows = INSPECTOR_TRAIT_SECTION_SCHEMA.map((section) => section.fields.map((field) => `${field.label}:`));
+    expectedSectionRows.forEach((expectedLabels, index) => {
+      expect(traitSectionRows[index].slice(0, expectedLabels.length)).toEqual(expectedLabels);
+    });
   });
 
   it('keeps inspector and synapse controls keyboard-operable with deterministic focus after selection changes', async () => {

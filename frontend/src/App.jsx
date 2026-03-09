@@ -102,8 +102,7 @@ const SIMULATION_VERSION = 'snn-sandbox-v1';
 const INSPECTOR_COMPACT_BREAKPOINT_PX = 980;
 const INSPECTOR_TREND_STRIP_WIDTH = 280;
 const INSPECTOR_TREND_STRIP_HEIGHT = 72;
-const INSPECTOR_TRAIT_SECTION_ORDER = INSPECTOR_TRAIT_SECTION_SCHEMA.map((section) => section.key);
-const INSPECTOR_SECTION_ORDER = [...INSPECTOR_TRAIT_SECTION_ORDER, 'brain'];
+const INSPECTOR_SECTION_ORDER = INSPECTOR_TRAIT_SECTION_SCHEMA.map((section) => section.key);
 const FORM_FIELDS = [
   'name',
   'seed',
@@ -2380,7 +2379,7 @@ function App() {
               </div>
               <div>
                 <dt>[ / ]</dt>
-                <dd>Move focus between inspector trait sections (Identity/Lifecycle, Movement, Sensing, Metabolism).</dd>
+                <dd>Move focus between inspector trait sections (Lifecycle, Physical Traits, Genome/Brain).</dd>
               </div>
               <div>
                 <dt>Enter</dt>
@@ -3008,7 +3007,7 @@ function App() {
                 const traitSection = inspectorTraitSections.find((section) => section.key === sectionKey);
 
                 return (
-                  <div key={sectionKey} className={`inspector-section${sectionKey === 'brain' ? ' inspector-section-brain' : ''}`}>
+                  <div key={sectionKey} className={`inspector-section${sectionKey === 'genomeBrain' ? ' inspector-section-brain' : ''}`}>
                     <h3>
                       <button
                         id={buttonId}
@@ -3032,14 +3031,14 @@ function App() {
                           }
                         }}
                       >
-                        {traitSection?.label ?? 'Brain'}
+                        {traitSection?.label ?? 'Genome/Brain'}
                       </button>
                     </h3>
                     <div id={regionId} role="region" aria-labelledby={buttonId} hidden={!expanded}>
                       {traitSection ? traitSection.fields.map((field) => (
                         <p key={`${sectionKey}-${field.key}`}><strong>{field.label}:</strong> {field.value}</p>
                       )) : null}
-                      {sectionKey === 'brain' ? (
+                      {sectionKey === 'genomeBrain' ? (
                       <>
                         <p><strong>Genome signature:</strong> {formattedInspector.neuronCount}N-{formattedInspector.synapseCount}S</p>
                         <p>
