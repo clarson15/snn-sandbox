@@ -18,6 +18,7 @@ import {
   BRAIN_GRAPH_VIEWBOX,
   createBrainViewportFitTransform,
   createBrainViewportFitSelectionTransform,
+  deriveBrainVisualizerLegend,
   deriveEmphasizedBrainGraphModel,
   deriveFilteredBrainGraphModel,
   mapBrainEmphasisChecksum,
@@ -845,6 +846,8 @@ function App() {
     }),
     [baseBrainGraphModel, hideNearZeroBrainEdges, strongestBrainEdgeCount]
   );
+
+  const brainGraphLegend = useMemo(() => deriveBrainVisualizerLegend(baseBrainGraphModel), [baseBrainGraphModel]);
 
   useEffect(() => {
     if (!brainGraphModel) {
@@ -3275,6 +3278,38 @@ function App() {
                                 ? `Selected synapse ${activeSynapse.id}: ${activeSynapse.sourceId} → ${activeSynapse.targetId}, ${activeSynapse.polarityLabel}, weight ${activeSynapse.weightLabel}`
                                 : 'Select or hover a synapse to inspect source, target, and exact weight.'}
                             </p>
+                            {brainGraphLegend.neuronTypes.length > 0 && (
+                              <div className="brain-graph-legend" role="region" aria-label="brain visualizer legend">
+                                <div className="brain-graph-legend-section">
+                                  <strong>Neuron types:</strong>
+                                  <div className="brain-graph-legend-items">
+                                    {brainGraphLegend.neuronTypes.map((neuronType) => (
+                                      <span key={`legend-neuron-${neuronType.type}`} className="brain-graph-legend-item">
+                                        <span
+                                          className="brain-graph-legend-swatch"
+                                          style={{ backgroundColor: neuronType.color.cssColor }}
+                                        />
+                                        {neuronType.label}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div className="brain-graph-legend-section">
+                                  <strong>Synapses:</strong>
+                                  <div className="brain-graph-legend-items">
+                                    {brainGraphLegend.synapseCues.map((cue) => (
+                                      <span key={`legend-synapse-${cue.polarity}`} className="brain-graph-legend-item">
+                                        <span
+                                          className="brain-graph-legend-swatch"
+                                          style={{ backgroundColor: cue.color }}
+                                        />
+                                        {cue.description}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                             <svg viewBox="0 0 640 300" role="img" aria-label="organism brain graph" className="brain-graph">
                               <g transform={`translate(${brainGraphTransform.translateX} ${brainGraphTransform.translateY}) scale(${brainGraphTransform.scale})`}>
                                 {brainGraphModel.edges.map((edge) => {

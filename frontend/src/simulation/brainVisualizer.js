@@ -191,6 +191,85 @@ export function mapBrainGraphBounds(model) {
   return mapGraphBoundsForNodes(model.nodes);
 }
 
+const NEURON_TYPE_LABELS = {
+  input: 'Input',
+  hidden: 'Hidden',
+  output: 'Output',
+  unknown: 'Unknown'
+};
+
+const NEURON_TYPE_COLORS = {
+  input: { hue: 210, saturation: 82, lightness: 58 },
+  hidden: { hue: 270, saturation: 66, lightness: 65 },
+  output: { hue: 150, saturation: 80, lightness: 55 },
+  unknown: { hue: 0, saturation: 0, lightness: 50 }
+};
+
+function neuronTypeLabel(type) {
+  return NEURON_TYPE_LABELS[type] ?? NEURON_TYPE_LABELS.unknown;
+}
+
+function neuronTypeColor(type) {
+  const color = NEURON_TYPE_COLORS[type] ?? NEURON_TYPE_COLORS.unknown;
+  return {
+    ...color,
+    cssColor: `hsl(${color.hue} ${color.saturation}% ${color.lightness}%)`
+  };
+}
+
+/**
+ * Creates a deterministic legend for the brain visualizer.
+ * Legend entries are sorted by layer rank, then by type label alphabetically.
+ * Does not mutate the input model.
+ * @param {{nodes: {type: string}[], edges: {weight: number}[]}|null} model
+ * @returns {{neuronTypes: {type: string, label: string, color: {hue: number, saturation: number, lightness: number, cssColor: string}}[], synapseCues: {polarity: string, color: string, description: string}[]}}
+ */
+export function deriveBrainVisualizerLegend(model) {
+  const neuronTypes = new Map();
+
+  if (model && Array.isArray(model.nodes)) {
+    for (const node of model.nodes) {
+      if (node && typeof node.type === 'string' && !neuronTypes.has(node.type)) {
+        neuronTypes.set(node.type, {
+          type: node.type,
+          label: neuronTypeLabel(node.type),
+          color: neuronTypeColor(node.type)
+        });
+      }
+    }
+  }
+
+  const sortedNeuronTypes = [...neuronTypes.values()].sort((a, b) => {
+    const rankA = LAYER_ORDER.indexOf(a.type);
+    const rankB = LAYER_ORDER.indexOf(b.type);
+    const adjustedRankA = rankA === -1 ? LAYER_ORDER.length + 1 : rankA;
+    const adjustedRankB = rankB === -1 ? LAYER_ORDER.length + 1 : rankB;
+    const rankDelta = adjustedRankA - adjustedRankB;
+    if (rankDelta !== 0) {
+      return rankDelta;
+    }
+    return a.label.localeCompare(b.label);
+  });
+
+  const synapseCues = [
+    {
+      polarity: 'excitatory',
+      color: '#22c55e',
+      description: 'Positive weight (excitatory)'
+    },
+    {
+      polarity: 'inhibitory',
+      color: '#ef4444',
+      description: 'Negative weight (inhibitory)'
+    }
+  ];
+
+  return {
+    neuronTypes: sortedNeuronTypes,
+    synapseCues
+  };
+}
+
 function createViewportTransformFromBounds(bounds, options = {}) {
   if (!bounds) {
     return {
