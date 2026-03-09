@@ -114,8 +114,12 @@ function deriveRotationDelta(organism) {
 }
 
 function moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMultiplier) {
+  // Use organism's metabolism trait for deterministic energy loss, fallback to param for backward compatibility
+  const organismMetabolism = Number.isFinite(organism?.traits?.metabolism)
+    ? organism.traits.metabolism
+    : metabolismPerTick;
   const movementDistance = Math.hypot(dx, dy);
-  const energySpent = metabolismPerTick + movementDistance * movementCostMultiplier;
+  const energySpent = organismMetabolism + movementDistance * movementCostMultiplier;
   const baseDirection = organism.direction ?? 0;
   const rotationDelta = deriveRotationDelta(organism);
   const direction = normalizeAngle(baseDirection + rotationDelta);
