@@ -117,6 +117,38 @@ function deriveRotationDelta(organism) {
   return (rightSignal - leftSignal) * turnRate;
 }
 
+/**
+ * Derive forward/backward movement from brain output.
+ * @param {WorldOrganism} organism
+ * @returns {number} forward signal (-1 to 1 range, negative = backward)
+ */
+function deriveForwardDelta(organism) {
+  const speed = Number(organism?.traits?.speed ?? 1);
+  if (!Number.isFinite(speed) || speed === 0) {
+    return 0;
+  }
+
+  const synapses = Array.isArray(organism?.brain?.synapses) ? organism.brain.synapses : [];
+  if (synapses.length === 0) {
+    return 0;
+  }
+
+  let forwardSignal = 0;
+
+  for (const synapse of synapses) {
+    if (!synapse || !Number.isFinite(synapse.weight)) {
+      continue;
+    }
+
+    if (synapse.targetId === 'out-move-forward') {
+      forwardSignal += synapse.weight;
+    }
+  }
+
+  // Clamp to [-1, 1] range and scale by speed trait
+  return Math.max(-1, Math.min(1, forwardSignal)) * speed;
+}
+
 function moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMultiplier, agingCostMultiplier) {
   // Use organism's metabolism trait for deterministic energy loss, fallback to param for backward compatibility
   const organismMetabolism = Number.isFinite(organism?.traits?.metabolism)
@@ -298,8 +330,14 @@ export function stepWorld(state, rng, params = {}) {
   const offspringStartEnergy = params.offspringStartEnergy ?? 0;
 
   const movedOrganisms = state.organisms.map((organism) => {
-    const dx = (rng.nextFloat() * 2 - 1) * movementDelta;
-    const dy = (rng.nextFloat() * 2 - 1) * movementDelta;
+    // Get forward/backward movement from brain output
+    const forwardSignal = deriveForwardDelta(organism);
+    // Movement distance based on brain output (positive = forward, negative = backward)
+    const movementDistance = forwardSignal * movementDelta;
+    // Calculate direction-aware movement (along organism's facing direction)
+    const direction = organism.direction ?? 0;
+    const dx = Math.cos(direction) * movementDistance;
+    const dy = Math.sin(direction) * movementDistance;
 
     return moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMultiplier, agingCostMultiplier);
   });
