@@ -73,9 +73,19 @@ export function mapSavedSimulationList(apiItems) {
       };
     })
     .sort((a, b) => {
-      const updatedAtComparison = b.updatedAt.localeCompare(a.updatedAt);
-      if (updatedAtComparison !== 0) {
-        return updatedAtComparison;
+      const aUpdatedAt = Date.parse(a.updatedAt);
+      const bUpdatedAt = Date.parse(b.updatedAt);
+      const hasValidUpdatedAt = Number.isFinite(aUpdatedAt) && Number.isFinite(bUpdatedAt);
+
+      if (hasValidUpdatedAt && aUpdatedAt !== bUpdatedAt) {
+        return bUpdatedAt - aUpdatedAt;
+      }
+
+      if (!hasValidUpdatedAt) {
+        const updatedAtComparison = b.updatedAt.localeCompare(a.updatedAt);
+        if (updatedAtComparison !== 0) {
+          return updatedAtComparison;
+        }
       }
 
       return a.id.localeCompare(b.id);

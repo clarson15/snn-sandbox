@@ -50,6 +50,7 @@ import {
   saveSimulationSnapshot,
   SnapshotNameConflictError
 } from './simulation/api';
+import { formatSimulationTimestamp } from './simulation/timestamp';
 import { useToasts } from './toasts';
 import { deriveInspectorComparisonRows } from './inspectorComparison';
 import {
@@ -1939,15 +1940,6 @@ function App() {
     setReplayPresetStatus(`Deleted preset: ${presetName}.`);
   };
 
-  const formatTimestamp = (value) => {
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.valueOf())) {
-      return value;
-    }
-
-    return parsed.toLocaleString();
-  };
-
   return (
     <main className="app-shell">
       <header className="app-header">
@@ -2222,7 +2214,7 @@ function App() {
             <p>Name: {pendingDeleteSnapshot.name}</p>
             <p>Seed: {pendingDeleteSnapshot.seed || 'unknown'}</p>
             <p>Tick: {pendingDeleteSnapshot.tickCount}</p>
-            <p>Last updated: {formatTimestamp(pendingDeleteSnapshot.updatedAt)}</p>
+            <p>Last updated: {formatSimulationTimestamp(pendingDeleteSnapshot.updatedAt)}</p>
             <div className="field-row">
               <button type="button" onClick={onConfirmDeleteSimulation} ref={deleteConfirmButtonRef}>Confirm delete</button>
               <button type="button" onClick={onCancelDeleteSimulation}>Cancel</button>
@@ -2464,7 +2456,7 @@ function App() {
       {replayStatus ? <p>{replayStatus}</p> : null}
       {activeLoadedMetadata ? (
         <p>
-          Active snapshot: {activeLoadedMetadata.name} (updated {formatTimestamp(activeLoadedMetadata.updatedAt)})
+          Active snapshot: {activeLoadedMetadata.name} (updated {formatSimulationTimestamp(activeLoadedMetadata.updatedAt)})
         </p>
       ) : null}
 
@@ -2483,7 +2475,7 @@ function App() {
 
               return (
                 <li key={snapshot.id}>
-                  <strong>{snapshot.name}</strong> — updated {formatTimestamp(snapshot.updatedAt)} · seed {seedLabel} · tick {tickLabel} · population {snapshot.populationCount ?? 'metadata unavailable'} · config {snapshot.configSummary ?? 'metadata unavailable'}{' '}
+                  <strong>{snapshot.name}</strong> — updated {formatSimulationTimestamp(snapshot.updatedAt)} · seed {seedLabel} · tick {tickLabel} · population {snapshot.populationCount ?? 'metadata unavailable'} · config {snapshot.configSummary ?? 'metadata unavailable'}{' '}
                   <button type="button" onClick={() => onLoadSimulation(snapshot)} disabled={isLoadingSnapshot || !hasValidMetadata}>
                     {isLoadingSnapshot ? 'Loading…' : 'Resume'}
                   </button>{' '}
