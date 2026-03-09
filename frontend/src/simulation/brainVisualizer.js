@@ -161,13 +161,13 @@ function clampViewportScale(scale, limits = BRAIN_GRAPH_ZOOM_LIMITS) {
   return Math.max(limits.minScale, Math.min(limits.maxScale, numericScale));
 }
 
-export function mapBrainGraphBounds(model) {
-  if (!model || !Array.isArray(model.nodes) || model.nodes.length === 0) {
+function mapGraphBoundsForNodes(nodes) {
+  if (!Array.isArray(nodes) || nodes.length === 0) {
     return null;
   }
 
-  const xs = model.nodes.map((node) => node.x);
-  const ys = model.nodes.map((node) => node.y);
+  const xs = nodes.map((node) => node.x);
+  const ys = nodes.map((node) => node.y);
   const minX = Math.min(...xs);
   const maxX = Math.max(...xs);
   const minY = Math.min(...ys);
@@ -183,8 +183,15 @@ export function mapBrainGraphBounds(model) {
   };
 }
 
-export function createBrainViewportFitTransform(model, options = {}) {
-  const bounds = mapBrainGraphBounds(model);
+export function mapBrainGraphBounds(model) {
+  if (!model || !Array.isArray(model.nodes) || model.nodes.length === 0) {
+    return null;
+  }
+
+  return mapGraphBoundsForNodes(model.nodes);
+}
+
+function createViewportTransformFromBounds(bounds, options = {}) {
   if (!bounds) {
     return {
       scale: 1,
@@ -210,6 +217,43 @@ export function createBrainViewportFitTransform(model, options = {}) {
     translateX: roundTransformValue(translateX),
     translateY: roundTransformValue(translateY)
   };
+}
+
+export function createBrainViewportFitTransform(model, options = {}) {
+  const bounds = mapBrainGraphBounds(model);
+  return createViewportTransformFromBounds(bounds, options);
+}
+
+export function createBrainViewportFitSelectionTransform(model, options = {}) {
+  if (!model || !Array.isArray(model.nodes) || !Array.isArray(model.edges)) {
+    return createBrainViewportFitTransform(model, options);
+  }
+
+  const nodeById = new Map(model.nodes.map((node) => [node.id, node]));
+  const selectedNodeIds = new Set();
+
+  if (typeof options.selectedNeuronId === 'string' && nodeById.has(options.selectedNeuronId)) {
+    selectedNodeIds.add(options.selectedNeuronId);
+  }
+
+  if (typeof options.selectedSynapseId === 'string') {
+    const selectedEdge = model.edges.find((edge) => edge.id === options.selectedSynapseId) ?? null;
+    if (selectedEdge && nodeById.has(selectedEdge.sourceId) && nodeById.has(selectedEdge.targetId)) {
+      selectedNodeIds.add(selectedEdge.sourceId);
+      selectedNodeIds.add(selectedEdge.targetId);
+    }
+  }
+
+  if (selectedNodeIds.size === 0) {
+    return createBrainViewportFitTransform(model, options);
+  }
+
+  const selectedNodes = [...selectedNodeIds]
+    .map((id) => nodeById.get(id))
+    .filter(Boolean)
+    .sort((left, right) => left.id.localeCompare(right.id));
+
+  return createViewportTransformFromBounds(mapGraphBoundsForNodes(selectedNodes), options);
 }
 
 export function applyBrainViewportZoom(transform, direction, options = {}) {

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   applyBrainViewportZoom,
+  createBrainViewportFitSelectionTransform,
   createBrainViewportFitTransform,
   deriveEmphasizedBrainGraphModel,
   deriveFilteredBrainGraphModel,
@@ -64,7 +65,13 @@ const createViewportTestModel = () => ({
     { id: 'h-1', x: 300, y: 150 },
     { id: 'out-1', x: 480, y: 150 }
   ],
-  edges: []
+  edges: [
+    {
+      id: 's-1',
+      sourceId: 'h-1',
+      targetId: 'out-1'
+    }
+  ]
 });
 
 describe('mapBrainToVisualizerModel', () => {
@@ -443,5 +450,31 @@ describe('brain graph viewport transforms', () => {
 
     expect(extremeIn.scale).toBe(4);
     expect(extremeOut.scale).toBe(0.5);
+  });
+
+  it('fits selected neuron deterministically and falls back to graph fit with no selection', () => {
+    const model = createViewportTestModel();
+
+    const selectedNeuronFit = createBrainViewportFitSelectionTransform(model, { selectedNeuronId: 'h-1' });
+    const fallbackFit = createBrainViewportFitSelectionTransform(model, { selectedNeuronId: 'missing' });
+
+    expect(selectedNeuronFit).toEqual({
+      scale: 4,
+      translateX: -882,
+      translateY: -452
+    });
+    expect(fallbackFit).toEqual(createBrainViewportFitTransform(model));
+  });
+
+  it('fits selected synapse endpoint context deterministically', () => {
+    const model = createViewportTestModel();
+
+    const selectedSynapseFit = createBrainViewportFitSelectionTransform(model, { selectedSynapseId: 's-1' });
+
+    expect(selectedSynapseFit).toEqual({
+      scale: 3.288889,
+      translateX: -962.666667,
+      translateY: -344.977778
+    });
   });
 });
