@@ -285,7 +285,23 @@ describe('App', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/^save status: saved$/i)).toBeInTheDocument();
+      expect(screen.getByText(/^last saved tick:/i)).toHaveTextContent(/\d+/i);
     });
+  });
+
+  it('loads saved simulation metadata in clean state and becomes dirty after tick advance', async () => {
+    render(<App />);
+
+    const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
+    fireEvent.click(within(savedRegion).getByRole('button', { name: /^resume$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/^save status: saved$/i)).toBeInTheDocument();
+      expect(screen.getByText(/^last saved tick: 0$/i)).toBeInTheDocument();
+      expect(screen.getByText(/^last saved at:/i)).toBeInTheDocument();
+    });
+
+
   });
 
   it('save as creates a new active snapshot target and preserves deterministic saved status', async () => {
