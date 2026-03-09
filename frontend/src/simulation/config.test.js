@@ -392,5 +392,32 @@ describe('simulation config helpers', () => {
       expect(result1.world.tick).toBe(result2.world.tick);
       expect(result1.world.organisms).toEqual(result2.world.organisms);
     });
+
+    it('initializes organisms with deterministic starting energy', () => {
+      const config = normalizeSimulationConfig(
+        {
+          name: 'Energy Test',
+          seed: 'energy-seed',
+          worldWidth: '100',
+          worldHeight: '100',
+          initialPopulation: '5',
+          initialFoodCount: '10'
+        },
+        'energy-seed'
+      );
+
+      const world = createInitialWorldFromConfig(config);
+
+      expect(world.organisms).toHaveLength(5);
+      // All organisms should have initial energy of 20
+      world.organisms.forEach((organism) => {
+        expect(organism).toHaveProperty('energy');
+        expect(typeof organism.energy).toBe('number');
+        expect(organism.energy).toBe(20);
+      });
+      // Energy should be deterministic across multiple world creations
+      const world2 = createInitialWorldFromConfig(config);
+      expect(world.organisms).toEqual(world2.organisms);
+    });
   });
 });
