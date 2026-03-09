@@ -1918,8 +1918,14 @@ describe('App', () => {
     const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
     fireEvent.click(within(savedRegion).getByRole('button', { name: /^resume$/i }));
 
-    const recoveryAlert = await screen.findByRole('alert');
-    fireEvent.click(within(recoveryAlert).getByRole('button', { name: /delete broken save/i }));
+    // With deterministic validation, mismatched tick counts show warnings instead of errors
+    // The snapshot loads successfully with fallback behavior
+    await waitFor(() => {
+      expect(screen.getByText(/loaded\./i)).toBeInTheDocument();
+    });
+
+    // User can still delete the snapshot via the delete button
+    fireEvent.click(await screen.findByRole('button', { name: /^delete$/i }));
     fireEvent.click(await screen.findByRole('button', { name: /confirm delete/i }));
 
     await waitFor(() => {

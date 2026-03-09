@@ -10,6 +10,7 @@ import {
   SEED_FALLBACK_COUNTER_KEY,
   STORAGE_KEY,
   toEngineStepParams,
+  validateAndNormalizeLoadedSnapshot,
   validateSimulationConfig
 } from './config';
 import { createSeededPrng } from './prng';
@@ -242,6 +243,154 @@ describe('simulation config helpers', () => {
       mutationRate: 0.05,
       mutationStrength: 0.1,
       resolvedSeed: undefined
+    });
+  });
+
+  describe('validateAndNormalizeLoadedSnapshot', () => {
+    it('validates complete valid snapshot without warnings', () => {
+      const snapshot = {
+        id: 'sim-123',
+        name: 'Test Sim',
+        seed: 'test-seed',
+        parameters: {
+          worldWidth: 800,
+          worldHeight: 480,
+          initialPopulation: 12,
+          minimumPopulation: 12,
+          initialFoodCount: 30,
+          foodSpawnChance: 0.04,
+          foodEnergyValue: 5,
+          maxFood: 120,
+          mutationRate: 0.05,
+          mutationStrength: 0.1
+        },
+        tickCount: 100,
+        worldState: {
+          tick: 100,
+          organisms: [],
+          food: []
+        },
+        rngState: 42,
+        schemaVersion: 1
+      };
+
+      const result = validateAndNormalizeLoadedSnapshot(snapshot);
+
+      expect(result.errors).toHaveLength(0);
+      expect(result.warnings).toHaveLength(0);
+      expect(result.config.resolvedSeed).toBe('test-seed');
+      expect(result.world.tick).toBe(100);
+      expect(result.rngState).toBe(42);
+    });
+
+    it('applies deterministic fallbacks for missing parameters (scenario 1)', () => {
+      // Scenario 1: Missing parameters entirely
+      const snapshot = {
+        id: 'sim-missing-params',
+        name: 'Missing Params',
+        seed: 'fallback-seed',
+        parameters: null,
+        tickCount: 50,
+        worldState: {
+          tick: 50,
+          organisms: [{ id: 'org-1', x: 10, y: 20, energy: 15, age: 5, generation: 1, direction: 0, traits: {}, brain: { neurons: [], synapses: [] } }],
+          food: []
+        },
+        rngState: null,
+        schemaVersion: 1
+      };
+
+      const result = validateAndNormalizeLoadedSnapshot(snapshot);
+
+      expect(result.errors).toHaveLength(0);
+      expect(result.warnings).toContain('Parameters missing; using defaults');
+      expect(result.warnings).toContain('RNG state missing; deriving from seed');
+      expect(result.config.worldWidth).toBe(800); // DEFAULT
+      expect(result.config.initialPopulation).toBe(12); // DEFAULT
+    });
+
+    it('applies deterministic fallbacks for malformed world state (scenario 2)', () => {
+      // Scenario 2: Invalid tick count and mismatched world state tick
+      const snapshot = {
+        id: 'sim-bad-tick',
+        name: 'Bad Tick',
+        seed: 'tick-test',
+        parameters: {
+          worldWidth: 640,
+          worldHeight: 360
+        },
+        tickCount: -1, // Invalid
+        worldState: {
+          tick: 25, // Different from tickCount
+          organisms: [],
+          food: []
+        },
+        rngState: 100,
+        schemaVersion: 1
+      };
+
+      const result = validateAndNormalizeLoadedSnapshot(snapshot);
+
+      expect(result.errors).toHaveLength(0);
+      expect(result.warnings).toContain('Tick count invalid; defaulting to 0');
+      // When tickCount is invalid, we don't check mismatch (hasValidTickCount is false)
+      expect(result.world.tick).toBe(25); // Uses worldState.tick as-is
+      expect(result.tickCount).toBe(0); // Defaulted
+    });
+
+    it('applies deterministic fallbacks for missing seed (scenario 3)', () => {
+      // Scenario 3: Missing seed entirely (but has valid rngState)
+      const snapshot = {
+        id: 'sim-no-seed',
+        name: 'No Seed',
+        seed: '', // Empty
+        parameters: {
+          worldWidth: 1024,
+          worldHeight: 768,
+          initialPopulation: 20
+        },
+        tickCount: 200,
+        worldState: {
+          tick: 200,
+          organisms: [],
+          food: []
+        },
+        rngState: 999, // Valid RNG state provided
+        schemaVersion: 1
+      };
+
+      const result = validateAndNormalizeLoadedSnapshot(snapshot);
+
+      expect(result.errors).toHaveLength(0);
+      expect(result.warnings).toContain('Seed missing; derived from snapshot ID');
+      expect(result.config.resolvedSeed).toBe('snapshot-sim-no-s'); // Derived from ID
+      // No RNG warning because valid rngState was provided
+      expect(result.rngState).toBe(999);
+    });
+
+    it('produces deterministic output for same invalid input', () => {
+      const invalidSnapshot = {
+        id: 'sim-deterministic-test',
+        name: null,
+        seed: null,
+        parameters: 'not-an-object',
+        tickCount: 'not-a-number',
+        worldState: [],
+        rngState: undefined,
+        schemaVersion: 99
+      };
+
+      const result1 = validateAndNormalizeLoadedSnapshot(invalidSnapshot);
+      const result2 = validateAndNormalizeLoadedSnapshot(invalidSnapshot);
+
+      // Same warnings in same order
+      expect(result1.warnings).toEqual(result2.warnings);
+      // Same config values
+      expect(result1.config.worldWidth).toBe(result2.config.worldWidth);
+      expect(result1.config.worldHeight).toBe(result2.config.worldHeight);
+      // Same world state
+      expect(result1.world.tick).toBe(result2.world.tick);
+      expect(result1.world.organisms).toEqual(result2.world.organisms);
     });
   });
 });

@@ -283,6 +283,105 @@ export function saveSimulationConfig(config) {
   storage.setItem(STORAGE_KEY, JSON.stringify(config));
 }
 
+/**
+ * Validates and normalizes a loaded simulation snapshot with deterministic fallback rules.
+ * Returns normalized data plus any warnings for missing/invalid fields.
+ * 
+ * Fallback rules are deterministic:
+ * - Missing/invalid seed → derive from snapshot ID (stable per-snapshot) or 'snapshot-resume-seed'
+ * - Missing/invalid parameters → use DEFAULT_CONFIG values
+ * - Missing/invalid worldState → create empty world at tick 0
+ * - Invalid tick → default to 0
+ * - Missing/invalid rngState → derive from seed (reproducible)
+ * 
+ * @param {object} snapshot - Raw snapshot from API
+ * @returns {{ config: object, world: object, rngState: number|null, warnings: string[], errors: string[] }}
+ */
+export function validateAndNormalizeLoadedSnapshot(snapshot) {
+  const warnings = [];
+  const errors = [];
+  
+  // Validate required top-level fields with deterministic fallbacks
+  const hasValidParameters = snapshot?.parameters && typeof snapshot.parameters === 'object';
+  const hasValidWorldState = snapshot?.worldState && typeof snapshot.worldState === 'object';
+  const hasValidTickCount = Number.isInteger(snapshot?.tickCount) && snapshot.tickCount >= 0;
+  
+  // Seed: derive deterministically from snapshot ID or use fallback
+  let seed;
+  if (typeof snapshot?.seed === 'string' && snapshot.seed.trim().length > 0) {
+    seed = snapshot.seed.trim();
+  } else if (typeof snapshot?.id === 'string' && snapshot.id.length > 0) {
+    // Derive deterministic seed from snapshot ID - same ID always produces same seed
+    seed = `snapshot-${snapshot.id.slice(0, 8)}`;
+    warnings.push('Seed missing; derived from snapshot ID');
+  } else {
+    seed = 'snapshot-resume-seed';
+    warnings.push('Seed missing; using fallback seed');
+  }
+  
+  // Parameters: use DEFAULT_CONFIG with fallbacks
+  let config;
+  if (hasValidParameters) {
+    config = normalizeSimulationConfig(snapshot.parameters, seed);
+    // Check for individual field issues
+    if (!Number.isFinite(config.worldWidth)) {
+      warnings.push('Parameters.worldWidth invalid; using default');
+    }
+    if (!Number.isFinite(config.worldHeight)) {
+      warnings.push('Parameters.worldHeight invalid; using default');
+    }
+  } else {
+    config = normalizeSimulationConfig(DEFAULT_CONFIG, seed);
+    warnings.push('Parameters missing; using defaults');
+  }
+  
+  // World state: validate or create empty
+  let world;
+  if (hasValidWorldState) {
+    const worldTick = snapshot.worldState?.tick;
+    if (!Number.isInteger(worldTick) || worldTick < 0) {
+      warnings.push('WorldState.tick invalid; defaulting to 0');
+      world = createWorldState({ tick: 0 });
+    } else if (hasValidTickCount && worldTick !== snapshot.tickCount) {
+      warnings.push('WorldState.tick does not match tickCount; using worldState.tick');
+      world = createWorldState({ ...snapshot.worldState, tick: worldTick });
+    } else {
+      world = createWorldState(snapshot.worldState);
+    }
+  } else {
+    world = createWorldState({ tick: hasValidTickCount ? snapshot.tickCount : 0 });
+    warnings.push('WorldState missing; created empty world');
+  }
+  
+  // RngState: derive from seed if missing (deterministic)
+  let rngState = null;
+  if (typeof snapshot?.rngState === 'number' && Number.isFinite(snapshot.rngState)) {
+    rngState = snapshot.rngState;
+  } else {
+    warnings.push('RNG state missing; deriving from seed');
+  }
+  
+  // Tick count validation
+  const tickCount = hasValidTickCount ? snapshot.tickCount : 0;
+  if (!hasValidTickCount) {
+    warnings.push('Tick count invalid; defaulting to 0');
+  }
+  
+  // Schema version warning (if present)
+  if (snapshot?.schemaVersion !== undefined && snapshot.schemaVersion !== 1) {
+    warnings.push(`Schema version ${snapshot.schemaVersion} may not be compatible`);
+  }
+  
+  return {
+    config,
+    world,
+    rngState,
+    tickCount,
+    warnings,
+    errors
+  };
+}
+
 export function loadSimulationConfig() {
   const storage = getStorage();
   if (!storage) {
