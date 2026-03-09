@@ -2423,6 +2423,32 @@ describe('App', () => {
     vi.useRealTimers();
   });
 
+  it('supports deterministic stats visibility presets and persists selection locally', () => {
+    const { unmount } = render(<App />);
+
+    const statsHud = screen.getByRole('region', { name: /simulation stats hud/i });
+    const presets = within(statsHud).getByRole('group', { name: /stats visibility presets/i });
+
+    expect(within(presets).getByRole('button', { name: /^detailed$/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(statsHud).getByText(/^food count:/i)).toBeInTheDocument();
+
+    fireEvent.click(within(presets).getByRole('button', { name: /^minimal$/i }));
+
+    expect(within(presets).getByRole('button', { name: /^minimal$/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(statsHud).queryByText(/^food count:/i)).not.toBeInTheDocument();
+    expect(within(statsHud).queryByText(/^average generation:/i)).not.toBeInTheDocument();
+    expect(within(statsHud).queryByText(/^average organism energy:/i)).not.toBeInTheDocument();
+    expect(within(statsHud).queryByText(/^tick budget clamp:/i)).not.toBeInTheDocument();
+
+    unmount();
+    render(<App />);
+
+    const reloadedStatsHud = screen.getByRole('region', { name: /simulation stats hud/i });
+    const reloadedPresets = within(reloadedStatsHud).getByRole('group', { name: /stats visibility presets/i });
+    expect(within(reloadedPresets).getByRole('button', { name: /^minimal$/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(reloadedStatsHud).queryByText(/^food count:/i)).not.toBeInTheDocument();
+  });
+
   it('updates stats while running and keeps tick-derived metrics stable while paused', () => {
     vi.useFakeTimers();
     render(<App />);
