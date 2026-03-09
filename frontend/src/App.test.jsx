@@ -642,6 +642,40 @@ describe('App', () => {
     });
   });
 
+  it('renders deterministic fallback metadata and disables resume for invalid saved rows', async () => {
+    globalThis.fetch.mockImplementation(async (url, options = {}) => {
+      if (url === '/api/simulations/snapshots' && (!options.method || options.method === 'GET')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ([
+            {
+              id: 'sim-invalid',
+              name: 'Corrupt metadata',
+              seed: '',
+              tickCount: -1,
+              updatedAt: '2026-03-06T12:00:01.000Z'
+            }
+          ])
+        };
+      }
+
+      if (String(url).startsWith('/api/simulations/snapshots/')) {
+        return { ok: true, status: 200, json: async () => ({}) };
+      }
+
+      return { ok: false, status: 404, json: async () => ({}) };
+    });
+
+    render(<App />);
+
+    const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
+    expect(within(savedRegion).getByText(/seed metadata unavailable/i)).toBeInTheDocument();
+    expect(within(savedRegion).getByText(/tick metadata unavailable/i)).toBeInTheDocument();
+    expect(within(savedRegion).getByRole('button', { name: /^resume$/i })).toBeDisabled();
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
   it('locks per-save resume actions while a snapshot load request is in flight', async () => {
     let resolveSnapshot;
     const snapshotPromise = new Promise((resolve) => {

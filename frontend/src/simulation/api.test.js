@@ -29,6 +29,7 @@ describe('mapSavedSimulationList', () => {
         name: 'Newest run',
         seed: '',
         tickCount: 0,
+        metadataValid: true,
         updatedAt: '2026-03-06T12:00:01.000Z',
         populationCount: null,
         configSummary: null
@@ -38,6 +39,7 @@ describe('mapSavedSimulationList', () => {
         name: 'Older run',
         seed: '',
         tickCount: 0,
+        metadataValid: true,
         updatedAt: '2026-03-06T12:00:00.000Z',
         populationCount: null,
         configSummary: null
@@ -59,7 +61,12 @@ describe('mapSavedSimulationList', () => {
       }
     ]);
 
-    expect(mapped[0]).toMatchObject({ populationCount: 3 });
+    expect(mapped[0]).toMatchObject({
+      seed: 'seed-a',
+      tickCount: 12,
+      metadataValid: true,
+      populationCount: 3
+    });
   });
 
   it('uses simulation id ascending as deterministic tiebreaker when updatedAt values match', () => {
@@ -87,6 +94,24 @@ describe('mapSavedSimulationList', () => {
     ]);
 
     expect(mapped[0].configSummary).toBe('800x480 · init pop 20 · max food 120');
+  });
+
+  it('marks rows as non-resumable when seed/tick metadata is missing or invalid', () => {
+    const mapped = mapSavedSimulationList([
+      {
+        id: 'sim-invalid',
+        name: 'Corrupt metadata',
+        seed: '  ',
+        tickCount: -1,
+        updatedAt: '2026-03-06T12:00:00.000Z'
+      }
+    ]);
+
+    expect(mapped[0]).toMatchObject({
+      seed: '',
+      tickCount: 0,
+      metadataValid: false
+    });
   });
 });
 

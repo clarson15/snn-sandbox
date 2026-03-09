@@ -54,12 +54,19 @@ export function mapSavedSimulationList(apiItems) {
   return [...apiItems]
     .map((item) => {
       const parsedTickCount = toNonNegativeInteger(item.tickCount);
+      const seed = String(item.seed ?? '').trim();
+      const hasSeedField = Object.prototype.hasOwnProperty.call(item ?? {}, 'seed');
+      const hasTickField = Object.prototype.hasOwnProperty.call(item ?? {}, 'tickCount');
+      const metadataValid = !hasSeedField && !hasTickField
+        ? true
+        : seed.length > 0 && parsedTickCount !== null;
 
       return {
         id: String(item.id),
         name: String(item.name),
-        seed: String(item.seed ?? ''),
+        seed: metadataValid ? seed : '',
         tickCount: parsedTickCount ?? 0,
+        metadataValid,
         updatedAt: String(item.updatedAt),
         populationCount: derivePopulationCount(item),
         configSummary: deriveConfigSummary(item)
