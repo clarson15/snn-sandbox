@@ -2997,7 +2997,7 @@ function App() {
                               {activeBrainNeuronDetail ? (
                                 <>
                                   <p>
-                                    <strong>Neuron detail:</strong> ID {activeBrainNeuronDetail.neuronId} · role {activeBrainNeuronDetail.role} · incoming {activeBrainNeuronDetail.incomingCount} · outgoing {activeBrainNeuronDetail.outgoingCount} · threshold {activeBrainNeuronDetail.thresholdLabel}
+                                    <strong>Neuron detail:</strong> ID {activeBrainNeuronDetail.neuronId} · role {activeBrainNeuronDetail.role} · incoming {activeBrainNeuronDetail.incomingCount} · outgoing {activeBrainNeuronDetail.outgoingCount} · threshold {activeBrainNeuronDetail.thresholdLabel} · potential {activeBrainNeuronDetail.currentPotentialLabel} · spike state {activeBrainNeuronDetail.spikeStateLabel}
                                   </p>
                                   <div>
                                     <p><strong>Incoming synapses</strong></p>
