@@ -62,7 +62,7 @@ import {
   INSPECTOR_TREND_WINDOW_TICKS,
   reduceInspectorTrendState
 } from './inspectorTrend';
-import { formatInspectorSnapshot } from './inspectorFormatting';
+import { INSPECTOR_PLACEHOLDER, formatInspectorSnapshot } from './inspectorFormatting';
 import { deriveNeuronDetailPanel } from './inspectorNeuronDetail';
 import { deriveInspectorTraitSections, INSPECTOR_TRAIT_SECTION_SCHEMA } from './inspectorTraitSchema';
 
@@ -629,6 +629,9 @@ function App() {
     () => formatInspectorSnapshot(inspectorOrganism, inspectorNearestFoodDistance),
     [inspectorOrganism, inspectorNearestFoodDistance]
   );
+  const inspectorSummaryParentId = formattedInspector.parentId === INSPECTOR_PLACEHOLDER
+    ? 'none'
+    : formattedInspector.parentId;
   const inspectorTraitSections = useMemo(
     () => deriveInspectorTraitSections(formattedInspector),
     [formattedInspector]
@@ -2593,6 +2596,12 @@ function App() {
             ) : comparisonUnavailableReason ? (
               <p role="status">{comparisonUnavailableReason}</p>
             ) : null}
+            <section className="inspector-summary-card" aria-label="inspector summary card">
+              <h3>Summary</h3>
+              <p>
+                <strong>ID:</strong> {inspectorOrganism.id} · <strong>Generation:</strong> {formattedInspector.generation} · <strong>Age:</strong> {formattedInspector.age} · <strong>Energy:</strong> {formattedInspector.energy} · <strong>Parent:</strong> {inspectorSummaryParentId}
+              </p>
+            </section>
             <h3 ref={inspectorSelectionHeadingRef} tabIndex={-1} aria-label="inspector selection details">
               Selected organism details
             </h3>

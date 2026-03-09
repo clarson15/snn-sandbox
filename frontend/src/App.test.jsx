@@ -2149,6 +2149,7 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
     expect(screen.getByRole('heading', { name: /no organism selected/i })).toBeInTheDocument();
     expect(screen.queryByText(/selected organism details/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: /inspector summary card/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/brain data unavailable for this organism\./i)).not.toBeInTheDocument();
 
     vi.useRealTimers();
@@ -2500,6 +2501,12 @@ describe('App', () => {
 
     expect(inspector).toHaveTextContent(`ID: ${firstTarget.id}`);
     expect(within(inspector).queryByRole('heading', { name: /no organism selected/i })).not.toBeInTheDocument();
+    const summaryCard = screen.getByRole('region', { name: /inspector summary card/i });
+    expect(summaryCard).toHaveTextContent(`ID: ${firstTarget.id}`);
+    expect(summaryCard).toHaveTextContent(`Generation: ${firstTarget.generation}`);
+    expect(summaryCard).toHaveTextContent(`Age: ${firstTarget.age}`);
+    expect(summaryCard).toHaveTextContent(`Energy: ${firstTarget.energy.toFixed(3)}`);
+    expect(summaryCard).toHaveTextContent(/parent:\s*(none|org-\d+)/i);
     expect(inspector).toHaveTextContent(`Generation: ${firstTarget.generation}`);
     expect(inspector).toHaveTextContent(`Age: ${firstTarget.age}`);
     expect(inspector).toHaveTextContent(`Size: ${firstTarget.traits.size.toFixed(3)}`);

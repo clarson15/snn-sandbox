@@ -351,6 +351,21 @@ canvas {
   }
 }
 
+.inspector-summary-card {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.5rem 0 0.65rem;
+  border: 1px solid #334155;
+  border-radius: 0.5rem;
+  background: #101f3d;
+  padding: 0.65rem 0.75rem;
+}
+
+.inspector-summary-card h3,
+.inspector-summary-card p {
+  margin: 0;
+}
+
 .inspector-critical-stats {
   display: grid;
   gap: 0.25rem;
