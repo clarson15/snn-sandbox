@@ -4,6 +4,7 @@ import {
   applyBrainViewportZoom,
   createBrainViewportFitSelectionTransform,
   createBrainViewportFitTransform,
+  deriveBrainVisualizerLegend,
   deriveEmphasizedBrainGraphModel,
   deriveFilteredBrainGraphModel,
   mapBrainEmphasisChecksum,
@@ -476,5 +477,111 @@ describe('brain graph viewport transforms', () => {
       translateX: -962.666667,
       translateY: -344.977778
     });
+  });
+});
+
+describe('deriveBrainVisualizerLegend', () => {
+  it('returns empty legend for null model', () => {
+    const legend = deriveBrainVisualizerLegend(null);
+    expect(legend.neuronTypes).toEqual([]);
+    expect(legend.synapseCues).toHaveLength(2);
+  });
+
+  it('returns empty legend for model without nodes', () => {
+    const legend = deriveBrainVisualizerLegend({ nodes: [], edges: [] });
+    expect(legend.neuronTypes).toEqual([]);
+  });
+
+  it('extracts neuron types from model deterministically', () => {
+    const model = {
+      nodes: [
+        { id: 'n1', type: 'hidden' },
+        { id: 'n2', type: 'input' },
+        { id: 'n3', type: 'output' }
+      ],
+      edges: []
+    };
+
+    const legend = deriveBrainVisualizerLegend(model);
+
+    expect(legend.neuronTypes).toHaveLength(3);
+    expect(legend.neuronTypes[0].type).toBe('input');
+    expect(legend.neuronTypes[1].type).toBe('hidden');
+    expect(legend.neuronTypes[2].type).toBe('output');
+  });
+
+  it('sorts neuron types by layer order then alphabetically', () => {
+    const model = {
+      nodes: [
+        { id: 'n1', type: 'output' },
+        { id: 'n2', type: 'hidden' },
+        { id: 'n3', type: 'input' },
+        { id: 'n4', type: 'unknown' }
+      ],
+      edges: []
+    };
+
+    const legend = deriveBrainVisualizerLegend(model);
+
+    expect(legend.neuronTypes.map((t) => t.type)).toEqual(['input', 'hidden', 'output', 'unknown']);
+  });
+
+  it('includes correct labels and colors for each neuron type', () => {
+    const model = {
+      nodes: [
+        { id: 'n1', type: 'input' },
+        { id: 'n2', type: 'hidden' },
+        { id: 'n3', type: 'output' }
+      ],
+      edges: []
+    };
+
+    const legend = deriveBrainVisualizerLegend(model);
+
+    expect(legend.neuronTypes[0]).toMatchObject({
+      type: 'input',
+      label: 'Input',
+      color: expect.objectContaining({ hue: 210 })
+    });
+    expect(legend.neuronTypes[1]).toMatchObject({
+      type: 'hidden',
+      label: 'Hidden',
+      color: expect.objectContaining({ hue: 270 })
+    });
+    expect(legend.neuronTypes[2]).toMatchObject({
+      type: 'output',
+      label: 'Output',
+      color: expect.objectContaining({ hue: 150 })
+    });
+  });
+
+  it('includes synapse polarity cues', () => {
+    const legend = deriveBrainVisualizerLegend({ nodes: [], edges: [] });
+
+    expect(legend.synapseCues).toHaveLength(2);
+    expect(legend.synapseCues[0]).toMatchObject({
+      polarity: 'excitatory',
+      color: '#22c55e',
+      description: 'Positive weight (excitatory)'
+    });
+    expect(legend.synapseCues[1]).toMatchObject({
+      polarity: 'inhibitory',
+      color: '#ef4444',
+      description: 'Negative weight (inhibitory)'
+    });
+  });
+
+  it('does not mutate input model', () => {
+    const model = {
+      nodes: [
+        { id: 'n1', type: 'input' }
+      ],
+      edges: []
+    };
+    const originalNodes = JSON.stringify(model.nodes);
+
+    deriveBrainVisualizerLegend(model);
+
+    expect(JSON.stringify(model.nodes)).toBe(originalNodes);
   });
 });
