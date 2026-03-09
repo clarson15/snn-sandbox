@@ -67,6 +67,12 @@ import { INSPECTOR_PLACEHOLDER, formatInspectorSnapshot } from './inspectorForma
 import { deriveNeuronDetailPanel } from './inspectorNeuronDetail';
 import { deriveInspectorTraitSections, INSPECTOR_TRAIT_SECTION_SCHEMA } from './inspectorTraitSchema';
 import { deriveInspectorTraitDeltaModel } from './inspectorTraitDelta';
+import {
+  HIDDEN_NEURON_EMPTY_MESSAGE,
+  SYNAPSE_EMPTY_MESSAGE,
+  TRAIT_EMPTY_MESSAGE,
+  deriveInspectorGenomeMutationSummaryModel
+} from './inspectorGenomeMutationSummary';
 
 const TICK_MS = 1000 / 30;
 const SPEED_OPTIONS = [1, 2, 5, 10];
@@ -640,6 +646,10 @@ function App() {
   );
   const inspectorTraitDeltaModel = useMemo(
     () => deriveInspectorTraitDeltaModel(inspectorOrganism, displayWorld?.organisms),
+    [inspectorOrganism, displayWorld?.organisms]
+  );
+  const inspectorGenomeMutationSummaryModel = useMemo(
+    () => deriveInspectorGenomeMutationSummaryModel(inspectorOrganism, displayWorld?.organisms),
     [inspectorOrganism, displayWorld?.organisms]
   );
 
@@ -2645,6 +2655,50 @@ function App() {
                 <p>{inspectorTraitDeltaModel.message}</p>
               )}
             </section>
+            {inspectorGenomeMutationSummaryModel.isVisible ? (
+              <section aria-label="genome mutation summary">
+                <h4>Genome Mutation Summary</h4>
+                {inspectorGenomeMutationSummaryModel.unavailableMessage ? (
+                  <p>{inspectorGenomeMutationSummaryModel.unavailableMessage}</p>
+                ) : (
+                  <>
+                    <p><strong>Compared parent:</strong> {inspectorGenomeMutationSummaryModel.parentId}</p>
+                    <p><strong>Trait deltas</strong></p>
+                    {inspectorGenomeMutationSummaryModel.traitDeltas.length > 0 ? (
+                      <ul>
+                        {inspectorGenomeMutationSummaryModel.traitDeltas.map((change) => (
+                          <li key={change.key}>{change.label}: {change.delta > 0 ? '+' : ''}{change.delta.toFixed(3)}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p>{TRAIT_EMPTY_MESSAGE}</p>
+                    )}
+                    <p><strong>Synapse adds/removes</strong></p>
+                    {inspectorGenomeMutationSummaryModel.synapseChanges.length > 0 ? (
+                      <ul>
+                        {inspectorGenomeMutationSummaryModel.synapseChanges.map((change) => (
+                          <li key={`${change.sourceId}->${change.targetId}:${change.changeType}`}>
+                            {change.changeType}: {change.sourceId} → {change.targetId}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p>{SYNAPSE_EMPTY_MESSAGE}</p>
+                    )}
+                    <p><strong>Hidden-neuron adds/removes</strong></p>
+                    {inspectorGenomeMutationSummaryModel.hiddenNeuronChanges.length > 0 ? (
+                      <ul>
+                        {inspectorGenomeMutationSummaryModel.hiddenNeuronChanges.map((change) => (
+                          <li key={`${change.neuronId}:${change.changeType}`}>{change.changeType}: {change.neuronId}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p>{HIDDEN_NEURON_EMPTY_MESSAGE}</p>
+                    )}
+                  </>
+                )}
+              </section>
+            ) : null}
             {selectedOrganismId && inspectorTrendState.samples.length > 1 ? (
               <section className="inspector-trend-strip" aria-label="selected organism trend strip">
                 <h4>Recent trend ({inspectorTrendState.samples.length} ticks)</h4>
