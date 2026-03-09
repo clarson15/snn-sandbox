@@ -56,6 +56,9 @@
  * @property {number} [interactionRadius=0] radius used for organism-to-organism proximity checks
  * @property {number} [interactionCostPerNeighbor=0] deterministic energy cost per nearby organism
  * @property {'spatial'|'legacy'} [interactionLookupMode='spatial'] query strategy used for organism proximity checks
+ * @property {number} [reproductionThreshold=Infinity] minimum energy required for organism to reproduce
+ * @property {number} [reproductionCost=0] energy deducted from parent on reproduction
+ * @property {number} [offspringStartEnergy=0] energy given to offspring on creation
  */
 
 /**
