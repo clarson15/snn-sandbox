@@ -2263,7 +2263,9 @@ describe('App', () => {
     fireEvent.click(nextButton);
 
     expect(screen.getByRole('heading', { name: /selected vs pinned comparison/i })).toBeInTheDocument();
-    const comparisonTable = screen.getByRole('table');
+    const comparisonTable = screen.getByRole('table', {
+      name: /selected and pinned organism comparison/i
+    });
     expect(comparisonTable).toBeInTheDocument();
     expect(within(comparisonTable).getByText(/^generation$/i)).toBeInTheDocument();
     expect(within(comparisonTable).getByText(/^vision range$/i)).toBeInTheDocument();
