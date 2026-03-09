@@ -47,4 +47,40 @@ describe('simulation stats', () => {
       averageEnergy: '0.0'
     });
   });
+
+  it('normalizes malformed numeric inputs into deterministic finite outputs', () => {
+    const derived = deriveSimulationStats({
+      tick: -12.7,
+      organisms: [
+        { id: 'o-1', generation: Number.NaN, energy: Infinity },
+        { id: 'o-2', generation: 4.9, energy: -3.2 }
+      ],
+      food: [{ id: 'f-1' }]
+    });
+
+    expect(derived).toEqual({
+      tickCount: 0,
+      elapsedSeconds: 0,
+      population: 2,
+      foodCount: 1,
+      averageGeneration: 2.45,
+      averageEnergy: -1.6
+    });
+
+    expect(formatSimulationStats({
+      tickCount: -1,
+      elapsedSeconds: Number.NaN,
+      population: -2,
+      foodCount: 1.9,
+      averageGeneration: Number.POSITIVE_INFINITY,
+      averageEnergy: Number.NEGATIVE_INFINITY
+    })).toEqual({
+      tickCount: '0',
+      elapsedTime: '0.0s',
+      population: '0',
+      foodCount: '1',
+      averageGeneration: '0.0',
+      averageEnergy: '0.0'
+    });
+  });
 });
