@@ -572,7 +572,31 @@ describe('App', () => {
 
       expect(saved).toMatchObject({
         name: 'New Simulation',
+        seed: '',
         resolvedSeed: '1e240'
+      });
+    });
+  });
+
+  it('uses explicit seed as-is and persists matching seed fields', async () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: '  explicit-seed-77  ' } });
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    expect(screen.getByText(/resolved seed:/i)).toHaveTextContent('explicit-seed-77');
+    expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: explicit-seed-77');
+
+    await waitFor(() => {
+      const saved = loadSimulationConfig();
+      if (!saved) {
+        expect(saved).toBeNull();
+        return;
+      }
+
+      expect(saved).toMatchObject({
+        seed: 'explicit-seed-77',
+        resolvedSeed: 'explicit-seed-77'
       });
     });
   });
