@@ -163,7 +163,8 @@ function App() {
   const [pinnedOrganismSnapshot, setPinnedOrganismSnapshot] = useState(null);
   const [inspectorTrendState, setInspectorTrendState] = useState(() => ({ selectedOrganismId: null, samples: [] }));
   const [isCompactInspectorLayout, setIsCompactInspectorLayout] = useState(() => window.innerWidth <= INSPECTOR_COMPACT_BREAKPOINT_PX);
-  const [activeSynapseId, setActiveSynapseId] = useState(null);
+  const [hoveredSynapseId, setHoveredSynapseId] = useState(null);
+  const [selectedSynapseHighlight, setSelectedSynapseHighlight] = useState(null);
   const [brainGraphTransform, setBrainGraphTransform] = useState(() => ({ scale: 1, translateX: 0, translateY: 0 }));
   const [hideNearZeroBrainEdges, setHideNearZeroBrainEdges] = useState(false);
   const [strongestBrainEdgeCount, setStrongestBrainEdgeCount] = useState(0);
@@ -548,6 +549,18 @@ function App() {
     }
   };
 
+  const selectSynapseHighlight = (synapseId, neuronId) => {
+    if (!inspectorOrganism?.id || !synapseId || !neuronId) {
+      return;
+    }
+
+    setSelectedSynapseHighlight({
+      organismId: inspectorOrganism.id,
+      neuronId,
+      synapseId
+    });
+  };
+
   const acknowledgeUnavailableSelection = () => {
     if (!selectedOrganismUnavailable || inspectorPinned) {
       return false;
@@ -642,14 +655,33 @@ function App() {
     return new Map(brainGraphModel.nodes.map((node) => [node.id, node]));
   }, [brainGraphModel]);
 
+  const activeBrainNeuronDetailNeuronId = pinnedBrainNeuronId ?? hoveredBrainNeuronId ?? selectedBrainNeuronId;
+
+  const selectedSynapseHighlightId = useMemo(() => {
+    if (!selectedSynapseHighlight || !brainGraphModel || !inspectorOrganism?.id || !activeBrainNeuronDetailNeuronId) {
+      return null;
+    }
+
+    if (
+      selectedSynapseHighlight.organismId !== inspectorOrganism.id
+      || selectedSynapseHighlight.neuronId !== activeBrainNeuronDetailNeuronId
+    ) {
+      return null;
+    }
+
+    return brainGraphModel.edges.some((edge) => edge.id === selectedSynapseHighlight.synapseId)
+      ? selectedSynapseHighlight.synapseId
+      : null;
+  }, [selectedSynapseHighlight, brainGraphModel, inspectorOrganism?.id, activeBrainNeuronDetailNeuronId]);
+
+  const activeSynapseId = hoveredSynapseId ?? selectedSynapseHighlightId;
+
   const activeSynapse = useMemo(() => {
     if (!brainGraphModel || !activeSynapseId) {
       return null;
     }
     return brainGraphModel.edges.find((edge) => edge.id === activeSynapseId) ?? null;
   }, [activeSynapseId, brainGraphModel]);
-
-  const activeBrainNeuronDetailNeuronId = pinnedBrainNeuronId ?? hoveredBrainNeuronId ?? selectedBrainNeuronId;
   const activeBrainNeuronDetail = useMemo(() => deriveNeuronDetailPanel(
     baseBrainGraphModel,
     inspectorOrganism?.brain,
@@ -685,19 +717,21 @@ function App() {
     setEmphasizedOutputNeuronId(null);
     setSelectedBrainNeuronId(null);
     setHoveredBrainNeuronId(null);
+    setHoveredSynapseId(null);
+    setSelectedSynapseHighlight(null);
     setBrainFocusMode('full');
   }, [inspectorOrganism?.id]);
 
   useEffect(() => {
-    if (!brainGraphModel || !activeSynapseId) {
-      setActiveSynapseId(null);
+    if (!brainGraphModel || !hoveredSynapseId) {
+      setHoveredSynapseId(null);
       return;
     }
 
-    if (!brainGraphModel.edges.some((edge) => edge.id === activeSynapseId)) {
-      setActiveSynapseId(null);
+    if (!brainGraphModel.edges.some((edge) => edge.id === hoveredSynapseId)) {
+      setHoveredSynapseId(null);
     }
-  }, [activeSynapseId, brainGraphModel]);
+  }, [hoveredSynapseId, brainGraphModel]);
 
   useEffect(() => {
     if (!brainGraphModel || !pinnedBrainNeuronId) {
@@ -729,6 +763,12 @@ function App() {
       setBrainFocusMode('full');
     }
   }, [brainGraphModel, selectedBrainNeuronId]);
+
+  useEffect(() => {
+    if (!selectedSynapseHighlightId && selectedSynapseHighlight) {
+      setSelectedSynapseHighlight(null);
+    }
+  }, [selectedSynapseHighlightId, selectedSynapseHighlight]);
 
   const pinnedComparisonCandidate = inspectorPinned ? pinnedOrganismSnapshot : null;
   const hasComparisonPair = Boolean(
@@ -2676,22 +2716,48 @@ function App() {
                                   <p>
                                     <strong>Neuron detail:</strong> ID {activeBrainNeuronDetail.neuronId} · role {activeBrainNeuronDetail.role} · incoming {activeBrainNeuronDetail.incomingCount} · outgoing {activeBrainNeuronDetail.outgoingCount} · threshold {activeBrainNeuronDetail.thresholdLabel}
                                   </p>
-                                  <p>
-                                    Incoming synapses:{' '}
-                                    {activeBrainNeuronDetail.incomingSynapses.length > 0
-                                      ? activeBrainNeuronDetail.incomingSynapses
-                                        .map((synapse) => `${synapse.sourceId}→${synapse.targetId} (${synapse.weightLabel})`)
-                                        .join(', ')
-                                      : 'none'}
-                                  </p>
-                                  <p>
-                                    Outgoing synapses:{' '}
-                                    {activeBrainNeuronDetail.outgoingSynapses.length > 0
-                                      ? activeBrainNeuronDetail.outgoingSynapses
-                                        .map((synapse) => `${synapse.sourceId}→${synapse.targetId} (${synapse.weightLabel})`)
-                                        .join(', ')
-                                      : 'none'}
-                                  </p>
+                                  <div>
+                                    <p><strong>Incoming synapses</strong></p>
+                                    {activeBrainNeuronDetail.incomingSynapses.length > 0 ? (
+                                      <ul>
+                                        {activeBrainNeuronDetail.incomingSynapses.map((synapse) => (
+                                          <li key={`incoming-${synapse.id}`}>
+                                            <button
+                                              type="button"
+                                              aria-label={`Select synapse ${synapse.id}: ${synapse.sourceId} to ${synapse.targetId}, weight ${synapse.weightLabel}`}
+                                              aria-pressed={selectedSynapseHighlightId === synapse.id}
+                                              onClick={() => selectSynapseHighlight(synapse.id, activeBrainNeuronDetail.neuronId)}
+                                            >
+                                              {synapse.sourceId} → {synapse.targetId} ({synapse.weightLabel})
+                                            </button>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    ) : (
+                                      <p>No incoming synapses.</p>
+                                    )}
+                                  </div>
+                                  <div>
+                                    <p><strong>Outgoing synapses</strong></p>
+                                    {activeBrainNeuronDetail.outgoingSynapses.length > 0 ? (
+                                      <ul>
+                                        {activeBrainNeuronDetail.outgoingSynapses.map((synapse) => (
+                                          <li key={`outgoing-${synapse.id}`}>
+                                            <button
+                                              type="button"
+                                              aria-label={`Select synapse ${synapse.id}: ${synapse.sourceId} to ${synapse.targetId}, weight ${synapse.weightLabel}`}
+                                              aria-pressed={selectedSynapseHighlightId === synapse.id}
+                                              onClick={() => selectSynapseHighlight(synapse.id, activeBrainNeuronDetail.neuronId)}
+                                            >
+                                              {synapse.sourceId} → {synapse.targetId} ({synapse.weightLabel})
+                                            </button>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    ) : (
+                                      <p>No outgoing synapses.</p>
+                                    )}
+                                  </div>
                                 </>
                               ) : (
                                 <p>Select, focus, or hover a neuron to inspect deterministic neuron details.</p>
@@ -2724,13 +2790,15 @@ function App() {
                                       opacity={activeSynapse?.id === edge.id ? '1' : String(edge.emphasisOpacity)}
                                       className="brain-graph-synapse-edge"
                                       style={{ cursor: 'pointer' }}
-                                      onMouseEnter={() => setActiveSynapseId(edge.id)}
-                                      onFocus={() => setActiveSynapseId(edge.id)}
-                                      onClick={() => setActiveSynapseId(edge.id)}
+                                      onMouseEnter={() => setHoveredSynapseId(edge.id)}
+                                      onMouseLeave={() => setHoveredSynapseId((current) => (current === edge.id ? null : current))}
+                                      onFocus={() => setHoveredSynapseId(edge.id)}
+                                      onBlur={() => setHoveredSynapseId((current) => (current === edge.id ? null : current))}
+                                      onClick={() => selectSynapseHighlight(edge.id, activeBrainNeuronDetailNeuronId ?? selectedBrainNeuronId ?? edge.sourceId)}
                                       onKeyDown={(event) => {
                                         if (event.key === 'Enter' || event.key === ' ') {
                                           event.preventDefault();
-                                          setActiveSynapseId(edge.id);
+                                          selectSynapseHighlight(edge.id, activeBrainNeuronDetailNeuronId ?? selectedBrainNeuronId ?? edge.sourceId);
                                         }
                                       }}
                                       tabIndex={0}

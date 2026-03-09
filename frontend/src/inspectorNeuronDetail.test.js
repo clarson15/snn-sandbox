@@ -21,6 +21,19 @@ describe('deriveNeuronDetailPanel', () => {
     expect(panel?.thresholdLabel).toBe('0.750');
   });
 
+  it('returns deterministic empty incoming/outgoing lists when no edges match the neuron', () => {
+    const model = {
+      nodes: [{ id: 'n-9', type: 'output' }],
+      edges: [{ id: 'e-1', sourceId: 'n-1', targetId: 'n-2', weight: 0.1, weightLabel: '0.100' }]
+    };
+
+    const panel = deriveNeuronDetailPanel(model, { neurons: [{ id: 'n-9', threshold: 0.2 }] }, 'n-9');
+    expect(panel?.incomingSynapses).toEqual([]);
+    expect(panel?.outgoingSynapses).toEqual([]);
+    expect(panel?.incomingCount).toBe(0);
+    expect(panel?.outgoingCount).toBe(0);
+  });
+
   it('returns null when neuron id is unavailable', () => {
     const panel = deriveNeuronDetailPanel({ nodes: [], edges: [] }, null, 'n-1');
     expect(panel).toBeNull();
