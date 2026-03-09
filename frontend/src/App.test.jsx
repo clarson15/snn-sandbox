@@ -1852,7 +1852,7 @@ describe('App', () => {
     vi.useRealTimers();
   });
 
-  it('keeps selection stable across controls and deterministically falls forward when selected organism dies', async () => {
+  it('clears stale selection to deterministic empty state when selected organism dies', async () => {
     vi.useFakeTimers();
     render(<App />);
 
@@ -1898,12 +1898,6 @@ describe('App', () => {
     const selectedFixture = initialWorld.organisms.find((organism) => organism.id === firstDiedId);
     expect(selectedFixture).toBeTruthy();
 
-    const aliveIdsAtDeath = projected.organisms.map((organism) => organism.id).sort((left, right) => left.localeCompare(right));
-    const expectedFallbackId = aliveIdsAtDeath.find((id) => id.localeCompare(firstDiedId) > 0)
-      ?? aliveIdsAtDeath[aliveIdsAtDeath.length - 1]
-      ?? null;
-    expect(expectedFallbackId).toBeTruthy();
-
     const canvas = screen.getByLabelText(/simulation world/i);
     vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
       x: 0,
@@ -1921,12 +1915,6 @@ describe('App', () => {
     const inspector = screen.getByRole('region', { name: /organism inspector/i });
     expect(inspector).toHaveTextContent(`ID: ${selectedFixture.id}`);
 
-    fireEvent.click(screen.getByRole('button', { name: /^2x$/i }));
-    fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
-    fireEvent.click(screen.getByRole('button', { name: /^5x$/i }));
-    fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
-    expect(inspector).toHaveTextContent(`ID: ${selectedFixture.id}`);
-
     fireEvent.click(screen.getByRole('button', { name: /^1x$/i }));
 
     for (let i = 0; i < 12; i += 1) {
@@ -1934,19 +1922,20 @@ describe('App', () => {
         vi.advanceTimersByTime(1000);
       });
 
-      if (inspector.textContent?.includes(`ID: ${expectedFallbackId}`)) {
+      if (screen.queryByText(/selected organism is no longer available\./i)) {
         break;
       }
     }
 
     fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
-    expect(inspector).toHaveTextContent(`ID: ${expectedFallbackId}`);
-    expect(screen.queryByText(/selected organism is no longer available\./i)).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /no organism selected/i })).toBeInTheDocument();
+    expect(screen.queryByText(/selected organism details/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/brain data unavailable for this organism\./i)).not.toBeInTheDocument();
 
     vi.useRealTimers();
   });
 
-  it('keeps pinned inspector open on deselection and auto-selects a live organism after death', () => {
+  it('clears pinned inspector snapshot when selected organism dies', () => {
     vi.useFakeTimers();
     render(<App />);
 
@@ -2028,12 +2017,10 @@ describe('App', () => {
       }
     }
 
-    expect(inspector.textContent).toMatch(/ID:\s*org-\d+/i);
+    expect(screen.getByText(/selected organism is no longer available\./i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /no organism selected/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /pin organism inspector/i })).toHaveAttribute('aria-pressed', 'false');
     expect(inspector).not.toHaveTextContent(`ID: ${selectedFixture.id}`);
-    expect(screen.queryByText(/organism no longer alive\./i)).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: /unpin organism inspector/i }));
-    expect(inspector.textContent).toMatch(/ID:\s*org-\d+/i);
 
     vi.useRealTimers();
   });
@@ -2075,43 +2062,6 @@ describe('App', () => {
       'Metabolism'
     ]);
     expect(screen.getAllByText(/vs pinned/i).length).toBeGreaterThan(0);
-  });
-
-  it('keeps selected vs pinned comparison active when selected organism dies and auto-falls forward', () => {
-    vi.useFakeTimers();
-    render(<App />);
-
-    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'comparison-fallback-seed' } });
-    fireEvent.change(screen.getByLabelText(/^initial population$/i), { target: { value: '2' } });
-    fireEvent.change(screen.getByLabelText(/^minimum population$/i), { target: { value: '1' } });
-    fireEvent.change(screen.getByLabelText(/^initial food count$/i), { target: { value: '0' } });
-    fireEvent.change(screen.getByLabelText(/food spawn chance/i), { target: { value: '0' } });
-    fireEvent.change(screen.getByLabelText(/^max food$/i), { target: { value: '1' } });
-
-    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
-    fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
-
-    const nextButton = screen.getByRole('button', { name: /next organism/i });
-    fireEvent.click(nextButton);
-    fireEvent.click(screen.getByRole('button', { name: /pin organism inspector/i }));
-    fireEvent.click(nextButton);
-
-    fireEvent.click(screen.getByRole('button', { name: /^1x$/i }));
-
-    for (let i = 0; i < 15; i += 1) {
-      act(() => {
-        vi.advanceTimersByTime(1000);
-      });
-
-      if (screen.queryByRole('heading', { name: /selected vs pinned comparison/i })) {
-        break;
-      }
-    }
-
-    expect(screen.queryByText(/comparison unavailable: selected organism is no longer alive/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /selected vs pinned comparison/i })).toBeInTheDocument();
-
-    vi.useRealTimers();
   });
 
   it('renders an always-visible zero-safe stats HUD before simulation starts', () => {

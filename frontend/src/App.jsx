@@ -54,8 +54,7 @@ import { useToasts } from './toasts';
 import { deriveInspectorComparisonRows } from './inspectorComparison';
 import {
   deriveDeterministicOrganismIds,
-  resolveAdjacentSelectionId,
-  resolveDeadSelectionFallback
+  resolveAdjacentSelectionId
 } from './inspectorSelection';
 import {
   deriveInspectorTrendSeries,
@@ -445,9 +444,6 @@ function App() {
 
   useEffect(() => {
     if (!selectedOrganismId) {
-      if (selectedOrganismUnavailable) {
-        setSelectedOrganismUnavailable(false);
-      }
       return;
     }
 
@@ -458,18 +454,11 @@ function App() {
       return;
     }
 
-    const fallbackOrganismId = resolveDeadSelectionFallback(deterministicOrganismIds, selectedOrganismId);
-    if (fallbackOrganismId) {
-      setSelectedOrganismId(fallbackOrganismId);
-      if (selectedOrganismUnavailable) {
-        setSelectedOrganismUnavailable(false);
-      }
-      return;
-    }
-
     setSelectedOrganismId(null);
+    setInspectorPinned(false);
+    setPinnedOrganismSnapshot(null);
     setSelectedOrganismUnavailable(true);
-  }, [deterministicOrganismIds, selectedOrganismId, selectedOrganism, selectedOrganismUnavailable]);
+  }, [selectedOrganismId, selectedOrganism, selectedOrganismUnavailable]);
 
   const clearSelection = () => {
     setSelectedOrganismId(null);
@@ -2911,7 +2900,7 @@ function App() {
             <ul>
               <li>Click any organism in the simulation world.</li>
               <li>Use Previous/Next organism controls (or ←/↑ and →/↓).</li>
-              <li>If an organism dies and no fallback exists, this empty state remains until you select another.</li>
+              <li>If the selected organism dies or disappears, the inspector clears and stays empty until you choose another organism.</li>
             </ul>
           </section>
         )}
