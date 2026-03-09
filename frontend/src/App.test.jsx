@@ -168,6 +168,7 @@ describe('App', () => {
     ).toBeInTheDocument();
 
     expect(screen.getByRole('button', { name: /start simulation/i })).toBeInTheDocument();
+    expect(screen.getByText(/leave blank to generate a seed once at start/i)).toBeInTheDocument();
   });
 
   it('resets setup form values back to project defaults', () => {

@@ -5,6 +5,8 @@ import {
   createInitialWorldFromConfig,
   loadSimulationConfig,
   normalizeSimulationConfig,
+  resolveSeed,
+  SEED_FALLBACK_COUNTER_KEY,
   STORAGE_KEY,
   toEngineStepParams,
   validateSimulationConfig
@@ -42,6 +44,30 @@ describe('simulation config helpers', () => {
     ensureWritableLocalStorage();
     window.localStorage.clear();
   });
+
+  it('returns the provided seed when present', () => {
+    expect(resolveSeed('  replay-seed  ')).toBe('replay-seed');
+  });
+
+  it('uses deterministic local-storage fallback sequence when crypto is unavailable', () => {
+    const originalCrypto = globalThis.crypto;
+    Object.defineProperty(globalThis, 'crypto', {
+      configurable: true,
+      value: undefined
+    });
+
+    try {
+      expect(resolveSeed('')).toBe('seed-00000001');
+      expect(resolveSeed('')).toBe('seed-00000002');
+      expect(window.localStorage.getItem(SEED_FALLBACK_COUNTER_KEY)).toBe('2');
+    } finally {
+      Object.defineProperty(globalThis, 'crypto', {
+        configurable: true,
+        value: originalCrypto
+      });
+    }
+  });
+
   it('produces identical first N ticks with same resolved config', () => {
     const config = normalizeSimulationConfig(
       {

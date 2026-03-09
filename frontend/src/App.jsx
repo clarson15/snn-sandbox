@@ -1864,6 +1864,7 @@ function App() {
           Seed (optional)
           <input value={formState.seed} onChange={onFieldChange('seed')} placeholder="Leave blank to auto-generate" />
         </label>
+        <p className="field-hint">Leave blank to generate a seed once at start; save this value to replay identical deterministic runs.</p>
 
         <h3>World settings</h3>
         <p className="field-hint">World width/height: 100–3000.</p>
