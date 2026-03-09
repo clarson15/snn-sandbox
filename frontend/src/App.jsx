@@ -27,7 +27,13 @@ import { drawWorldSnapshot } from './simulation/renderer';
 import { resolveRenderFrameInterval, shouldRenderFrame } from './simulation/renderCadence';
 import { computeFixedStepBudget, resolveMaxCatchUpTicksPerFrame } from './simulation/fixedStepScheduler';
 import { pickOrganismAtPoint } from './simulation/selection';
-import { deriveSimulationStats, formatSimulationStats } from './simulation/stats';
+import {
+  deriveSimulationStats,
+  deriveStatsTrends,
+  formatSimulationStats,
+  formatTrendIndicator,
+  reduceStatsTrendHistory
+} from './simulation/stats';
 import { deriveRunMetadata, serializeRunMetadata } from './simulation/metadata';
 import { replaySnapshotToTick } from './simulation/replay';
 import {
@@ -233,6 +239,7 @@ function App() {
   const [mismatchEventFilters, setMismatchEventFilters] = useState({ types: [], severities: [] });
   const [activeMismatchAnnouncement, setActiveMismatchAnnouncement] = useState('');
   const [schedulerClampState, setSchedulerClampState] = useState({ active: false, droppedTicks: 0 });
+  const [statsTrendHistory, setStatsTrendHistory] = useState([]);
   const [initialFormState] = useState(() => {
     const saved = loadSimulationConfig();
     if (!saved) {
@@ -1174,10 +1181,18 @@ function App() {
     [hasSimulation, replayActive, paused]
   );
 
-  const formattedStats = useMemo(() => {
-    const stats = deriveSimulationStats(displayWorld);
-    return formatSimulationStats(stats);
-  }, [displayWorld, tickDisplay, resolvedSeed]);
+  const derivedStats = useMemo(() => deriveSimulationStats(displayWorld), [displayWorld, tickDisplay, resolvedSeed]);
+
+  const formattedStats = useMemo(() => formatSimulationStats(derivedStats), [derivedStats]);
+
+  useEffect(() => {
+    setStatsTrendHistory((previous) => reduceStatsTrendHistory(previous, derivedStats));
+  }, [derivedStats]);
+
+  const statsTrends = useMemo(
+    () => deriveStatsTrends(statsTrendHistory, derivedStats.tickCount),
+    [statsTrendHistory, derivedStats.tickCount]
+  );
 
   const runMetadata = useMemo(
     () => deriveRunMetadata({
@@ -2658,10 +2673,10 @@ function App() {
         <section className="simulation-stats-hud" aria-label="simulation stats hud">
           <h2>Simulation stats</h2>
           <p>Seed: {hudSeedLabel}</p>
-          <p>Population: {formattedStats.population}</p>
+          <p>Population: {formattedStats.population} ({formatTrendIndicator(statsTrends.population)})</p>
           <p>Food count: {formattedStats.foodCount}</p>
           <p>Average generation: {formattedStats.averageGeneration}</p>
-          <p>Average organism energy: {formattedStats.averageEnergy}</p>
+          <p>Average organism energy: {formattedStats.averageEnergy} ({formatTrendIndicator(statsTrends.averageEnergy)})</p>
           <p>Tick count: {formattedStats.tickCount}</p>
           <p>Time elapsed: {formattedStats.elapsedTime}</p>
           <p>Tick budget clamp: {schedulerClampState.active ? `Active (dropped ${schedulerClampState.droppedTicks} ticks this frame)` : 'Inactive'}</p>
