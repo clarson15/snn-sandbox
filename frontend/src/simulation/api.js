@@ -25,6 +25,31 @@ function derivePopulationCount(item) {
   return null;
 }
 
+function deriveConfigSummary(item) {
+  const parameters = item?.parameters ?? item?.snapshotMetadata?.parameters ?? null;
+  if (!parameters || typeof parameters !== 'object') {
+    return null;
+  }
+
+  const worldWidth = toNonNegativeInteger(parameters.worldWidth);
+  const worldHeight = toNonNegativeInteger(parameters.worldHeight);
+  const initialPopulation = toNonNegativeInteger(parameters.initialPopulation);
+  const maxFood = toNonNegativeInteger(parameters.maxFood);
+
+  const parts = [];
+  if (worldWidth !== null && worldHeight !== null) {
+    parts.push(`${worldWidth}x${worldHeight}`);
+  }
+  if (initialPopulation !== null) {
+    parts.push(`init pop ${initialPopulation}`);
+  }
+  if (maxFood !== null) {
+    parts.push(`max food ${maxFood}`);
+  }
+
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
+
 export function mapSavedSimulationList(apiItems) {
   return [...apiItems]
     .map((item) => {
@@ -36,10 +61,18 @@ export function mapSavedSimulationList(apiItems) {
         seed: String(item.seed ?? ''),
         tickCount: parsedTickCount ?? 0,
         updatedAt: String(item.updatedAt),
-        populationCount: derivePopulationCount(item)
+        populationCount: derivePopulationCount(item),
+        configSummary: deriveConfigSummary(item)
       };
     })
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    .sort((a, b) => {
+      const updatedAtComparison = b.updatedAt.localeCompare(a.updatedAt);
+      if (updatedAtComparison !== 0) {
+        return updatedAtComparison;
+      }
+
+      return a.id.localeCompare(b.id);
+    });
 }
 
 export async function listSimulationSnapshots() {

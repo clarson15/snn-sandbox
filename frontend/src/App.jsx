@@ -177,6 +177,7 @@ function App() {
   const [brainFocusMode, setBrainFocusMode] = useState('full');
   const [errors, setErrors] = useState({});
   const [savedSimulations, setSavedSimulations] = useState([]);
+  const [savedSimulationsError, setSavedSimulationsError] = useState('');
   const [saveStatus, setSaveStatus] = useState('');
   const [saveErrorDetail, setSaveErrorDetail] = useState('');
   const [loadStatus, setLoadStatus] = useState('');
@@ -393,9 +394,13 @@ function App() {
 
   useEffect(() => {
     listSimulationSnapshots()
-      .then((items) => setSavedSimulations(items))
+      .then((items) => {
+        setSavedSimulations(items);
+        setSavedSimulationsError('');
+      })
       .catch(() => {
         setSavedSimulations([]);
+        setSavedSimulationsError('Unable to load saved simulations. Retry from a fresh page load.');
       });
   }, []);
 
@@ -1443,6 +1448,7 @@ function App() {
 
       const items = await listSimulationSnapshots();
       setSavedSimulations(items);
+      setSavedSimulationsError('');
       setSaveStatus('Saved.');
     } catch (error) {
       if (error instanceof SnapshotNameConflictError && error.conflictingSnapshot) {
@@ -2311,8 +2317,9 @@ function App() {
 
       <section className="config-panel" aria-label="saved simulations">
         <h2>Saved simulations</h2>
+        {savedSimulationsError ? <p role="alert">{savedSimulationsError}</p> : null}
         {savedSimulations.length === 0 ? (
-          <p>No saved simulations yet.</p>
+          <p>{savedSimulationsError ? 'Saved simulations unavailable.' : 'No saved simulations yet.'}</p>
         ) : (
           <ul>
             {savedSimulations.map((snapshot) => {
@@ -2320,7 +2327,7 @@ function App() {
 
               return (
                 <li key={snapshot.id}>
-                  <strong>{snapshot.name}</strong> — updated {formatTimestamp(snapshot.updatedAt)} · seed {snapshot.seed || 'unknown'} · tick {snapshot.tickCount} · population {snapshot.populationCount ?? 'metadata unavailable'}{' '}
+                  <strong>{snapshot.name}</strong> — updated {formatTimestamp(snapshot.updatedAt)} · seed {snapshot.seed || 'unknown'} · tick {snapshot.tickCount} · population {snapshot.populationCount ?? 'metadata unavailable'} · config {snapshot.configSummary ?? 'metadata unavailable'}{' '}
                   <button type="button" onClick={() => onLoadSimulation(snapshot)} disabled={isLoadingSnapshot}>
                     {isLoadingSnapshot ? 'Loading…' : 'Resume'}
                   </button>{' '}

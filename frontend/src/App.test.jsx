@@ -720,6 +720,12 @@ describe('App', () => {
               updatedAt: '2026-03-06T12:00:01.000Z',
               worldState: {
                 organisms: [{ id: 'o1' }, { id: 'o2' }, { id: 'o3' }, { id: 'o4' }]
+              },
+              parameters: {
+                worldWidth: 800,
+                worldHeight: 480,
+                initialPopulation: 20,
+                maxFood: 120
               }
             }
           ])
@@ -741,6 +747,24 @@ describe('App', () => {
 
     const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
     expect(within(savedRegion).getByText(/population 4/i)).toBeInTheDocument();
+    expect(within(savedRegion).getByText(/config 800x480 · init pop 20 · max food 120/i)).toBeInTheDocument();
+  });
+
+  it('renders saved-simulations error state when list request fails', async () => {
+    globalThis.fetch.mockImplementation(async (url, options = {}) => {
+      if (url === '/api/simulations/snapshots' && (!options.method || options.method === 'GET')) {
+        return { ok: false, status: 500, json: async () => ({}) };
+      }
+
+      return { ok: false, status: 404, json: async () => ({}) };
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/unable to load saved simulations/i);
+      expect(screen.getByText(/saved simulations unavailable/i)).toBeInTheDocument();
+    });
   });
 
   it('supports deterministic replay tick jumps from a loaded snapshot and only resumes when explicit', async () => {
