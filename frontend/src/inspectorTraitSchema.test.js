@@ -1,0 +1,60 @@
+import { describe, expect, it } from 'vitest';
+
+import { deriveInspectorTraitSections, INSPECTOR_TRAIT_SECTION_SCHEMA } from './inspectorTraitSchema';
+
+describe('deriveInspectorTraitSections', () => {
+  it('returns deterministic section composition and trait ordering', () => {
+    const formattedInspector = {
+      id: 'org-7',
+      parentId: 'org-3',
+      offspringCount: '2',
+      generation: '7',
+      age: '14',
+      position: '(12.000, 8.000)',
+      size: '1.100',
+      speed: '2.200',
+      turnRate: '0.300',
+      visionRange: '42.000',
+      nearestFoodDistance: '9.000',
+      energy: '10.000',
+      metabolism: '0.100'
+    };
+
+    const first = deriveInspectorTraitSections(formattedInspector);
+    const second = deriveInspectorTraitSections({ ...formattedInspector });
+
+    expect(first).toEqual(second);
+    expect(first.map((section) => section.key)).toEqual([
+      'identityLifecycle',
+      'movement',
+      'sensing',
+      'metabolism'
+    ]);
+    expect(first.map((section) => section.label)).toEqual([
+      'Identity/Lifecycle',
+      'Movement',
+      'Sensing',
+      'Metabolism'
+    ]);
+
+    expect(first.map((section) => section.fields.map((field) => field.key))).toEqual([
+      ['id', 'parentId', 'offspringCount', 'generation', 'age'],
+      ['position', 'size', 'speed', 'turnRate'],
+      ['visionRange', 'nearestFoodDistance'],
+      ['energy', 'metabolism']
+    ]);
+  });
+
+  it('keeps schema ordering immutable and provides placeholders for missing values', () => {
+    const sections = deriveInspectorTraitSections(undefined);
+
+    expect(sections.map((section) => section.key)).toEqual(
+      INSPECTOR_TRAIT_SECTION_SCHEMA.map((section) => section.key)
+    );
+    expect(
+      sections.flatMap((section) => section.fields.map((field) => field.value))
+    ).toEqual(
+      INSPECTOR_TRAIT_SECTION_SCHEMA.flatMap((section) => section.fields.map(() => '—'))
+    );
+  });
+});

@@ -2238,7 +2238,7 @@ function App() {
               </div>
               <div>
                 <dt>[ / ]</dt>
-                <dd>Move focus between inspector trait sections (Identity, Lifecycle, Energy, Locomotion, Senses).</dd>
+                <dd>Move focus between inspector trait sections (Identity/Lifecycle, Movement, Sensing, Metabolism).</dd>
               </div>
               <div>
                 <dt>Enter</dt>
