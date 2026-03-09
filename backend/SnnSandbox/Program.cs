@@ -64,6 +64,31 @@ public class Program
                 return Results.BadRequest(new { error = "Tick count must be greater than or equal to 0." });
             }
 
+            if (request.SchemaVersion != 1)
+            {
+                return Results.BadRequest(new { error = "Unsupported snapshot schema version.", errorCode = "SNAPSHOT_SCHEMA_UNSUPPORTED" });
+            }
+
+            if (request.Parameters.ValueKind != System.Text.Json.JsonValueKind.Object)
+            {
+                return Results.BadRequest(new { error = "Simulation parameters payload must be a JSON object." });
+            }
+
+            if (request.WorldState.ValueKind != System.Text.Json.JsonValueKind.Object)
+            {
+                return Results.BadRequest(new { error = "Simulation world state payload must be a JSON object." });
+            }
+
+            if (!request.WorldState.TryGetProperty("tick", out var worldTickValue) || worldTickValue.ValueKind != System.Text.Json.JsonValueKind.Number || !worldTickValue.TryGetInt64(out var worldTick))
+            {
+                return Results.BadRequest(new { error = "Simulation world state must include an integer tick value." });
+            }
+
+            if (worldTick != request.TickCount)
+            {
+                return Results.BadRequest(new { error = "Tick count must match worldState.tick." });
+            }
+
             var saveResult = store.Save(request);
             if (!saveResult.Succeeded)
             {
