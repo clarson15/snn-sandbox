@@ -2503,7 +2503,7 @@ describe('App', () => {
   it('navigates organisms in deterministic id order with next/previous controls', () => {
     render(<App />);
 
-    fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'Fixture' } });
+    fireEvent.change(screen.getByLabelText(/simulation name/i), { target: { value: 'Fixture' } });
     fireEvent.change(screen.getByLabelText(/seed/i), { target: { value: 'fixture-seed' } });
     fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '800' } });
     fireEvent.change(screen.getByLabelText(/world height/i), { target: { value: '480' } });
