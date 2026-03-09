@@ -30,7 +30,8 @@ describe('mapSavedSimulationList', () => {
         seed: '',
         tickCount: 0,
         updatedAt: '2026-03-06T12:00:01.000Z',
-        populationCount: null
+        populationCount: null,
+        configSummary: null
       },
       {
         id: 'sim-1',
@@ -38,7 +39,8 @@ describe('mapSavedSimulationList', () => {
         seed: '',
         tickCount: 0,
         updatedAt: '2026-03-06T12:00:00.000Z',
-        populationCount: null
+        populationCount: null,
+        configSummary: null
       }
     ]);
   });
@@ -58,6 +60,33 @@ describe('mapSavedSimulationList', () => {
     ]);
 
     expect(mapped[0]).toMatchObject({ populationCount: 3 });
+  });
+
+  it('uses simulation id ascending as deterministic tiebreaker when updatedAt values match', () => {
+    const mapped = mapSavedSimulationList([
+      { id: 'sim-9', name: 'Nine', updatedAt: '2026-03-06T12:00:00.000Z' },
+      { id: 'sim-1', name: 'One', updatedAt: '2026-03-06T12:00:00.000Z' }
+    ]);
+
+    expect(mapped.map((item) => item.id)).toEqual(['sim-1', 'sim-9']);
+  });
+
+  it('derives deterministic config summary from parameters when available', () => {
+    const mapped = mapSavedSimulationList([
+      {
+        id: 'sim-1',
+        name: 'With config metadata',
+        updatedAt: '2026-03-06T12:00:00.000Z',
+        parameters: {
+          worldWidth: 800,
+          worldHeight: 480,
+          initialPopulation: 20,
+          maxFood: 120
+        }
+      }
+    ]);
+
+    expect(mapped[0].configSummary).toBe('800x480 · init pop 20 · max food 120');
   });
 });
 
