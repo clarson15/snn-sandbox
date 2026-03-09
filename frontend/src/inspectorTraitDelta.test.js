@@ -32,15 +32,15 @@ describe('deriveInspectorTraitDeltaModel', () => {
     expect(model.rows.map((row) => row.key)).toEqual([
       'size',
       'speed',
-      'visionRange',
       'turnRate',
+      'visionRange',
       'metabolism'
     ]);
     expect(model.rows.map((row) => row.label)).toEqual([
       'size',
       'speed',
-      'vision_range',
       'turn_rate',
+      'vision_range',
       'metabolism'
     ]);
     expect(model.rows.find((row) => row.key === 'size')).toMatchObject({

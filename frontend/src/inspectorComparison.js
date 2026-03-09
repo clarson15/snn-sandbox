@@ -4,8 +4,8 @@ const COMPARISON_FIELDS = [
   { key: 'energy', label: 'Energy', path: ['energy'], precision: 3 },
   { key: 'size', label: 'Size', path: ['traits', 'size'] },
   { key: 'speed', label: 'Speed', path: ['traits', 'speed'] },
-  { key: 'visionRange', label: 'Vision range', path: ['traits', 'visionRange'] },
   { key: 'turnRate', label: 'Turn rate', path: ['traits', 'turnRate'] },
+  { key: 'visionRange', label: 'Vision range', path: ['traits', 'visionRange'] },
   { key: 'metabolism', label: 'Metabolism', path: ['traits', 'metabolism'] }
 ];
 

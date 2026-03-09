@@ -38,8 +38,8 @@ describe('deriveInspectorComparisonRows', () => {
       'energy',
       'size',
       'speed',
-      'visionRange',
       'turnRate',
+      'visionRange',
       'metabolism'
     ]);
     expect(second).toEqual(first);

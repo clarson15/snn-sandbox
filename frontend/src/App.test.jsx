@@ -2061,26 +2061,23 @@ describe('App', () => {
     expect(wrappedSelectedId).toBeTruthy();
     expect(wrappedSelectedId).not.toBe(restoredSelectedId);
 
-    const identityToggle = screen.getByRole('button', { name: /^identity$/i });
-    const lifecycleToggle = screen.getByRole('button', { name: /^lifecycle$/i });
-    const energyToggle = screen.getByRole('button', { name: /^energy$/i });
-    const locomotionToggle = screen.getByRole('button', { name: /^locomotion$/i });
-    const sensesToggle = screen.getByRole('button', { name: /^senses$/i });
+    const identityLifecycleToggle = screen.getByRole('button', { name: /^identity\/lifecycle$/i });
+    const movementToggle = screen.getByRole('button', { name: /^movement$/i });
+    const sensingToggle = screen.getByRole('button', { name: /^sensing$/i });
+    const metabolismToggle = screen.getByRole('button', { name: /^metabolism$/i });
     const brainToggle = screen.getByRole('button', { name: /^brain$/i });
 
-    expect(identityToggle).toHaveAttribute('aria-expanded', 'true');
+    expect(identityLifecycleToggle).toHaveAttribute('aria-expanded', 'true');
     fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
-    expect(lifecycleToggle).toHaveFocus();
+    expect(movementToggle).toHaveFocus();
     fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
-    expect(energyToggle).toHaveFocus();
+    expect(sensingToggle).toHaveFocus();
     fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
-    expect(locomotionToggle).toHaveFocus();
-    fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
-    expect(sensesToggle).toHaveFocus();
+    expect(metabolismToggle).toHaveFocus();
     fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
     expect(brainToggle).toHaveFocus();
     fireEvent.keyDown(window, { key: '[', code: 'BracketLeft' });
-    expect(sensesToggle).toHaveFocus();
+    expect(metabolismToggle).toHaveFocus();
 
     fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
     expect(brainToggle).toHaveFocus();
@@ -2375,8 +2372,8 @@ describe('App', () => {
       'Energy',
       'Size',
       'Speed',
-      'Vision range',
       'Turn rate',
+      'Vision range',
       'Metabolism'
     ]);
     expect(screen.getAllByText(/vs pinned/i).length).toBeGreaterThan(0);
@@ -3004,7 +3001,7 @@ describe('App', () => {
     fireEvent.click(canvas, { clientX: firstTarget.x, clientY: firstTarget.y });
 
     const sectionLabels = screen.getAllByRole('button', {
-      name: /^(Identity|Lifecycle|Energy|Locomotion|Senses|Brain)$/i
+      name: /^(Identity\/Lifecycle|Movement|Sensing|Metabolism|Brain)$/i
     }).map((element) => element.textContent);
     expect(sectionLabels).toEqual([
       ...INSPECTOR_TRAIT_SECTION_SCHEMA.map((section) => section.label),
