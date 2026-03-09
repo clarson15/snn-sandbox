@@ -850,5 +850,85 @@ describe('simulation engine skeleton', () => {
       expect(offspring.brain.synapses).toHaveLength(1);
       expect(offspring.brain.synapses[0].weight).toBe(0.5);
     });
+
+    it('applies deterministic trait mutation with non-zero mutation rate', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { 
+            id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1, direction: 0, 
+            traits: { size: 2, speed: 3, visionRange: 15, turnRate: 0.1, metabolism: 0.2 }, 
+            brain: { synapses: [] } 
+          }
+        ],
+        food: []
+      });
+
+      const params = {
+        reproductionThreshold: 80,
+        reproductionCost: 30,
+        offspringStartEnergy: 20,
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        foodSpawnChance: 0,
+        traitMutationRate: 1.0, // 100% chance to mutate each trait
+        traitMutationMagnitude: 0.5
+      };
+
+      const rng = createSeededPrng('mutation-test');
+      const result = runTicks(state, rng, 1, params);
+
+      const offspring = result.organisms.find(o => o.id === 'org-2');
+      
+      // With 100% mutation rate and magnitude 0.5, traits should be different from parent
+      // The mutation is (rng.nextFloat() * 2 - 1) * 0.5, so [-0.5, +0.5]
+      // Original: size=2, speed=3, visionRange=15, turnRate=0.1, metabolism=0.2
+      // Offspring traits should have changed (within bounds)
+      expect(offspring.traits.size).toBeGreaterThanOrEqual(1.5);
+      expect(offspring.traits.size).toBeLessThanOrEqual(2.5);
+      expect(offspring.traits.speed).toBeGreaterThanOrEqual(2.5);
+      expect(offspring.traits.speed).toBeLessThanOrEqual(3.5);
+    });
+
+    it('produces deterministic trait mutation with same seed', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { 
+            id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1, direction: 0, 
+            traits: { size: 2, speed: 3, visionRange: 15, turnRate: 0.1, metabolism: 0.2 }, 
+            brain: { synapses: [] } 
+          }
+        ],
+        food: []
+      });
+
+      const params = {
+        reproductionThreshold: 80,
+        reproductionCost: 30,
+        offspringStartEnergy: 20,
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        foodSpawnChance: 0,
+        traitMutationRate: 1.0,
+        traitMutationMagnitude: 0.5
+      };
+
+      // Run twice with same seed
+      const result1 = runTicks(state, createSeededPrng('deterministic-mutation'), 1, params);
+      const result2 = runTicks(state, createSeededPrng('deterministic-mutation'), 1, params);
+
+      const offspring1 = result1.organisms.find(o => o.id === 'org-2');
+      const offspring2 = result2.organisms.find(o => o.id === 'org-2');
+      
+      // Traits should be identical with same seed
+      expect(offspring1.traits.size).toBe(offspring2.traits.size);
+      expect(offspring1.traits.speed).toBe(offspring2.traits.speed);
+      expect(offspring1.traits.visionRange).toBe(offspring2.traits.visionRange);
+      expect(offspring1.traits.turnRate).toBe(offspring2.traits.turnRate);
+      expect(offspring1.traits.metabolism).toBe(offspring2.traits.metabolism);
+    });
   });
 });
