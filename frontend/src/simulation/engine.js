@@ -15,6 +15,7 @@
  * @property {number} energy
  * @property {number} age
  * @property {number} generation
+ * @property {string} [parentId] id of parent organism (set on reproduction)
  * @property {number} [direction] heading in radians
  * @property {{size:number,speed:number,visionRange:number,turnRate:number,metabolism:number}} traits
  */
@@ -532,6 +533,7 @@ export function stepWorld(state, rng, params = {}) {
         energy: offspringStartEnergy,
         age: 0,
         generation: organism.generation + 1,
+        parentId: organism.id,
         direction: organism.direction,
         traits: mutatedTraits,
         brain: mutatedBrain
