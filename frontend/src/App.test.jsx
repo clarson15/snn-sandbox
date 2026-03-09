@@ -587,7 +587,7 @@ describe('App', () => {
       expect(clipboardWriteText).toHaveBeenCalledWith('1b207');
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /restart from seed/i }));
+    fireEvent.click(screen.getByRole('button', { name: /restart run/i }));
     expect(window.confirm).toHaveBeenCalledWith(
       'You have unsaved simulation progress. Restarting now will reset to tick 0 and keep the current seed. Continue?'
     );
@@ -626,7 +626,7 @@ describe('App', () => {
       expect(Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(0);
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /restart from seed/i }));
+    fireEvent.click(screen.getByRole('button', { name: /restart run/i }));
     expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: 51615');
     expect(Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(0);
     expect(screen.getByText(/restart cancelled\./i)).toBeInTheDocument();
@@ -637,7 +637,7 @@ describe('App', () => {
     expect(screen.getByText(/seed regeneration cancelled\./i)).toBeInTheDocument();
   });
 
-  it('restart from seed clears selection and restores default playback controls', async () => {
+  it('restart run clears selection and restores default playback controls', async () => {
     vi.useFakeTimers();
     render(<App />);
 
@@ -683,7 +683,7 @@ describe('App', () => {
     expect(inspector).toHaveTextContent(`ID: ${selectedFixture.id}`);
 
     fireEvent.click(screen.getByRole('button', { name: /^5x$/i }));
-    fireEvent.click(screen.getByRole('button', { name: /restart from seed/i }));
+    fireEvent.click(screen.getByRole('button', { name: /restart run/i }));
 
     expect(screen.getByRole('heading', { name: /no organism selected/i })).toBeInTheDocument();
     expect(screen.getByText(/select an organism to view deterministic inspector details\./i)).toBeInTheDocument();
@@ -1999,7 +1999,7 @@ describe('App', () => {
   it('shows disable hints for seeded controls when simulation is unavailable', () => {
     render(<App />);
 
-    const restartButton = screen.getByRole('button', { name: /restart from seed/i });
+    const restartButton = screen.getByRole('button', { name: /restart run/i });
     expect(restartButton).toBeDisabled();
 
     const restartControl = restartButton.closest('.control-with-hint');
@@ -2008,7 +2008,7 @@ describe('App', () => {
     expect(document.getElementById(restartHintId)).toHaveTextContent('Start a simulation to enable this control.');
 
     fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
-    const enabledRestartButton = screen.getByRole('button', { name: /restart from seed/i });
+    const enabledRestartButton = screen.getByRole('button', { name: /restart run/i });
     expect(enabledRestartButton).toBeEnabled();
     expect(enabledRestartButton.closest('.control-with-hint')).not.toHaveClass('is-disabled');
   });

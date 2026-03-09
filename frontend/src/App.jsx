@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createWorldState, stepWorld } from './simulation/engine';
 import {
   DEFAULT_CONFIG,
-  createInitialWorldFromConfig,
+  createDeterministicRunBootstrap,
   loadSimulationConfig,
   normalizeSimulationConfig,
   resolveSeed,
@@ -997,10 +997,10 @@ function App() {
   };
 
   const applySimulationConfig = (config, { paused: pausedNext = false } = {}) => {
-    const initialWorld = createInitialWorldFromConfig(config);
+    const { initialWorld, rng, stepParams } = createDeterministicRunBootstrap(config);
     worldRef.current = initialWorld;
-    rngRef.current = createSeededPrng(config.resolvedSeed);
-    stepParamsRef.current = toEngineStepParams(config);
+    rngRef.current = rng;
+    stepParamsRef.current = stepParams;
     activeConfigRef.current = config;
     viewportRef.current = {
       width: config.worldWidth,
@@ -1077,7 +1077,7 @@ function App() {
     }
   };
 
-  const onRestartFromSeed = () => {
+  const onRestartRun = () => {
     if (!activeConfigRef.current) {
       return;
     }
@@ -2125,8 +2125,8 @@ function App() {
         <ControlButtonWithHint name="regenerate-seed" onClick={onRegenerateSeed} reason={controlDisableReasons.regenerateSeed}>
           Regenerate seed + restart
         </ControlButtonWithHint>
-        <ControlButtonWithHint name="restart-seed" onClick={onRestartFromSeed} reason={controlDisableReasons.restartFromSeed}>
-          Restart from Seed
+        <ControlButtonWithHint name="restart-run" onClick={onRestartRun} reason={controlDisableReasons.restartFromSeed}>
+          Restart Run
         </ControlButtonWithHint>
         {seedControlStatus ? <p aria-live="polite">{seedControlStatus}</p> : null}
         <p role="status" aria-live="polite">

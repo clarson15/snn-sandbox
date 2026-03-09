@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { runTicks } from './engine';
 import {
+  createDeterministicRunBootstrap,
   createInitialWorldFromConfig,
   loadSimulationConfig,
   normalizeSimulationConfig,
@@ -94,6 +95,36 @@ describe('simulation config helpers', () => {
     const runB = runTicks(initialB, createSeededPrng(config.resolvedSeed), 25, toEngineStepParams(config));
 
     expect(runA).toEqual(runB);
+  });
+
+  it('builds deterministic restart bootstrap state for repeated restart-run actions', () => {
+    const config = normalizeSimulationConfig(
+      {
+        name: 'Restart run determinism',
+        seed: 'restart-seed',
+        worldWidth: '640',
+        worldHeight: '360',
+        initialPopulation: '12',
+        minimumPopulation: '10',
+        initialFoodCount: '16',
+        foodSpawnChance: '0.08',
+        foodEnergyValue: '5',
+        maxFood: '140',
+        mutationRate: '0.1',
+        mutationStrength: '0.2'
+      },
+      'restart-seed'
+    );
+
+    const restartA = createDeterministicRunBootstrap(config);
+    const restartB = createDeterministicRunBootstrap(config);
+
+    expect(restartA.initialWorld).toEqual(restartB.initialWorld);
+
+    const firstTicksA = runTicks(restartA.initialWorld, restartA.rng, 40, restartA.stepParams);
+    const firstTicksB = runTicks(restartB.initialWorld, restartB.rng, 40, restartB.stepParams);
+
+    expect(firstTicksA).toEqual(firstTicksB);
   });
 
   it('validates invalid numeric ranges', () => {

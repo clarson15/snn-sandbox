@@ -205,6 +205,14 @@ export function toEngineStepParams(config) {
   };
 }
 
+export function createDeterministicRunBootstrap(config) {
+  return {
+    initialWorld: createInitialWorldFromConfig(config),
+    rng: createSeededPrng(config.resolvedSeed),
+    stepParams: toEngineStepParams(config)
+  };
+}
+
 function getStorage() {
   const storage = globalThis?.window?.localStorage;
 
