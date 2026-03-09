@@ -57,6 +57,9 @@
  * @property {number} [interactionRadius=0] radius used for organism-to-organism proximity checks
  * @property {number} [interactionCostPerNeighbor=0] deterministic energy cost per nearby organism
  * @property {'spatial'|'legacy'} [interactionLookupMode='spatial'] query strategy used for organism proximity checks
+ * @property {number} [reproductionThreshold=Infinity] minimum energy required for organism to reproduce
+ * @property {number} [reproductionCost=0] energy deducted from parent on reproduction
+ * @property {number} [offspringStartEnergy=0] energy given to offspring on creation
  */
 
 /**
@@ -290,6 +293,9 @@ export function stepWorld(state, rng, params = {}) {
   const interactionCostPerNeighbor = params.interactionCostPerNeighbor ?? 0;
   const interactionLookupMode = params.interactionLookupMode ?? 'spatial';
   const agingCostMultiplier = params.agingCostMultiplier ?? 0;
+  const reproductionThreshold = params.reproductionThreshold ?? Number.POSITIVE_INFINITY;
+  const reproductionCost = params.reproductionCost ?? 0;
+  const offspringStartEnergy = params.offspringStartEnergy ?? 0;
 
   const movedOrganisms = state.organisms.map((organism) => {
     const dx = (rng.nextFloat() * 2 - 1) * movementDelta;
@@ -411,6 +417,49 @@ export function stepWorld(state, rng, params = {}) {
       };
     })
     .filter((organism) => organism.energy > 0);
+
+  // Deterministic reproduction: organisms with energy >= threshold reproduce
+  // Organisms are processed in stable id order for reproducibility
+  const reproducingOrganisms = [];
+  const offspringOrganisms = [];
+  let nextOrganismNumericId = deriveNextOrganismNumericId(organisms);
+
+  const organismsForReproduction = [...organisms].sort((a, b) => a.id.localeCompare(b.id));
+
+  for (const organism of organismsForReproduction) {
+    if (organism.energy >= reproductionThreshold) {
+      reproducingOrganisms.push(organism);
+
+      // Create offspring
+      const offspringId = `org-${nextOrganismNumericId}`;
+      nextOrganismNumericId += 1;
+
+      // Offspring spawns at parent's position (with small random offset using seeded RNG)
+      const offsetRange = 2;
+      const offspringX = organism.x + (rng.nextFloat() * 2 - 1) * offsetRange;
+      const offspringY = organism.y + (rng.nextFloat() * 2 - 1) * offsetRange;
+
+      offspringOrganisms.push({
+        id: offspringId,
+        x: Math.max(0, Math.min(worldWidth, offspringX)),
+        y: Math.max(0, Math.min(worldHeight, offspringY)),
+        energy: offspringStartEnergy,
+        age: 0,
+        generation: organism.generation + 1,
+        direction: organism.direction,
+        traits: { ...organism.traits },
+        brain: organism.brain ? { ...organism.brain, synapses: [...(organism.brain.synapses || [])] } : { synapses: [] }
+      });
+
+      // Deduct energy from parent
+      organism.energy -= reproductionCost;
+    }
+  }
+
+  // Add offspring to organisms array
+  if (offspringOrganisms.length > 0) {
+    organisms = organisms.concat(offspringOrganisms);
+  }
 
   if (minimumPopulation > 0 && organisms.length < minimumPopulation && typeof createFloorSpawnOrganism === 'function') {
     const organismsToSpawn = minimumPopulation - organisms.length;

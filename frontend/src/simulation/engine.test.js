@@ -721,4 +721,134 @@ describe('simulation engine skeleton', () => {
     // Should use the fallback 0.15 instead of undefined
     expect(result.organisms[0].energy).toBeCloseTo(48.5, 1); // 50 - (0.15 * 10) = 48.5
   });
+
+  describe('deterministic reproduction', () => {
+    it('reproduces when energy exceeds threshold', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05 }, brain: { synapses: [] } }
+        ],
+        food: []
+      });
+
+      const params = {
+        reproductionThreshold: 80,
+        reproductionCost: 30,
+        offspringStartEnergy: 20,
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        foodSpawnChance: 0
+      };
+
+      const rng = createSeededPrng('repro-test');
+      const result = runTicks(state, rng, 1, params);
+
+      // Should have parent + 1 offspring = 2 organisms
+      expect(result.organisms).toHaveLength(2);
+
+      // Parent should have energy = 100 - 30 = 70
+      const parent = result.organisms.find(o => o.id === 'org-1');
+      expect(parent.energy).toBe(70);
+
+      // Offspring should have generation = 2 and energy = 20
+      const offspring = result.organisms.find(o => o.id === 'org-2');
+      expect(offspring.generation).toBe(2);
+      expect(offspring.energy).toBe(20);
+    });
+
+    it('does not reproduce when energy is below threshold', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 50, y: 50, energy: 50, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05 }, brain: { synapses: [] } }
+        ],
+        food: []
+      });
+
+      const params = {
+        reproductionThreshold: 80,
+        reproductionCost: 30,
+        offspringStartEnergy: 20,
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        foodSpawnChance: 0
+      };
+
+      const rng = createSeededPrng('no-repro-test');
+      const result = runTicks(state, rng, 1, params);
+
+      // Should still have only 1 organism
+      expect(result.organisms).toHaveLength(1);
+      expect(result.organisms[0].energy).toBe(50);
+    });
+
+    it('produces deterministic reproduction with same seed', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05 }, brain: { synapses: [] } }
+        ],
+        food: []
+      });
+
+      const params = {
+        reproductionThreshold: 80,
+        reproductionCost: 30,
+        offspringStartEnergy: 20,
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        foodSpawnChance: 0
+      };
+
+      // Run twice with same seed
+      const result1 = runTicks(state, createSeededPrng('deterministic-repro'), 1, params);
+      const result2 = runTicks(state, createSeededPrng('deterministic-repro'), 1, params);
+
+      // Results should be identical
+      expect(result1.organisms.length).toBe(result2.organisms.length);
+      expect(result1.organisms[0].energy).toBe(result2.organisms[0].energy);
+      expect(result1.organisms[1]?.energy).toBe(result2.organisms[1]?.energy);
+    });
+
+    it('inherits traits and brain from parent', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { 
+            id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1, direction: 0, 
+            traits: { size: 2, speed: 3, visionRange: 15, turnRate: 0.1, metabolism: 0.2 }, 
+            brain: { synapses: [{ sourceId: 'in-energy', targetId: 'out-turn-left', weight: 0.5 }] } 
+          }
+        ],
+        food: []
+      });
+
+      const params = {
+        reproductionThreshold: 80,
+        reproductionCost: 30,
+        offspringStartEnergy: 20,
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        foodSpawnChance: 0
+      };
+
+      const rng = createSeededPrng('inheritance-test');
+      const result = runTicks(state, rng, 1, params);
+
+      const offspring = result.organisms.find(o => o.id === 'org-2');
+      
+      // Traits should be inherited
+      expect(offspring.traits.size).toBe(2);
+      expect(offspring.traits.speed).toBe(3);
+      
+      // Brain should be inherited
+      expect(offspring.brain.synapses).toHaveLength(1);
+      expect(offspring.brain.synapses[0].weight).toBe(0.5);
+    });
+  });
 });
