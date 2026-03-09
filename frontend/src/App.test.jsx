@@ -533,19 +533,24 @@ describe('App', () => {
     expect(screen.getByText(/mutation rate must be between 0 and 1/i)).toBeInTheDocument();
   });
 
-  it('supports pause and runtime speed control transitions', () => {
+  it('supports pause/resume and runtime speed control transitions', () => {
+    vi.useFakeTimers();
     render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
 
     const pauseButton = screen.getByRole('button', { name: /^pause$/i });
+    const resumeButton = screen.getByRole('button', { name: /^resume$/i });
     const speedPresets = screen.getByRole('group', { name: /speed presets/i });
     const speed1x = screen.getByRole('button', { name: /^1x$/i });
     const speed2x = screen.getByRole('button', { name: /^2x$/i });
     const speed5x = screen.getByRole('button', { name: /^5x$/i });
     const speed10x = screen.getByRole('button', { name: /^10x$/i });
+    const tickNode = screen.getByText(/^tick count:/i);
+    const readTick = () => Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10);
 
     expect(speedPresets).toBeInTheDocument();
+    expect(screen.getByText(/runtime state: running at 1x/i)).toBeInTheDocument();
     expect(speed1x).toHaveClass('speed-preset-button', 'is-active');
     expect(speed1x).toHaveAttribute('aria-pressed', 'true');
     expect(speed2x).toHaveAttribute('aria-pressed', 'false');
@@ -553,20 +558,34 @@ describe('App', () => {
     expect(speed10x).toHaveAttribute('aria-pressed', 'false');
 
     fireEvent.click(speed5x);
+    expect(screen.getByText(/runtime state: running at 5x/i)).toBeInTheDocument();
     expect(speed5x).toHaveClass('speed-preset-button', 'is-active');
     expect(speed5x).toHaveAttribute('aria-pressed', 'true');
     expect(speed1x).not.toHaveClass('is-active');
     expect(speed1x).toHaveAttribute('aria-pressed', 'false');
 
     fireEvent.click(pauseButton);
+    const pausedTick = readTick();
     expect(screen.getByRole('button', { name: /^pause$/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText(/runtime state: paused/i)).toBeInTheDocument();
     expect(speed5x).not.toHaveClass('is-active');
     expect(speed5x).toHaveAttribute('aria-pressed', 'false');
 
-    fireEvent.click(speed2x);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(readTick()).toBe(pausedTick);
+
+    fireEvent.click(resumeButton);
+    expect(screen.getByText(/runtime state: running at 5x/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^pause$/i })).toHaveAttribute('aria-pressed', 'false');
+
+    fireEvent.click(speed2x);
+    expect(screen.getByText(/runtime state: running at 2x/i)).toBeInTheDocument();
     expect(speed2x).toHaveClass('speed-preset-button', 'is-active');
     expect(speed2x).toHaveAttribute('aria-pressed', 'true');
+
+    vi.useRealTimers();
   });
 
   it('renders deterministic run metadata and copies a stable payload', async () => {

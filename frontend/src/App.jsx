@@ -114,6 +114,7 @@ function getControlDisableReasons({ hasSimulation, replayActive, paused }) {
     regenerateSeed: hasSimulation ? '' : simulationRequiredReason,
     restartFromSeed: hasSimulation ? '' : simulationRequiredReason,
     pause: !hasSimulation ? simulationRequiredReason : replayActive ? 'Replay mode is active. Resume live simulation to pause playback.' : '',
+    resume: !hasSimulation ? simulationRequiredReason : replayActive ? 'Replay mode is active. Resume live simulation before using runtime playback controls.' : '',
     speed: !hasSimulation ? simulationRequiredReason : replayActive ? 'Replay mode is active. Resume live simulation to change speed.' : '',
     step: !hasSimulation
       ? simulationRequiredReason
@@ -1167,6 +1168,18 @@ function App() {
     setPaused(true);
   };
 
+  const onResume = () => {
+    if (acknowledgeUnavailableSelection()) {
+      return;
+    }
+
+    if (!worldRef.current || !rngRef.current || replayContextRef.current) {
+      return;
+    }
+
+    setPaused(false);
+  };
+
   const onSpeedSelect = (multiplier) => {
     if (acknowledgeUnavailableSelection()) {
       return;
@@ -1967,6 +1980,9 @@ function App() {
           Restart from Seed
         </ControlButtonWithHint>
         {seedControlStatus ? <p aria-live="polite">{seedControlStatus}</p> : null}
+        <p role="status" aria-live="polite">
+          Runtime state: {replayActive ? 'Replay active' : paused ? 'Paused' : `Running at ${speedMultiplier}x`}
+        </p>
         <ControlButtonWithHint
           name="pause"
           onClick={onPause}
@@ -1974,6 +1990,14 @@ function App() {
           aria-pressed={paused || replayActive}
         >
           Pause
+        </ControlButtonWithHint>
+        <ControlButtonWithHint
+          name="resume"
+          onClick={onResume}
+          reason={controlDisableReasons.resume}
+          aria-pressed={!paused && !replayActive}
+        >
+          Resume
         </ControlButtonWithHint>
         <div className="speed-presets" role="group" aria-label="speed presets">
           {SPEED_OPTIONS.map((multiplier) => {
