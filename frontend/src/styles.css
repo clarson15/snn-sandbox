@@ -75,6 +75,26 @@ input {
   flex-wrap: wrap;
 }
 
+.save-status-badge {
+  border: 1px solid #334155;
+  border-radius: 999px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.save-status-badge.is-saved {
+  border-color: #16a34a;
+  color: #bbf7d0;
+  background: #052e16;
+}
+
+.save-status-badge.is-unsaved {
+  border-color: #f59e0b;
+  color: #fef3c7;
+  background: #451a03;
+}
+
 .control-with-hint {
   position: relative;
   display: inline-flex;
