@@ -189,6 +189,8 @@ function App() {
   const [savedSimulationsError, setSavedSimulationsError] = useState('');
   const [saveStatus, setSaveStatus] = useState('');
   const [saveErrorDetail, setSaveErrorDetail] = useState('');
+  const [saveAsDraftName, setSaveAsDraftName] = useState('');
+  const [saveAsValidationError, setSaveAsValidationError] = useState('');
   const [loadStatus, setLoadStatus] = useState('');
   const [loadRecoveryBySnapshotId, setLoadRecoveryBySnapshotId] = useState({});
   const [loadingSnapshotById, setLoadingSnapshotById] = useState({});
@@ -1481,18 +1483,23 @@ function App() {
   };
 
   const onSaveSimulation = async (options = {}) => {
-    const { forceOverwrite = false, overwriteSnapshotId = null } = options;
+    const {
+      forceOverwrite = false,
+      overwriteSnapshotId = null,
+      saveName = activeConfigRef.current?.name ?? '',
+      activateSavedSnapshot = false
+    } = options;
 
     if (!worldRef.current || !activeConfigRef.current) {
-      return;
+      return null;
     }
 
     setSaveErrorDetail('');
     setSaveStatus('Saving…');
 
     try {
-      await saveSimulationSnapshot({
-        name: activeConfigRef.current.name,
+      const savedSnapshot = await saveSimulationSnapshot({
+        name: saveName,
         seed: activeConfigRef.current.resolvedSeed,
         parameters: activeConfigRef.current,
         tickCount: worldRef.current.tick,
@@ -1501,11 +1508,23 @@ function App() {
         overwriteExisting: forceOverwrite,
         overwriteSnapshotId
       });
+      const activeSnapshotId = activateSavedSnapshot ? savedSnapshot.id : activeLoadedMetadata?.id;
+      const activeSnapshotName = activateSavedSnapshot ? saveName : (activeLoadedMetadata?.name ?? saveName);
+      const activeSnapshotUpdatedAt = activateSavedSnapshot ? (savedSnapshot.updatedAt ?? new Date().toISOString()) : activeLoadedMetadata?.updatedAt;
+
+      if (activateSavedSnapshot) {
+        setActiveLoadedMetadata({
+          id: savedSnapshot.id,
+          name: activeSnapshotName,
+          updatedAt: activeSnapshotUpdatedAt
+        });
+      }
+
       lastPersistedTickRef.current = worldRef.current.tick;
       setPersistedRunMetadata(deriveRunLifecycleMetadata({
         seed: resolvedSeed,
         tickCount: worldRef.current.tick,
-        snapshotId: activeLoadedMetadata?.id,
+        snapshotId: activeSnapshotId,
         simulationVersion: SIMULATION_VERSION
       }));
 
@@ -1513,26 +1532,56 @@ function App() {
       setSavedSimulations(items);
       setSavedSimulationsError('');
       setSaveStatus('Saved.');
+      return savedSnapshot;
     } catch (error) {
       if (error instanceof SnapshotNameConflictError && error.conflictingSnapshot) {
         const confirmed = window.confirm(
-          `A saved simulation named "${activeConfigRef.current.name}" already exists (tick ${error.conflictingSnapshot.tickCount}).\n\n` +
+          `A saved simulation named "${saveName}" already exists (tick ${error.conflictingSnapshot.tickCount}).\n\n` +
             'Click OK to overwrite it with the current simulation state, or Cancel to keep the existing save.'
         );
         if (confirmed) {
           await onSaveSimulation({
             forceOverwrite: true,
-            overwriteSnapshotId: error.conflictingSnapshot.id
+            overwriteSnapshotId: error.conflictingSnapshot.id,
+            saveName,
+            activateSavedSnapshot
           });
-          return;
+          return null;
         }
         setSaveStatus('Save cancelled.');
-        return;
+        return null;
       }
 
       const detail = error instanceof Error ? error.message : 'Unknown save error.';
       setSaveErrorDetail(detail);
       setSaveStatus('Failed to save snapshot. Retry when ready.');
+      return null;
+    }
+  };
+
+  const onSaveAsSimulation = async () => {
+    const proposedName = saveAsDraftName.trim();
+    if (!proposedName) {
+      setSaveAsValidationError('Save As name is required.');
+      return;
+    }
+
+    const duplicateSnapshot = savedSimulations.find(
+      (snapshot) => snapshot.name.trim().toLowerCase() === proposedName.toLowerCase()
+    );
+    if (duplicateSnapshot) {
+      setSaveAsValidationError('A saved simulation with this name already exists. Choose a different name.');
+      return;
+    }
+
+    setSaveAsValidationError('');
+    const savedSnapshot = await onSaveSimulation({
+      saveName: proposedName,
+      activateSavedSnapshot: true
+    });
+
+    if (savedSnapshot) {
+      setSaveAsDraftName('');
     }
   };
 
@@ -2085,6 +2134,24 @@ function App() {
         <ControlButtonWithHint name="save-snapshot" onClick={onSaveSimulation} reason={controlDisableReasons.saveSnapshot}>
           Save snapshot
         </ControlButtonWithHint>
+        <label>
+          Save As
+          <input
+            type="text"
+            value={saveAsDraftName}
+            onChange={(event) => {
+              setSaveAsDraftName(event.target.value);
+              if (saveAsValidationError) {
+                setSaveAsValidationError('');
+              }
+            }}
+            placeholder={activeConfigRef.current?.name ?? 'New Simulation copy'}
+          />
+        </label>
+        <ControlButtonWithHint name="save-as-snapshot" onClick={onSaveAsSimulation} reason={controlDisableReasons.saveSnapshot}>
+          Save As
+        </ControlButtonWithHint>
+        {saveAsValidationError ? <p aria-live="polite">{saveAsValidationError}</p> : null}
         <button
           type="button"
           onClick={onOpenKeyboardShortcuts}

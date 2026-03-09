@@ -288,6 +288,144 @@ describe('App', () => {
     });
   });
 
+  it('save as creates a new active snapshot target and preserves deterministic saved status', async () => {
+    let saveAsCreated = false;
+
+    global.fetch.mockImplementation(async (url, options = {}) => {
+      if (url === '/api/simulations/snapshots' && (!options.method || options.method === 'GET')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => (
+            saveAsCreated
+              ? [
+                  {
+                    id: 'sim-fixture',
+                    name: 'Fixture snapshot',
+                    seed: 'fixture-seed',
+                    tickCount: 0,
+                    updatedAt: '2026-03-06T12:00:01.000Z'
+                  },
+                  {
+                    id: 'sim-save-as',
+                    name: 'Branch snapshot',
+                    seed: 'save-as-seed',
+                    tickCount: 8,
+                    updatedAt: '2026-03-09T05:41:00.000Z'
+                  }
+                ]
+              : [
+                  {
+                    id: 'sim-fixture',
+                    name: 'Fixture snapshot',
+                    seed: 'fixture-seed',
+                    tickCount: 0,
+                    updatedAt: '2026-03-06T12:00:01.000Z'
+                  }
+                ]
+          )
+        };
+      }
+
+      if (url === '/api/simulations/snapshots' && options.method === 'POST') {
+        saveAsCreated = true;
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({ id: 'sim-save-as', updatedAt: '2026-03-09T05:41:00.000Z' })
+        };
+      }
+
+      if (String(url).startsWith('/api/simulations/snapshots/') && (!options.method || options.method === 'GET')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            id: 'sim-fixture',
+            name: 'Fixture snapshot',
+            seed: 'fixture-seed',
+            parameters: {
+              name: 'Fixture',
+              seed: 'fixture-seed',
+              resolvedSeed: 'fixture-seed',
+              worldWidth: 800,
+              worldHeight: 480,
+              initialPopulation: 12,
+              initialFoodCount: 30,
+              foodSpawnChance: 0.04,
+              foodEnergyValue: 5,
+              maxFood: 120
+            },
+            tickCount: 0,
+            rngState: 123,
+            worldState: createInitialWorldFromConfig(normalizeSimulationConfig({
+              name: 'Fixture',
+              seed: 'fixture-seed',
+              worldWidth: 800,
+              worldHeight: 480,
+              initialPopulation: 12,
+              initialFoodCount: 30,
+              foodSpawnChance: 0.04,
+              foodEnergyValue: 5,
+              maxFood: 120
+            }, 'fixture-seed'))
+          })
+        };
+      }
+
+      return {
+        ok: false,
+        status: 404,
+        json: async () => ({})
+      };
+    });
+
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'save-as-seed' } });
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/^save status: unsaved$/i)).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(/^save as$/i), { target: { value: 'Branch snapshot' } });
+    fireEvent.click(screen.getByRole('button', { name: /^save as$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/^active snapshot: branch snapshot/i)).toBeInTheDocument();
+      expect(screen.getByText(/^save status: saved$/i)).toBeInTheDocument();
+    });
+
+    const saveAsPostCall = global.fetch.mock.calls.find(
+      ([url, options]) => url === '/api/simulations/snapshots' && options?.method === 'POST'
+    );
+    const savePayload = JSON.parse(saveAsPostCall[1].body);
+    expect(savePayload.name).toBe('Branch snapshot');
+    expect(savePayload.overwriteExisting).toBe(false);
+  });
+
+  it('save as rejects duplicate names with deterministic inline validation and skips save call', async () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'save-as-duplicate-seed' } });
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/^save status: unsaved$/i)).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(/^save as$/i), { target: { value: 'Fixture snapshot' } });
+    fireEvent.click(screen.getByRole('button', { name: /^save as$/i }));
+
+    expect(screen.getByText(/a saved simulation with this name already exists/i)).toBeInTheDocument();
+
+    const postCalls = global.fetch.mock.calls.filter(
+      ([url, options]) => url === '/api/simulations/snapshots' && options?.method === 'POST'
+    );
+    expect(postCalls).toHaveLength(0);
+  });
+
   it('generates a seed when omitted and persists config', async () => {
     const canReadWriteStorage = (() => {
       const storage = window.localStorage;
