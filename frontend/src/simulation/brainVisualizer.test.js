@@ -162,6 +162,40 @@ describe('mapBrainToVisualizerModel', () => {
     expect(mapBrainLayoutChecksum(second)).toBe(mapBrainLayoutChecksum(first));
   });
 
+  it('keeps neuron coordinates deterministic when neuron and synapse arrays arrive in different orders', () => {
+    const canonical = mapBrainToVisualizerModel({
+      neurons: [
+        { id: 'in-a', type: 'input', value: 0.4 },
+        { id: 'in-b', type: 'input', value: 0.6 },
+        { id: 'h-a', type: 'hidden', value: 0.2 },
+        { id: 'out-a', type: 'output', value: 0.9 }
+      ],
+      synapses: [
+        { id: 's-a', sourceId: 'in-a', targetId: 'h-a', weight: 0.7 },
+        { id: 's-b', sourceId: 'in-b', targetId: 'h-a', weight: -0.3 },
+        { id: 's-c', sourceId: 'h-a', targetId: 'out-a', weight: 0.2 }
+      ]
+    });
+
+    const shuffled = mapBrainToVisualizerModel({
+      neurons: [
+        { id: 'out-a', type: 'output', value: 0.9 },
+        { id: 'h-a', type: 'hidden', value: 0.2 },
+        { id: 'in-b', type: 'input', value: 0.6 },
+        { id: 'in-a', type: 'input', value: 0.4 }
+      ],
+      synapses: [
+        { id: 's-c', sourceId: 'h-a', targetId: 'out-a', weight: 0.2 },
+        { id: 's-b', sourceId: 'in-b', targetId: 'h-a', weight: -0.3 },
+        { id: 's-a', sourceId: 'in-a', targetId: 'h-a', weight: 0.7 }
+      ]
+    });
+
+    expect(canonical).not.toBeNull();
+    expect(shuffled).not.toBeNull();
+    expect(mapBrainLayoutChecksum(shuffled)).toBe(mapBrainLayoutChecksum(canonical));
+  });
+
   it('falls back to neutral color when neuron value is missing', () => {
     const mapped = mapBrainToVisualizerModel({
       neurons: [{ id: 'in-1', type: 'input' }],
