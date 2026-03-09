@@ -89,6 +89,15 @@ const FORM_FIELDS = [
   'mutationStrength'
 ];
 
+function deriveRunLifecycleMetadata({ seed, tickCount, snapshotId, simulationVersion }) {
+  return {
+    seed: typeof seed === 'string' ? seed : '',
+    tickCount: Number.isInteger(tickCount) && tickCount >= 0 ? tickCount : 0,
+    snapshotId: typeof snapshotId === 'string' && snapshotId.length > 0 ? snapshotId : 'No snapshot',
+    simulationVersion: typeof simulationVersion === 'string' && simulationVersion.length > 0 ? simulationVersion : SIMULATION_VERSION
+  };
+}
+
 function createFormStateFromConfig(config) {
   return {
     ...config,
@@ -189,6 +198,7 @@ function App() {
   const [seedControlStatus, setSeedControlStatus] = useState('');
   const [keyboardShortcutsModalOpen, setKeyboardShortcutsModalOpen] = useState(false);
   const [activeLoadedMetadata, setActiveLoadedMetadata] = useState(null);
+  const [persistedRunMetadata, setPersistedRunMetadata] = useState(null);
   const [replayTickInput, setReplayTickInput] = useState('');
   const [replayStatus, setReplayStatus] = useState('');
   const [replayWorldState, setReplayWorldState] = useState(null);
@@ -239,6 +249,25 @@ function App() {
     [formBaselineState, formState]
   );
   const hasUnsavedFormChanges = dirtyFormFields.length > 0;
+  const currentRunLifecycleMetadata = useMemo(
+    () => deriveRunLifecycleMetadata({
+      seed: resolvedSeed,
+      tickCount: tickDisplay,
+      snapshotId: activeLoadedMetadata?.id,
+      simulationVersion: SIMULATION_VERSION
+    }),
+    [resolvedSeed, tickDisplay, activeLoadedMetadata?.id]
+  );
+  const hasUnsavedRunChanges = useMemo(() => {
+    if (!persistedRunMetadata || !resolvedSeed) {
+      return false;
+    }
+
+    return persistedRunMetadata.seed !== currentRunLifecycleMetadata.seed
+      || persistedRunMetadata.tickCount !== currentRunLifecycleMetadata.tickCount
+      || persistedRunMetadata.snapshotId !== currentRunLifecycleMetadata.snapshotId
+      || persistedRunMetadata.simulationVersion !== currentRunLifecycleMetadata.simulationVersion;
+  }, [persistedRunMetadata, resolvedSeed, currentRunLifecycleMetadata]);
 
   useEffect(() => {
     [
@@ -803,6 +832,14 @@ function App() {
     return window.confirm('You have unsaved setup changes. Discard them and continue?');
   };
 
+  const confirmDiscardUnsavedRunChanges = () => {
+    if (!hasUnsavedRunChanges) {
+      return true;
+    }
+
+    return window.confirm('You have unsaved simulation changes for this run. Discard changes and continue?');
+  };
+
   const onResetConfigToDefaults = () => {
     setFormState(createFormStateFromConfig(DEFAULT_CONFIG));
     setErrors({});
@@ -919,6 +956,12 @@ function App() {
     setTickDisplay(loadedWorld.tick);
     setSpeedMultiplier(1);
     setPaused(true);
+    setPersistedRunMetadata(deriveRunLifecycleMetadata({
+      seed: loadedConfig.resolvedSeed,
+      tickCount: loadedWorld.tick,
+      snapshotId: snapshot.id,
+      simulationVersion: snapshot.simulationVersion ?? SIMULATION_VERSION
+    }));
   };
 
   const applySimulationConfig = (config, { paused: pausedNext = false } = {}) => {
@@ -949,6 +992,12 @@ function App() {
     setSelectedMismatchEventKey(null);
     setMismatchEventFilters({ types: [], severities: [] });
     setActiveLoadedMetadata(null);
+    setPersistedRunMetadata(deriveRunLifecycleMetadata({
+      seed: config.resolvedSeed,
+      tickCount: 0,
+      snapshotId: null,
+      simulationVersion: SIMULATION_VERSION
+    }));
     setLoadStatus('');
     setCopyMetadataStatus('');
     saveSimulationConfig(config);
@@ -960,6 +1009,11 @@ function App() {
   };
 
   const startSimulation = () => {
+    if (hasSimulation && !confirmDiscardUnsavedRunChanges()) {
+      setSeedControlStatus('Start cancelled.');
+      return;
+    }
+
     const nextErrors = validateSimulationConfig(formState);
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
@@ -1447,6 +1501,12 @@ function App() {
         overwriteSnapshotId
       });
       lastPersistedTickRef.current = worldRef.current.tick;
+      setPersistedRunMetadata(deriveRunLifecycleMetadata({
+        seed: resolvedSeed,
+        tickCount: worldRef.current.tick,
+        snapshotId: activeLoadedMetadata?.id,
+        simulationVersion: SIMULATION_VERSION
+      }));
 
       const items = await listSimulationSnapshots();
       setSavedSimulations(items);
@@ -1480,7 +1540,7 @@ function App() {
       return;
     }
 
-    if (!confirmDiscardUnsavedFormChanges()) {
+    if (!confirmDiscardUnsavedRunChanges() || !confirmDiscardUnsavedFormChanges()) {
       setLoadStatus('Load cancelled.');
       return;
     }
