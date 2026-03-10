@@ -32,12 +32,32 @@
  * @property {number} tick
  * @property {WorldOrganism[]} organisms
  * @property {WorldFood[]} food
+ * @property {HazardObstacle[]} [obstacles]
+ * @property {HazardDangerZone[]} [dangerZones]
  */
 
 /**
  * @typedef {object} StepRng
  * @property {() => number} nextFloat
  * @property {(min: number, maxExclusive: number) => number} nextInt
+ */
+
+/**
+ * @typedef {object} HazardObstacle
+ * @property {string} id
+ * @property {number} x
+ * @property {number} y
+ * @property {number} width
+ * @property {number} height
+ */
+
+/**
+ * @typedef {object} HazardDangerZone
+ * @property {string} id
+ * @property {number} x
+ * @property {number} y
+ * @property {number} radius
+ * @property {number} damagePerTick
  */
 
 /**
@@ -48,6 +68,8 @@
  * @property {number} [agingCostMultiplier=0] additional energy cost per tick per age unit (scales with organism age)
  * @property {number} [consumeRadius=2] max distance from organism to food for deterministic consumption
  * @property {number} [foodSpawnChance=0.05] probability to spawn one food per tick
+ * @property {HazardObstacle[]} [obstacles] static obstacles that block organism movement
+ * @property {HazardDangerZone[]} [dangerZones] zones that damage organisms
  * @property {number} [foodEnergyValue=5] energy value for spawned food
  * @property {number} [worldWidth=100] world width used for spawn bounds
  * @property {number} [worldHeight=100] world height used for spawn bounds
@@ -70,7 +92,9 @@ export function createWorldState(initial = {}) {
   return {
     tick: initial.tick ?? 0,
     organisms: initial.organisms ? initial.organisms.map((o) => ({ ...o })) : [],
-    food: initial.food ? initial.food.map((f) => ({ ...f })) : []
+    food: initial.food ? initial.food.map((f) => ({ ...f })) : [],
+    obstacles: initial.obstacles ? initial.obstacles.map((o) => ({ ...o })) : [],
+    dangerZones: initial.dangerZones ? initial.dangerZones.map((d) => ({ ...d })) : []
   };
 }
 
@@ -171,6 +195,80 @@ function moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMul
     direction,
     energy: Math.max(0, organism.energy - energySpent)
   };
+}
+
+/**
+ * Check if a point collides with any obstacle.
+ * @param {number} x
+ * @param {number} y
+ * @param {HazardObstacle[]} obstacles
+ * @returns {boolean}
+ */
+function isPointInObstacle(x, y, obstacles) {
+  if (!obstacles || obstacles.length === 0) {
+    return false;
+  }
+
+  for (const obs of obstacles) {
+    if (
+      x >= obs.x &&
+      x <= obs.x + obs.width &&
+      y >= obs.y &&
+      y <= obs.y + obs.height
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Check if organism size overlaps with any obstacle.
+ * @param {WorldOrganism} organism
+ * @param {HazardObstacle[]} obstacles
+ * @returns {boolean}
+ */
+function isOrganismInObstacle(organism, obstacles) {
+  if (!obstacles || obstacles.length === 0) {
+    return false;
+  }
+
+  const size = organism.traits?.size ?? 1;
+  const radius = size / 2;
+
+  // Check all four corners of the organism's bounding box
+  return (
+    isPointInObstacle(organism.x - radius, organism.y - radius, obstacles) ||
+    isPointInObstacle(organism.x + radius, organism.y - radius, obstacles) ||
+    isPointInObstacle(organism.x - radius, organism.y + radius, obstacles) ||
+    isPointInObstacle(organism.x + radius, organism.y + radius, obstacles)
+  );
+}
+
+/**
+ * Calculate total danger zone damage for an organism.
+ * @param {WorldOrganism} organism
+ * @param {HazardDangerZone[]} dangerZones
+ * @returns {number}
+ */
+function calculateDangerZoneDamage(organism, dangerZones) {
+  if (!dangerZones || dangerZones.length === 0) {
+    return 0;
+  }
+
+  let totalDamage = 0;
+  for (const zone of dangerZones) {
+    const dx = organism.x - zone.x;
+    const dy = organism.y - zone.y;
+    const distanceSquared = dx * dx + dy * dy;
+    const radiusSquared = zone.radius * zone.radius;
+
+    if (distanceSquared <= radiusSquared) {
+      totalDamage += zone.damagePerTick;
+    }
+  }
+
+  return totalDamage;
 }
 
 /**
@@ -328,6 +426,9 @@ export function stepWorld(state, rng, params = {}) {
   const reproductionThreshold = params.reproductionThreshold ?? Number.POSITIVE_INFINITY;
   const reproductionCost = params.reproductionCost ?? 0;
   const offspringStartEnergy = params.offspringStartEnergy ?? 0;
+  // Hazards are stored in world state (created at initialization)
+  const obstacles = state.obstacles ?? [];
+  const dangerZones = state.dangerZones ?? [];
 
   const movedOrganisms = state.organisms.map((organism) => {
     // Get forward/backward movement from brain output
@@ -339,7 +440,37 @@ export function stepWorld(state, rng, params = {}) {
     const dx = Math.cos(direction) * movementDistance;
     const dy = Math.sin(direction) * movementDistance;
 
-    return moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMultiplier, agingCostMultiplier);
+    // Calculate new position
+    const newX = organism.x + dx;
+    const newY = organism.y + dy;
+
+    // Check if new position would be inside an obstacle or out of bounds
+    const size = organism.traits?.size ?? 1;
+    const radius = size / 2;
+    const inObstacle = isPointInObstacle(newX, newY, obstacles);
+    const outOfBounds = newX < radius || newX > worldWidth - radius || newY < radius || newY > worldHeight - radius;
+
+    // Block movement if hitting obstacle or bounds
+    let finalDx = dx;
+    let finalDy = dy;
+    if (inObstacle || outOfBounds) {
+      finalDx = 0;
+      finalDy = 0;
+    }
+
+    return moveAndSpendEnergy(organism, finalDx, finalDy, metabolismPerTick, movementCostMultiplier, agingCostMultiplier);
+  });
+
+  // Apply danger zone damage after movement
+  const organismsWithHazardDamage = movedOrganisms.map((organism) => {
+    const damage = calculateDangerZoneDamage(organism, dangerZones);
+    if (damage > 0) {
+      return {
+        ...organism,
+        energy: Math.max(0, organism.energy - damage)
+      };
+    }
+    return organism;
   });
 
   // Stable iteration ordering for deterministic food consumption.
@@ -350,7 +481,7 @@ export function stepWorld(state, rng, params = {}) {
   const indexCellSize = Math.max(consumeRadius, 1);
   const { cells: foodCellsByKey, foodIdToCellKey } = buildFoodSpatialIndex(foodById.values(), indexCellSize);
 
-  const organismsByStableOrder = [...movedOrganisms].sort((a, b) => a.id.localeCompare(b.id));
+  const organismsByStableOrder = [...organismsWithHazardDamage].sort((a, b) => a.id.localeCompare(b.id));
 
   for (const organism of organismsByStableOrder) {
     if (foodById.size === 0) {
@@ -421,10 +552,10 @@ export function stepWorld(state, rng, params = {}) {
   const interactionRadiusSquared = interactionRadius * interactionRadius;
   const interactionCellSize = Math.max(interactionRadius, 1);
   const organismInteractionCells = shouldApplyInteractionCost && interactionLookupMode === 'spatial'
-    ? buildOrganismSpatialIndex(movedOrganisms, interactionCellSize)
+    ? buildOrganismSpatialIndex(organismsWithHazardDamage, interactionCellSize)
     : null;
 
-  let organisms = movedOrganisms
+  let organisms = organismsWithHazardDamage
     .map((organism) => ({
       ...organism,
       energy: organism.energy + (consumedEnergyByOrganismId.get(organism.id) ?? 0)
