@@ -44,10 +44,28 @@ jobs:
         with:
           node-version: 20
 
-      - name: Generate deterministic benchmark comparison report (budget-gated)
+      - name: Install frontend dependencies
         run: |
           cd frontend
           npm ci
+
+      - name: Run deterministic replay parity fixture matrix
+        run: |
+          cd frontend
+          REPLAY_PARITY_FAILURE_SUMMARY_PATH=./test-results/replay-parity-failure-summary.md \
+            npm test -- ./src/simulation/replay.test.js -t "validates deterministic replay parity across a curated multi-fixture matrix"
+
+      - name: Upload replay parity failure summary artifact
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replay-parity-failure-summary
+          path: frontend/test-results/replay-parity-failure-summary.md
+          if-no-files-found: warn
+
+      - name: Generate deterministic benchmark comparison report (budget-gated)
+        run: |
+          cd frontend
           npm run benchmark:compare -- \
             --budget-config ./scripts/benchmark-budgets.v1.json \
             --output-json ./benchmark-results/benchmark-comparison.json \

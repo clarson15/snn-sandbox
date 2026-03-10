@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { env } from 'node:process';
+
 import { createInitialWorldFromConfig, normalizeSimulationConfig, toEngineStepParams } from './config';
 import { runTicks } from './engine';
 import { createSeededPrng } from './prng';
@@ -11,6 +13,11 @@ import {
   readReplayRuntimeBudgetMs,
   measureReplayFixtureRuntimeMs
 } from './replayRuntimeBudget';
+import {
+  buildReplayFixtureFailureRecord,
+  formatReplayParityFailureSummary,
+  writeReplayParityFailureSummary
+} from './replayParityFailureSummary';
 
 function hash(value) {
   return JSON.stringify(value);
@@ -19,8 +26,11 @@ function hash(value) {
 describe('replaySnapshotToTick', () => {
   it('validates deterministic replay parity across a curated multi-fixture matrix', () => {
     const fixtureTimingsMs = [];
+    const fixtureFailures = [];
 
     for (const fixture of REPLAY_PARITY_FIXTURES) {
+      let fixtureFailure = null;
+
       const durationMs = measureReplayFixtureRuntimeMs(() => {
         const config = normalizeSimulationConfig(
           {
@@ -49,6 +59,16 @@ describe('replaySnapshotToTick', () => {
         const fingerprintA = buildReplayDeterminismFingerprint(runA);
         const fingerprintB = buildReplayDeterminismFingerprint(runB);
 
+        if (fingerprintA !== fingerprintB) {
+          fixtureFailure = buildReplayFixtureFailureRecord({
+            fixtureName: fixture.name,
+            seed: config.resolvedSeed,
+            expectedWorldState: runB,
+            actualWorldState: runA
+          });
+          return;
+        }
+
         assertReplayDeterminismMatch({
           contextLabel: `fixture=${fixture.name}`,
           seed: config.resolvedSeed,
@@ -61,11 +81,22 @@ describe('replaySnapshotToTick', () => {
         expect(fingerprintA).toBe(fingerprintB);
       });
 
+      if (fixtureFailure) {
+        fixtureFailures.push(fixtureFailure);
+      }
+
       fixtureTimingsMs.push({ name: fixture.name, durationMs });
     }
 
     const budgetMs = readReplayRuntimeBudgetMs();
     const summary = assertReplayRuntimeBudgetWithinThreshold({ fixtureTimingsMs, budgetMs });
+
+    if (fixtureFailures.length > 0) {
+      const failureSummary = formatReplayParityFailureSummary(fixtureFailures);
+      const outputPath = env.REPLAY_PARITY_FAILURE_SUMMARY_PATH ?? 'frontend/test-results/replay-parity-failure-summary.md';
+      const resolvedPath = writeReplayParityFailureSummary(failureSummary, outputPath);
+      throw new Error(`Replay parity fixture mismatches detected. Summary written to ${resolvedPath}\n${failureSummary}`);
+    }
 
     // Stable output ordering comes from manifest order; values are fixed precision.
     console.info(summary.report);
