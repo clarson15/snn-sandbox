@@ -21,6 +21,7 @@ import {
 } from './replayRuntimeBudget';
 import {
   buildReplayFixtureFailureRecord,
+  buildReplayParityLocalReproCommand,
   formatReplayParityFailureSummary,
   writeReplayParityFailureArtifact,
   writeReplayParityFailureSummary
@@ -1004,7 +1005,11 @@ describe('replaySnapshotToTick', () => {
       const artifactOutputPath = env.REPLAY_PARITY_FAILURE_ARTIFACT_PATH ?? 'frontend/test-results/replay-parity-failure-artifact.json';
       const resolvedSummaryPath = writeReplayParityFailureSummary(failureSummary, summaryOutputPath);
       const resolvedArtifactPath = writeReplayParityFailureArtifact(fixtureFailures, artifactOutputPath);
-      throw new Error(`[REPLAY_PARITY_DRIFT] Replay parity fixture mismatches detected. Summary written to ${resolvedSummaryPath}. Artifact written to ${resolvedArtifactPath}\n${failureSummary}`);
+      const primaryFailure = [...fixtureFailures].sort((left, right) => String(left.fixtureName).localeCompare(String(right.fixtureName)))[0];
+      const localReproCommand = buildReplayParityLocalReproCommand(primaryFailure);
+      throw new Error(
+        `[REPLAY_PARITY_DRIFT] Replay parity fixture mismatches detected. Summary written to ${resolvedSummaryPath}. Artifact written to ${resolvedArtifactPath}. Local repro command: ${localReproCommand}\n${failureSummary}`
+      );
     }
 
     // Stable output ordering comes from manifest order; values are fixed precision.

@@ -194,11 +194,31 @@ export function buildReplayFixtureFailureRecord({
   };
 }
 
+function parseFixtureNameFromFixtureId(fixtureId, fixtureName) {
+  const candidate = String(fixtureId ?? fixtureName ?? '');
+  const withoutCadenceSuffix = candidate.split('|')[0];
+  return withoutCadenceSuffix.replace(/\s+\[phase=.*\]$/u, '').trim();
+}
+
+export function buildReplayParityLocalReproCommand(record) {
+  const fixtureId = String(record?.fixtureId ?? record?.fixtureName ?? '').trim();
+  const fixtureName = parseFixtureNameFromFixtureId(fixtureId, record?.fixtureName);
+  const fixtureProfile = String(record?.fixtureProfile ?? '').trim();
+  const seed = String(record?.seed ?? '').trim();
+  const escapedFixtureName = fixtureName.replace(/"/g, '\\"');
+  const escapedProfile = fixtureProfile.replace(/"/g, '\\"');
+  const escapedSeed = seed.replace(/"/g, '\\"');
+  const testSelector = 'validates deterministic replay parity across a curated multi-fixture matrix';
+
+  return `REPLAY_PARITY_FIXTURE_NAMES="${escapedFixtureName}" REPLAY_PARITY_FIXTURE_PROFILES="${escapedProfile}" REPLAY_PARITY_SEED="${escapedSeed}" npm --prefix frontend test -- src/simulation/replay.test.js -t "${testSelector}"`;
+}
+
 export function formatReplayParityFailureSummary(records) {
   const normalizedRecords = [...records]
     .map((record) => ({
       fixtureName: String(record.fixtureName),
       fixtureId: String(record.fixtureId ?? record.fixtureName),
+      fixtureProfile: String(record.fixtureProfile ?? ''),
       seed: String(record.seed),
       milestoneTick: Number.isInteger(record.milestoneTick) ? String(record.milestoneTick) : '-',
       firstMismatchPath: String(record.firstMismatchPath),
@@ -206,15 +226,16 @@ export function formatReplayParityFailureSummary(records) {
       actualDigest: String(record.actualDigest),
       expectedFingerprint: String(record.expectedFingerprint ?? record.expectedDigest),
       actualFingerprint: String(record.actualFingerprint ?? record.actualDigest),
-      eventOrderingDiffSummary: String(record.eventOrderingDiffSummary ?? '').replace(/\n/g, '<br>')
+      eventOrderingDiffSummary: String(record.eventOrderingDiffSummary ?? '').replace(/\n/g, '<br>'),
+      localReproCommand: buildReplayParityLocalReproCommand(record)
     }))
     .sort((left, right) => left.fixtureName.localeCompare(right.fixtureName));
 
-  const header = '| fixture | fixture id | seed | milestone tick | first mismatch path | expected digest | actual digest | expected fingerprint | actual fingerprint | event ordering diff summary |';
-  const divider = '|---|---|---|---|---|---|---|---|---|---|';
+  const header = '| fixture | fixture id | profile | seed | milestone tick | first mismatch path | expected digest | actual digest | expected fingerprint | actual fingerprint | local repro command | event ordering diff summary |';
+  const divider = '|---|---|---|---|---|---|---|---|---|---|---|---|';
   const lines = normalizedRecords.map(
     (record) =>
-      `| ${record.fixtureName} | ${record.fixtureId} | ${record.seed} | ${record.milestoneTick} | ${record.firstMismatchPath} | ${record.expectedDigest} | ${record.actualDigest} | ${record.expectedFingerprint} | ${record.actualFingerprint} | ${record.eventOrderingDiffSummary || '-'} |`
+      `| ${record.fixtureName} | ${record.fixtureId} | ${record.fixtureProfile || '-'} | ${record.seed} | ${record.milestoneTick} | ${record.firstMismatchPath} | ${record.expectedDigest} | ${record.actualDigest} | ${record.expectedFingerprint} | ${record.actualFingerprint} | ${record.localReproCommand} | ${record.eventOrderingDiffSummary || '-'} |`
   );
 
   return [header, divider, ...lines].join('\n');
