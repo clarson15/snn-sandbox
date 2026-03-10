@@ -1,28 +1,4 @@
-function stableStringify(value) {
-  if (value === null || typeof value !== 'object') {
-    return JSON.stringify(value);
-  }
-
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => stableStringify(item)).join(',')}]`;
-  }
-
-  const keys = Object.keys(value).sort();
-  const entries = keys.map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`);
-  return `{${entries.join(',')}}`;
-}
-
-function hashStableValue(value) {
-  const input = stableStringify(value);
-  let hash = 2166136261;
-
-  for (let i = 0; i < input.length; i += 1) {
-    hash ^= input.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-
-  return (hash >>> 0).toString(16).padStart(8, '0');
-}
+import { hashStableCanonicalValue, stableCanonicalStringify } from './replayCanonicalization';
 
 function roundForFingerprint(value, precision = 6) {
   if (!Number.isFinite(value)) {
@@ -51,7 +27,7 @@ export function buildReplayDeterminismSnapshot(worldState) {
 }
 
 export function buildReplayDeterminismFingerprint(worldState) {
-  return stableStringify(buildReplayDeterminismSnapshot(worldState));
+  return stableCanonicalStringify(buildReplayDeterminismSnapshot(worldState));
 }
 
 function toFingerprintSegments(fingerprint, segmentLength = 48) {
@@ -80,7 +56,7 @@ export function formatReplayDeterminismMismatchContext({
   const payload = {
     contextLabel: String(contextLabel ?? ''),
     seed: String(seed ?? ''),
-    paramsHash: hashStableValue(stepParams ?? null),
+    paramsHash: hashStableCanonicalValue(stepParams ?? null),
     actual: {
       tick: actualSnapshot.tick,
       populationCount: actualSnapshot.populationCount,
@@ -99,7 +75,7 @@ export function formatReplayDeterminismMismatchContext({
     }
   };
 
-  return stableStringify(payload);
+  return stableCanonicalStringify(payload);
 }
 
 export function assertReplayDeterminismMatch({

@@ -1,28 +1,4 @@
-function stableStringify(value) {
-  if (value === null || typeof value !== 'object') {
-    return JSON.stringify(value);
-  }
-
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => stableStringify(item)).join(',')}]`;
-  }
-
-  const keys = Object.keys(value).sort();
-  const entries = keys.map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`);
-  return `{${entries.join(',')}}`;
-}
-
-function hashStableValue(value) {
-  const input = stableStringify(value);
-  let hash = 2166136261;
-
-  for (let i = 0; i < input.length; i += 1) {
-    hash ^= input.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-
-  return (hash >>> 0).toString(16).padStart(8, '0');
-}
+import { hashStableCanonicalValue, stableCanonicalStringify } from './replayCanonicalization';
 
 export function deriveReplaySnapshotBundle({
   seed,
@@ -57,15 +33,15 @@ export function deriveReplaySnapshotBundle({
       replaySimulationParametersSignature: String(replaySnapshotMetadata?.simulationParametersSignature ?? '')
     },
     stateHashes: {
-      replayWorldStateHash: hashStableValue(replayWorldState ?? null),
-      simulationParametersSignatureHash: hashStableValue(currentReplayContext?.simulationParametersSignature ?? ''),
-      replaySimulationParametersSignatureHash: hashStableValue(replaySnapshotMetadata?.simulationParametersSignature ?? '')
+      replayWorldStateHash: hashStableCanonicalValue(replayWorldState ?? null),
+      simulationParametersSignatureHash: hashStableCanonicalValue(currentReplayContext?.simulationParametersSignature ?? ''),
+      replaySimulationParametersSignatureHash: hashStableCanonicalValue(replaySnapshotMetadata?.simulationParametersSignature ?? '')
     }
   };
 }
 
 export function serializeReplaySnapshotBundle(bundle) {
-  return stableStringify(bundle);
+  return stableCanonicalStringify(bundle);
 }
 
 export function downloadReplaySnapshotBundle(bundle, timestamp = new Date()) {

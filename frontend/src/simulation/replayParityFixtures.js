@@ -1,4 +1,6 @@
-export const REPLAY_PARITY_FIXTURES = [
+import { canonicalizeReplayFixturePayload } from './replayCanonicalization';
+
+const RAW_REPLAY_PARITY_FIXTURES = [
   {
     name: 'baseline-smoke',
     purpose: 'Balanced baseline fixture for deterministic replay smoke coverage.',
@@ -48,3 +50,5 @@ export const REPLAY_PARITY_FIXTURES = [
     tickBudget: 130
   }
 ];
+
+export const REPLAY_PARITY_FIXTURES = RAW_REPLAY_PARITY_FIXTURES.map((fixture) => canonicalizeReplayFixturePayload(fixture));
