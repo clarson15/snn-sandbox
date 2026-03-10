@@ -1,9 +1,27 @@
 import { canonicalizeReplayFixturePayload } from './replayCanonicalization';
 
+// Core deterministic replay profile matrix.
+// Each profile maps to a distinct gameplay regime and determinism risk envelope.
+export const REPLAY_PROFILE_MATRIX = Object.freeze({
+  sparseFood: Object.freeze({
+    id: 'sparse-food',
+    risk: 'Starvation pressure can amplify floor-spawn and iteration-order drift.'
+  }),
+  denseFood: Object.freeze({
+    id: 'dense-food',
+    risk: 'Abundant resources increase collision/churn and tie-break ordering pressure.'
+  }),
+  reproductionPressure: Object.freeze({
+    id: 'high-reproduction-pressure',
+    risk: 'High mutation + reproduction cadence can reveal long-horizon replay drift.'
+  })
+});
+
 const RAW_REPLAY_PARITY_FIXTURES = [
   {
     name: 'baseline-smoke',
-    purpose: 'Balanced baseline fixture for deterministic replay smoke coverage.',
+    profile: REPLAY_PROFILE_MATRIX.sparseFood.id,
+    purpose: 'Balanced sparse-food baseline for deterministic replay smoke coverage and starvation-edge drift detection.',
     seed: 'fixture-baseline-smoke',
     worldWidth: 800,
     worldHeight: 480,
@@ -19,7 +37,8 @@ const RAW_REPLAY_PARITY_FIXTURES = [
   },
   {
     name: 'high-food-low-mutation',
-    purpose: 'Stress abundant-food dynamics with conservative mutation pressure.',
+    profile: REPLAY_PROFILE_MATRIX.denseFood.id,
+    purpose: 'Dense-food profile that stresses abundant-resource contention while mutation remains conservative.',
     seed: 'fixture-high-food-low-mutation',
     worldWidth: 920,
     worldHeight: 520,
@@ -34,7 +53,25 @@ const RAW_REPLAY_PARITY_FIXTURES = [
     tickBudget: 140
   },
   {
+    name: 'high-mutation-reproduction-churn',
+    profile: REPLAY_PROFILE_MATRIX.reproductionPressure.id,
+    purpose: 'High reproduction-pressure profile that catches deterministic drift under rapid mutation/reproduction churn.',
+    seed: 'fixture-high-mutation-reproduction-churn',
+    worldWidth: 760,
+    worldHeight: 420,
+    initialPopulation: 36,
+    minimumPopulation: 18,
+    initialFoodCount: 80,
+    foodSpawnChance: 0.11,
+    foodEnergyValue: 8,
+    maxFood: 220,
+    mutationRate: 0.2,
+    mutationStrength: 0.24,
+    tickBudget: 100
+  },
+  {
     name: 'tight-world-high-mutation',
+    profile: REPLAY_PROFILE_MATRIX.denseFood.id,
     purpose: 'Exercise dense-world collision pressure with aggressive mutation variance.',
     seed: 'fixture-tight-world-high-mutation',
     worldWidth: 640,
@@ -50,23 +87,8 @@ const RAW_REPLAY_PARITY_FIXTURES = [
     tickBudget: 130
   },
   {
-    name: 'high-mutation-reproduction-churn',
-    purpose: 'Stress deterministic replay under elevated mutation pressure and rapid reproduction-friendly food abundance.',
-    seed: 'fixture-high-mutation-reproduction-churn',
-    worldWidth: 760,
-    worldHeight: 420,
-    initialPopulation: 36,
-    minimumPopulation: 18,
-    initialFoodCount: 80,
-    foodSpawnChance: 0.11,
-    foodEnergyValue: 8,
-    maxFood: 220,
-    mutationRate: 0.2,
-    mutationStrength: 0.24,
-    tickBudget: 100
-  },
-  {
     name: 'minimum-population-recovery',
+    profile: REPLAY_PROFILE_MATRIX.sparseFood.id,
     purpose: 'Force deterministic minimum-population floor recovery under starvation pressure and verify canonical timeline parity.',
     seed: 'fixture-minimum-population-recovery',
     worldWidth: 700,
@@ -83,6 +105,7 @@ const RAW_REPLAY_PARITY_FIXTURES = [
   },
   {
     name: 'cross-session-resume-drift',
+    profile: REPLAY_PROFILE_MATRIX.reproductionPressure.id,
     purpose: 'Validate deterministic parity before and after persisted save/resume across a two-phase replay path.',
     seed: 'fixture-cross-session-resume-drift',
     worldWidth: 840,
@@ -101,6 +124,7 @@ const RAW_REPLAY_PARITY_FIXTURES = [
   },
   {
     name: 'long-horizon-parity-checkpoints',
+    profile: REPLAY_PROFILE_MATRIX.reproductionPressure.id,
     purpose: 'Catch deterministic replay drift that emerges after extended mutation/reproduction cycles using early/mid/late checkpoint parity.',
     seed: 'fixture-long-horizon-parity-checkpoints',
     worldWidth: 640,
@@ -118,6 +142,7 @@ const RAW_REPLAY_PARITY_FIXTURES = [
   },
   {
     name: 'chunked-tick-execution-equivalence',
+    profile: REPLAY_PROFILE_MATRIX.sparseFood.id,
     purpose: 'Prove deterministic replay parity between continuous execution and segmented stop/resume cadence boundaries.',
     seed: 'fixture-chunked-tick-execution-equivalence',
     worldWidth: 760,
@@ -139,6 +164,7 @@ const RAW_REPLAY_PARITY_FIXTURES = [
   },
   {
     name: 'dense-collision-tie-break-ordering',
+    profile: REPLAY_PROFILE_MATRIX.denseFood.id,
     purpose: 'Stress dense same-tick collisions and adjacency churn while asserting stable per-tick tie-break ordering summaries.',
     // Runtime guardrails:
     // - deterministic work budget keeps fixture complexity stable in CI (tickBudget * initialPopulation)
@@ -169,3 +195,23 @@ const RAW_REPLAY_PARITY_FIXTURES = [
 ];
 
 export const REPLAY_PARITY_FIXTURES = RAW_REPLAY_PARITY_FIXTURES.map((fixture) => canonicalizeReplayFixturePayload(fixture));
+
+// Guidance for local focused runs:
+// - REPLAY_PARITY_FIXTURE_NAMES="baseline-smoke,dense-collision-tie-break-ordering" npm run test -- src/simulation/replay.test.js
+// - REPLAY_PARITY_FIXTURE_PROFILES="sparse-food" npm run test -- src/simulation/replay.test.js
+export function resolveReplayParityFixtures({ fixtureNames, profileIds } = {}) {
+  const selectedNames = new Set((fixtureNames ?? []).map((value) => String(value).trim()).filter(Boolean));
+  const selectedProfiles = new Set((profileIds ?? []).map((value) => String(value).trim()).filter(Boolean));
+
+  if (selectedNames.size === 0 && selectedProfiles.size === 0) {
+    return REPLAY_PARITY_FIXTURES;
+  }
+
+  return REPLAY_PARITY_FIXTURES.filter((fixture) => {
+    if (selectedNames.size > 0 && selectedNames.has(fixture.name)) {
+      return true;
+    }
+
+    return selectedProfiles.size > 0 && selectedProfiles.has(fixture.profile);
+  });
+}
