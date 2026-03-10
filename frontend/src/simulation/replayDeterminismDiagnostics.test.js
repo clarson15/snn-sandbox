@@ -4,7 +4,8 @@ import {
   assertReplayDeterminismMatch,
   buildReplayDeterminismFingerprint,
   buildReplayDeterminismSnapshot,
-  formatReplayDeterminismMismatchContext
+  formatReplayDeterminismMismatchContext,
+  locateFirstDivergenceTick
 } from './replayDeterminismDiagnostics';
 
 describe('replayDeterminismDiagnostics', () => {
@@ -76,5 +77,56 @@ describe('replayDeterminismDiagnostics', () => {
         expectedFingerprint: buildReplayDeterminismFingerprint(worldB)
       })
     ).toThrow(/Determinism fingerprint mismatch\n\{\"actual\":\{\"fingerprintHead\":/);
+  });
+
+  it('returns null when no divergence is detected within max tick budget', () => {
+    const getWorldAtTick = (tick) => ({ tick, organisms: [{ id: 'org-a', x: tick, y: 0, energy: 5 }], food: [] });
+
+    const firstDivergenceTick = locateFirstDivergenceTick({
+      maxTick: 120,
+      checkpointInterval: 20,
+      getExpectedWorldStateAtTick: getWorldAtTick,
+      getActualWorldStateAtTick: getWorldAtTick
+    });
+
+    expect(firstDivergenceTick).toBeNull();
+  });
+
+  it('pinpoints an early divergence tick via checkpoint scan and binary narrowing', () => {
+    const divergenceTick = 3;
+    const getExpectedWorldStateAtTick = (tick) => ({ tick, organisms: [{ id: 'org-a', x: tick, y: 0, energy: 5 }], food: [] });
+    const getActualWorldStateAtTick = (tick) => ({
+      tick,
+      organisms: [{ id: 'org-a', x: tick, y: 0, energy: tick >= divergenceTick ? 7 : 5 }],
+      food: []
+    });
+
+    const firstDivergenceTick = locateFirstDivergenceTick({
+      maxTick: 40,
+      checkpointInterval: 10,
+      getExpectedWorldStateAtTick,
+      getActualWorldStateAtTick
+    });
+
+    expect(firstDivergenceTick).toBe(divergenceTick);
+  });
+
+  it('pinpoints a late divergence tick near the max tick budget', () => {
+    const divergenceTick = 97;
+    const getExpectedWorldStateAtTick = (tick) => ({ tick, organisms: [{ id: 'org-a', x: tick, y: 0, energy: 5 }], food: [] });
+    const getActualWorldStateAtTick = (tick) => ({
+      tick,
+      organisms: [{ id: 'org-a', x: tick, y: 0, energy: tick >= divergenceTick ? 6 : 5 }],
+      food: []
+    });
+
+    const firstDivergenceTick = locateFirstDivergenceTick({
+      maxTick: 120,
+      checkpointInterval: 25,
+      getExpectedWorldStateAtTick,
+      getActualWorldStateAtTick
+    });
+
+    expect(firstDivergenceTick).toBe(divergenceTick);
   });
 });

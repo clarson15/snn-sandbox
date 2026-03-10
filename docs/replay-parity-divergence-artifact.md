@@ -18,6 +18,7 @@ The thrown test error prints the resolved artifact path so CI logs point directl
       "profile": "dense-collision",
       "seed": "fixture-dense-collision-tie-break-ordering",
       "tick": 120,
+      "firstDivergenceTick": 87,
       "entityId": "org-0007",
       "mismatchFields": [
         {
