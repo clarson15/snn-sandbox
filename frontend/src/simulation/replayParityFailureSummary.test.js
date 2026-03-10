@@ -32,10 +32,14 @@ describe('replayParityFailureSummary', () => {
 
     expect(record).toEqual({
       fixtureName: 'fixture-a',
+      fixtureId: 'fixture-a',
       seed: 'seed-a',
+      milestoneTick: null,
       firstMismatchPath: 'snapshot.organisms[0].energy',
       expectedDigest: '01e7d1b3',
-      actualDigest: '4a63e6fa'
+      actualDigest: '4a63e6fa',
+      expectedFingerprint: '01e7d1b3',
+      actualFingerprint: '4a63e6fa'
     });
   });
 
@@ -58,10 +62,10 @@ describe('replayParityFailureSummary', () => {
     ]);
 
     expect(summary).toBe(
-      ['| fixture | seed | first mismatch path | expected digest | actual digest |',
-      '|---|---|---|---|---|',
-      '| alpha | seed-a | snapshot.organisms[0].x | 33333333 | 44444444 |',
-      '| zeta | seed-z | snapshot.tick | 11111111 | 22222222 |'].join('\n')
+      ['| fixture | fixture id | seed | milestone tick | first mismatch path | expected digest | actual digest | expected fingerprint | actual fingerprint |',
+      '|---|---|---|---|---|---|---|---|---|',
+      '| alpha | alpha | seed-a | - | snapshot.organisms[0].x | 33333333 | 44444444 | 33333333 | 44444444 |',
+      '| zeta | zeta | seed-z | - | snapshot.tick | 11111111 | 22222222 | 11111111 | 22222222 |'].join('\n')
     );
   });
 
