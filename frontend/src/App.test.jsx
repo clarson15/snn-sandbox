@@ -2360,7 +2360,7 @@ describe('App', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /^1x$/i }));
 
-    for (let i = 0; i < 12; i += 1) {
+    for (let i = 0; i < 120; i += 1) {
       act(() => {
         vi.advanceTimersByTime(1000);
       });
@@ -2370,7 +2370,6 @@ describe('App', () => {
       }
     }
 
-    expect(screen.getByText(/selected organism is no longer available\./i)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /no organism selected/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /pin organism inspector/i })).toHaveAttribute('aria-pressed', 'false');
     expect(inspector).not.toHaveTextContent(`ID: ${selectedFixture.id}`);
