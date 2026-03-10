@@ -53,14 +53,17 @@ jobs:
         run: |
           cd frontend
           REPLAY_PARITY_FAILURE_SUMMARY_PATH=./test-results/replay-parity-failure-summary.md \
+          REPLAY_PARITY_FAILURE_ARTIFACT_PATH=./test-results/replay-parity-failure-artifact.json \
             npm test -- ./src/simulation/replay.test.js -t "validates deterministic replay parity across a curated multi-fixture matrix"
 
-      - name: Upload replay parity failure summary artifact
+      - name: Upload replay parity failure artifacts
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: replay-parity-failure-summary
-          path: frontend/test-results/replay-parity-failure-summary.md
+          name: replay-parity-failure-artifacts
+          path: |
+            frontend/test-results/replay-parity-failure-summary.md
+            frontend/test-results/replay-parity-failure-artifact.json
           if-no-files-found: warn
 
       - name: Generate deterministic benchmark comparison report (budget-gated)

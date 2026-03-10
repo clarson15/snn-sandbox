@@ -57,3 +57,7 @@ Budget failures throw `[REPLAY_RUNTIME_BUDGET]` and include a runtime context bl
 - strict budget, local multiplier, and whether a direct budget override was used
 
 Use this metadata to compare failures across CI x64 Linux and local ARM64 Linux without weakening parity assertions.
+
+## Replay divergence artifact
+
+On parity mismatch failures, replay tests also emit a JSON artifact for fast triage. See `docs/replay-parity-divergence-artifact.md` for schema and example payload.
