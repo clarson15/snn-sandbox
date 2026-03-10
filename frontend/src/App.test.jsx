@@ -171,6 +171,30 @@ describe('App', () => {
     expect(screen.getByText(/leave blank to generate a seed once at start/i)).toBeInTheDocument();
   });
 
+  it('prefills seed from URL query parameter when provided', () => {
+    window.history.replaceState({}, '', '/?seed=shared-seed-42');
+
+    render(<App />);
+
+    const seedInput = screen.getByLabelText(/^seed \(optional\)$/i);
+    expect(seedInput).toHaveValue('shared-seed-42');
+
+    fireEvent.change(seedInput, { target: { value: 'manual-override-seed' } });
+    expect(seedInput).toHaveValue('manual-override-seed');
+
+    window.history.replaceState({}, '', '/');
+  });
+
+  it('ignores empty seed query parameter values', () => {
+    window.history.replaceState({}, '', '/?seed=%20%20%20');
+
+    render(<App />);
+
+    expect(screen.getByLabelText(/^seed \(optional\)$/i)).toHaveValue('');
+
+    window.history.replaceState({}, '', '/');
+  });
+
   it('resets setup form values back to project defaults', () => {
     render(<App />);
 
