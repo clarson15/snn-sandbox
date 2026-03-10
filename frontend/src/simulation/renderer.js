@@ -3,6 +3,8 @@
  * Read-only: never mutates simulation state.
  */
 
+import { detectSpecies, getSpeciesColor } from './engine';
+
 /**
  * @typedef {import('./engine').WorldState} WorldState
  */
@@ -109,6 +111,9 @@ export function drawWorldSnapshot(ctx, snapshot, viewport, renderOptions = {}) {
     ctx.fill();
   }
 
+  // Detect species once for all organisms
+  const speciesMap = detectSpecies(snapshot.organisms, 0.5);
+
   for (const organism of snapshot.organisms) {
     const radius = deriveOrganismRadius(organism);
     if (viewportCullingEnabled && !isCircleWithinViewport(organism.x, organism.y, radius, width, height, cullPadding)) {
@@ -119,7 +124,10 @@ export function drawWorldSnapshot(ctx, snapshot, viewport, renderOptions = {}) {
     const headingX = organism.x + Math.cos(direction) * (radius + DIRECTION_INDICATOR_LENGTH);
     const headingY = organism.y + Math.sin(direction) * (radius + DIRECTION_INDICATOR_LENGTH);
 
-    ctx.fillStyle = '#38bdf8';
+    const speciesId = speciesMap.get(organism.id);
+    const organismColor = speciesId ? getSpeciesColor(speciesId) : '#38bdf8';
+
+    ctx.fillStyle = organismColor;
     ctx.beginPath();
     ctx.arc(organism.x, organism.y, radius, 0, Math.PI * 2);
     ctx.fill();
