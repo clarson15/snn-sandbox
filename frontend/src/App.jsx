@@ -181,6 +181,18 @@ function createFormStateFromConfig(config) {
   };
 }
 
+function resolveSeedQueryPrefill(search) {
+  const params = new URLSearchParams(search);
+  const seedParam = params.get('seed');
+
+  if (typeof seedParam !== 'string') {
+    return '';
+  }
+
+  const trimmedSeed = seedParam.trim();
+  return trimmedSeed.length > 0 ? trimmedSeed : '';
+}
+
 function getControlDisableReasons({ hasSimulation, replayActive, paused, spectatorMode }) {
   const simulationRequiredReason = 'Start a simulation to enable this control.';
   const spectatorModeReason = 'Spectator mode is active. Changes cannot be saved.';
@@ -289,11 +301,21 @@ function App() {
   const [hudVisibilityPreset, setHudVisibilityPreset] = useState(() => loadHudVisibilityPreset());
   const [initialFormState] = useState(() => {
     const saved = loadSimulationConfig();
-    if (!saved) {
-      return createFormStateFromConfig(DEFAULT_CONFIG);
+    const baseFormState = createFormStateFromConfig(saved ?? DEFAULT_CONFIG);
+
+    if (typeof window === 'undefined') {
+      return baseFormState;
     }
 
-    return createFormStateFromConfig(saved);
+    const querySeedPrefill = resolveSeedQueryPrefill(window.location.search);
+    if (!querySeedPrefill) {
+      return baseFormState;
+    }
+
+    return {
+      ...baseFormState,
+      seed: querySeedPrefill
+    };
   });
   const [formState, setFormState] = useState(initialFormState);
   const [formBaselineState, setFormBaselineState] = useState(initialFormState);
