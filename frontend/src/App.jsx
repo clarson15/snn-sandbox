@@ -2343,7 +2343,7 @@ function App() {
         </div>
 
         <h3>Population settings</h3>
-        <p className="field-hint">Initial/minimum population: 1–500.</p>
+        <p className="field-hint">Initial/minimum population: 1–2000.</p>
         <div className="field-row">
           <label>
             Initial population

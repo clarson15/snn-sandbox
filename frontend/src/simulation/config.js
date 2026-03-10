@@ -73,6 +73,23 @@ export const SIMULATION_PRESETS = [
       mutationRate: 0.1,
       mutationStrength: 0.15
     }
+  },
+  {
+    id: 'stress-test-2000',
+    name: 'Stress Test (2000)',
+    description: 'Performance validation preset targeting 2000 organisms at deterministic settings',
+    config: {
+      worldWidth: 1600,
+      worldHeight: 900,
+      initialPopulation: 2000,
+      minimumPopulation: 400,
+      initialFoodCount: 900,
+      foodSpawnChance: 0.05,
+      foodEnergyValue: 5,
+      maxFood: 2000,
+      mutationRate: 0.05,
+      mutationStrength: 0.1
+    }
   }
 ];
 
@@ -161,8 +178,8 @@ export function validateSimulationConfig(input) {
   const numericChecks = [
     ['worldWidth', 100, 3000, 'World width must be between 100 and 3000.'],
     ['worldHeight', 100, 3000, 'World height must be between 100 and 3000.'],
-    ['initialPopulation', 1, 500, 'Initial population must be between 1 and 500.'],
-    ['minimumPopulation', 1, 500, 'Minimum population must be between 1 and 500.'],
+    ['initialPopulation', 1, 2000, 'Initial population must be between 1 and 2000.'],
+    ['minimumPopulation', 1, 2000, 'Minimum population must be between 1 and 2000.'],
     ['initialFoodCount', 0, 1000, 'Initial food count must be between 0 and 1000.'],
     ['foodSpawnChance', 0, 1, 'Food spawn chance must be between 0 and 1.'],
     ['foodEnergyValue', 1, 100, 'Food energy value must be between 1 and 100.'],
