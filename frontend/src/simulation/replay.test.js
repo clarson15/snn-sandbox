@@ -4,47 +4,10 @@ import { createInitialWorldFromConfig, normalizeSimulationConfig, toEngineStepPa
 import { runTicks } from './engine';
 import { createSeededPrng } from './prng';
 import { replaySnapshotToTick } from './replay';
+import { assertReplayDeterminismMatch, buildReplayDeterminismFingerprint } from './replayDeterminismDiagnostics';
 
 function hash(value) {
   return JSON.stringify(value);
-}
-
-function roundForFingerprint(value, precision = 6) {
-  if (!Number.isFinite(value)) {
-    return value;
-  }
-
-  return Number(value.toFixed(precision));
-}
-
-function buildDeterminismSmokeSnapshot(worldState) {
-  const organisms = [...(worldState.organisms ?? [])]
-    .map((organism) => ({
-      id: organism.id,
-      x: roundForFingerprint(organism.x),
-      y: roundForFingerprint(organism.y),
-      energy: roundForFingerprint(organism.energy)
-    }))
-    .sort((left, right) => left.id.localeCompare(right.id));
-
-  return {
-    tick: worldState.tick,
-    populationCount: organisms.length,
-    foodCount: worldState.food?.length ?? 0,
-    organisms
-  };
-}
-
-function buildDeterminismFingerprint(worldState) {
-  return JSON.stringify(buildDeterminismSmokeSnapshot(worldState));
-}
-
-function assertMatchingFingerprint(actual, expected, contextLabel) {
-  if (actual !== expected) {
-    throw new Error(
-      `Determinism fingerprint mismatch (${contextLabel})\nactual: ${actual}\nexpected: ${expected}`
-    );
-  }
 }
 
 describe('replaySnapshotToTick', () => {
@@ -122,10 +85,18 @@ describe('replaySnapshotToTick', () => {
       const runA = runTicks(baseWorldState, createSeededPrng(config.resolvedSeed), fixture.tickBudget, stepParams);
       const runB = runTicks(baseWorldState, createSeededPrng(config.resolvedSeed), fixture.tickBudget, stepParams);
 
-      const fingerprintA = buildDeterminismFingerprint(runA);
-      const fingerprintB = buildDeterminismFingerprint(runB);
+      const fingerprintA = buildReplayDeterminismFingerprint(runA);
+      const fingerprintB = buildReplayDeterminismFingerprint(runB);
 
-      assertMatchingFingerprint(fingerprintA, fingerprintB, `fixture=${fixture.name}`);
+      assertReplayDeterminismMatch({
+        contextLabel: `fixture=${fixture.name}`,
+        seed: config.resolvedSeed,
+        stepParams,
+        actualWorldState: runA,
+        expectedWorldState: runB,
+        actualFingerprint: fingerprintA,
+        expectedFingerprint: fingerprintB
+      });
       expect(fingerprintA).toBe(fingerprintB);
     }
   });
@@ -162,10 +133,18 @@ describe('replaySnapshotToTick', () => {
     // - deterministic ordering by organism id before equality comparison
     // - precision-bounded numeric values for stable cross-platform diagnostics
     // Any non-deterministic source in the update path should change this snapshot and fail the test.
-    const fingerprintA = buildDeterminismFingerprint(runA);
-    const fingerprintB = buildDeterminismFingerprint(runB);
+    const fingerprintA = buildReplayDeterminismFingerprint(runA);
+    const fingerprintB = buildReplayDeterminismFingerprint(runB);
 
-    assertMatchingFingerprint(fingerprintA, fingerprintB, 'same-seed replay smoke');
+    assertReplayDeterminismMatch({
+      contextLabel: 'same-seed replay smoke',
+      seed: config.resolvedSeed,
+      stepParams,
+      actualWorldState: runA,
+      expectedWorldState: runB,
+      actualFingerprint: fingerprintA,
+      expectedFingerprint: fingerprintB
+    });
     expect(fingerprintA).toBe(fingerprintB);
   });
 
@@ -210,8 +189,8 @@ describe('replaySnapshotToTick', () => {
       toEngineStepParams(configB)
     );
 
-    const fingerprintA = buildDeterminismFingerprint(runA);
-    const fingerprintB = buildDeterminismFingerprint(runB);
+    const fingerprintA = buildReplayDeterminismFingerprint(runA);
+    const fingerprintB = buildReplayDeterminismFingerprint(runB);
 
     expect(fingerprintA).not.toBe(fingerprintB);
   });
