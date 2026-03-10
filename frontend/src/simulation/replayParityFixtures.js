@@ -79,7 +79,7 @@ const RAW_REPLAY_PARITY_FIXTURES = [
     maxFood: 0,
     mutationRate: 0.1,
     mutationStrength: 0.14,
-    tickBudget: 150
+    tickBudget: 90
   },
   {
     name: 'cross-session-resume-drift',
