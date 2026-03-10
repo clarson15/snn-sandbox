@@ -115,6 +115,27 @@ const RAW_REPLAY_PARITY_FIXTURES = [
     mutationStrength: 0.15,
     tickBudget: 360,
     checkpointTicks: [120, 240, 360]
+  },
+  {
+    name: 'chunked-tick-execution-equivalence',
+    purpose: 'Prove deterministic replay parity between continuous execution and segmented stop/resume cadence boundaries.',
+    seed: 'fixture-chunked-tick-execution-equivalence',
+    worldWidth: 760,
+    worldHeight: 420,
+    initialPopulation: 22,
+    minimumPopulation: 12,
+    initialFoodCount: 32,
+    foodSpawnChance: 0.045,
+    foodEnergyValue: 6,
+    maxFood: 130,
+    mutationRate: 0.09,
+    mutationStrength: 0.13,
+    tickBudget: 180,
+    checkpointTicks: [90, 180],
+    cadencePlans: [
+      { id: 'continuous', segments: [180] },
+      { id: 'segmented-resume', segments: [37, 41, 29, 73] }
+    ]
   }
 ];
 
