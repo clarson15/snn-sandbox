@@ -700,6 +700,19 @@ const SPECIES_COLORS = [
   '#c084fc'  // violet
 ];
 
+const GENERATION_COLORS = [
+  '#22d3ee', // cyan - generation 0 (founder)
+  '#34d399', // emerald - gen 1
+  '#a3e635', // lime - gen 2
+  '#fbbf24', // amber - gen 3
+  '#fb923c', // orange - gen 4
+  '#f97316', // deep orange - gen 5
+  '#fb7185', // rose - gen 6
+  '#f472b6', // pink - gen 7
+  '#a78bfa', // purple - gen 8
+  '#c084fc'  // violet - gen 9+
+];
+
 /**
  * Detect species in a population using agglomerative clustering.
  * Organisms with genetic distance below threshold are grouped into the same species.
@@ -787,4 +800,15 @@ export function getSpeciesColor(speciesId) {
   const index = match ? parseInt(match[1], 10) : 0;
 
   return SPECIES_COLORS[index % SPECIES_COLORS.length];
+}
+
+/**
+ * Get color for an organism based on its generation.
+ * Creates a visual gradient from cool (young) to warm (old) generations.
+ * @param {number} generation - organism generation (0 = founder)
+ * @returns {string} hex color
+ */
+export function getGenerationColor(generation) {
+  const gen = Number.isFinite(generation) && generation >= 0 ? Math.floor(generation) : 0;
+  return GENERATION_COLORS[gen % GENERATION_COLORS.length];
 }
