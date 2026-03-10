@@ -1281,14 +1281,14 @@ function App() {
         'You have unsaved simulation progress. Restarting now will reset to tick 0 and keep the current seed. Continue?'
       );
       if (!confirmed) {
-        setSeedControlStatus('Restart cancelled.');
+        setSeedControlStatus('New run cancelled.');
         return;
       }
     }
 
     const config = normalizeSimulationConfig(activeConfigRef.current, activeConfigRef.current.resolvedSeed);
     applySimulationConfig(config, { paused: false });
-    setSeedControlStatus('Restarted simulation with the same seed.');
+    setSeedControlStatus('Started a new run with the same seed.');
   };
 
   const onRegenerateSeed = () => {
@@ -2419,7 +2419,7 @@ function App() {
           Regenerate seed + restart
         </ControlButtonWithHint>
         <ControlButtonWithHint name="restart-run" onClick={onRestartRun} reason={controlDisableReasons.restartFromSeed}>
-          Restart Run
+          New run with same seed
         </ControlButtonWithHint>
         {seedControlStatus ? <p aria-live="polite">{seedControlStatus}</p> : null}
         <p role="status" aria-live="polite">
