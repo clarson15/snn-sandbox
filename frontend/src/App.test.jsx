@@ -224,6 +224,36 @@ describe('App', () => {
     window.history.replaceState({}, '', '/');
   });
 
+  it('shows URL seed mismatch banner with explicit values when active seed differs', () => {
+    window.history.replaceState({}, '', '/?seed=shared-seed-42');
+
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'local-seed-99' } });
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    expect(screen.getByText(/does not match active seed/i)).toHaveTextContent('URL seed shared-seed-42 does not match active seed local-seed-99.');
+    expect(screen.getByRole('button', { name: /use url seed/i })).toBeInTheDocument();
+
+    window.history.replaceState({}, '', '/');
+  });
+
+  it('realigns run to URL seed using current config when clicking use url seed', () => {
+    window.history.replaceState({}, '', '/?seed=shared-seed-42');
+
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'local-seed-99' } });
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    fireEvent.click(screen.getByRole('button', { name: /use url seed/i }));
+
+    expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: shared-seed-42');
+    expect(screen.queryByRole('button', { name: /use url seed/i })).not.toBeInTheDocument();
+
+    window.history.replaceState({}, '', '/');
+  });
+
   it('resets setup form values back to project defaults', () => {
     render(<App />);
 

@@ -260,6 +260,17 @@ button:disabled {
   color: #67e8f9;
 }
 
+.seed-mismatch-banner {
+  border: 1px solid #f59e0b;
+  background: #2a1f0a;
+  border-radius: 0.5rem;
+  padding: 0.65rem;
+}
+
+.seed-mismatch-banner p {
+  margin: 0 0 0.5rem;
+}
+
 .replay-summary-strip {
   border-color: #2563eb;
   background: #0a1630;
