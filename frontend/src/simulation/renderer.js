@@ -3,7 +3,7 @@
  * Read-only: never mutates simulation state.
  */
 
-import { detectSpecies, getSpeciesColor } from './engine';
+import { detectSpecies, getSpeciesColor, getGenerationColor } from './engine';
 
 /**
  * @typedef {import('./engine').WorldState} WorldState
@@ -125,7 +125,8 @@ export function drawWorldSnapshot(ctx, snapshot, viewport, renderOptions = {}) {
     const headingY = organism.y + Math.sin(direction) * (radius + DIRECTION_INDICATOR_LENGTH);
 
     const speciesId = speciesMap.get(organism.id);
-    const organismColor = speciesId ? getSpeciesColor(speciesId) : '#38bdf8';
+    // Use generation-based color tint (section 10.1 of design doc)
+    const organismColor = getGenerationColor(organism.generation ?? 0);
 
     ctx.fillStyle = organismColor;
     ctx.beginPath();
