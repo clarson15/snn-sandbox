@@ -48,6 +48,88 @@ function assertMatchingFingerprint(actual, expected, contextLabel) {
 }
 
 describe('replaySnapshotToTick', () => {
+  it('validates deterministic replay parity across a curated multi-fixture matrix', () => {
+    const fixtures = [
+      {
+        name: 'baseline-smoke',
+        seed: 'fixture-baseline-smoke',
+        worldWidth: 800,
+        worldHeight: 480,
+        initialPopulation: 24,
+        minimumPopulation: 12,
+        initialFoodCount: 35,
+        foodSpawnChance: 0.05,
+        foodEnergyValue: 6,
+        maxFood: 140,
+        mutationRate: 0.08,
+        mutationStrength: 0.12,
+        tickBudget: 120
+      },
+      {
+        name: 'high-food-low-mutation',
+        seed: 'fixture-high-food-low-mutation',
+        worldWidth: 920,
+        worldHeight: 520,
+        initialPopulation: 30,
+        minimumPopulation: 16,
+        initialFoodCount: 48,
+        foodSpawnChance: 0.08,
+        foodEnergyValue: 7,
+        maxFood: 180,
+        mutationRate: 0.03,
+        mutationStrength: 0.06,
+        tickBudget: 140
+      },
+      {
+        name: 'tight-world-high-mutation',
+        seed: 'fixture-tight-world-high-mutation',
+        worldWidth: 640,
+        worldHeight: 360,
+        initialPopulation: 20,
+        minimumPopulation: 10,
+        initialFoodCount: 24,
+        foodSpawnChance: 0.03,
+        foodEnergyValue: 5,
+        maxFood: 110,
+        mutationRate: 0.12,
+        mutationStrength: 0.18,
+        tickBudget: 130
+      }
+    ];
+
+    for (const fixture of fixtures) {
+      const config = normalizeSimulationConfig(
+        {
+          name: `Determinism fixture: ${fixture.name}`,
+          seed: fixture.seed,
+          worldWidth: fixture.worldWidth,
+          worldHeight: fixture.worldHeight,
+          initialPopulation: fixture.initialPopulation,
+          minimumPopulation: fixture.minimumPopulation,
+          initialFoodCount: fixture.initialFoodCount,
+          foodSpawnChance: fixture.foodSpawnChance,
+          foodEnergyValue: fixture.foodEnergyValue,
+          maxFood: fixture.maxFood,
+          mutationRate: fixture.mutationRate,
+          mutationStrength: fixture.mutationStrength
+        },
+        fixture.seed
+      );
+
+      const stepParams = toEngineStepParams(config);
+      const baseWorldState = createInitialWorldFromConfig(config);
+
+      const runA = runTicks(baseWorldState, createSeededPrng(config.resolvedSeed), fixture.tickBudget, stepParams);
+      const runB = runTicks(baseWorldState, createSeededPrng(config.resolvedSeed), fixture.tickBudget, stepParams);
+
+      const fingerprintA = buildDeterminismFingerprint(runA);
+      const fingerprintB = buildDeterminismFingerprint(runB);
+
+      assertMatchingFingerprint(fingerprintA, fingerprintB, `fixture=${fixture.name}`);
+      expect(fingerprintA).toBe(fingerprintB);
+    }
+  });
+
   it('smoke-tests same-seed replay determinism using a stable world snapshot contract', () => {
     const config = normalizeSimulationConfig(
       {
