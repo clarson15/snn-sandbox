@@ -140,7 +140,8 @@ export function buildReplayFixtureFailureRecord({
   milestoneTick,
   expectedFingerprint,
   actualFingerprint,
-  eventOrderingDiffSummary
+  eventOrderingDiffSummary,
+  firstDivergenceTick
 }) {
   const expectedSnapshot = buildReplayDeterminismSnapshot(expectedWorldState);
   const actualSnapshot = buildReplayDeterminismSnapshot(actualWorldState);
@@ -153,6 +154,7 @@ export function buildReplayFixtureFailureRecord({
     fixtureProfile: fixtureProfile ?? '',
     seed,
     milestoneTick: Number.isInteger(milestoneTick) ? milestoneTick : null,
+    firstDivergenceTick: Number.isInteger(firstDivergenceTick) ? firstDivergenceTick : null,
     entityId: deriveEntityIdFromMismatchPath(firstMismatchPath, expectedSnapshot, actualSnapshot),
     firstMismatchPath,
     mismatchFields,
@@ -204,6 +206,7 @@ export function buildReplayParityFailureArtifact(records) {
         profile: String(record.fixtureProfile ?? ''),
         seed: String(record.seed),
         tick: Number.isInteger(record.milestoneTick) ? record.milestoneTick : null,
+        firstDivergenceTick: Number.isInteger(record.firstDivergenceTick) ? record.firstDivergenceTick : null,
         entityId: record.entityId ?? null,
         mismatchFields: Array.isArray(record.mismatchFields) ? record.mismatchFields : [],
         firstDivergenceSnapshot: record.firstDivergenceSnapshot ?? null,

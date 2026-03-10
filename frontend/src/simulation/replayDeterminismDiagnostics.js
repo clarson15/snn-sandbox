@@ -78,6 +78,82 @@ export function formatReplayDeterminismMismatchContext({
   return stableCanonicalStringify(payload);
 }
 
+function buildTickSequence(maxTick, checkpointInterval) {
+  const normalizedMaxTick = Number.isInteger(maxTick) ? maxTick : Number.parseInt(maxTick ?? 0, 10);
+  const normalizedInterval = Number.isInteger(checkpointInterval) && checkpointInterval > 0 ? checkpointInterval : 25;
+
+  if (normalizedMaxTick <= 0) {
+    return [];
+  }
+
+  const ticks = [];
+  for (let tick = normalizedInterval; tick < normalizedMaxTick; tick += normalizedInterval) {
+    ticks.push(tick);
+  }
+
+  ticks.push(normalizedMaxTick);
+  return ticks;
+}
+
+export function locateFirstDivergenceTick({
+  maxTick,
+  checkpointInterval = 25,
+  getExpectedWorldStateAtTick,
+  getActualWorldStateAtTick
+}) {
+  if (typeof getExpectedWorldStateAtTick !== 'function' || typeof getActualWorldStateAtTick !== 'function') {
+    throw new Error('locateFirstDivergenceTick requires getExpectedWorldStateAtTick and getActualWorldStateAtTick callbacks.');
+  }
+
+  const checkpoints = buildTickSequence(maxTick, checkpointInterval);
+  if (checkpoints.length === 0) {
+    return null;
+  }
+
+  const comparisonCache = new Map();
+  const compareTick = (tick) => {
+    if (comparisonCache.has(tick)) {
+      return comparisonCache.get(tick);
+    }
+
+    const expectedFingerprint = buildReplayDeterminismFingerprint(getExpectedWorldStateAtTick(tick));
+    const actualFingerprint = buildReplayDeterminismFingerprint(getActualWorldStateAtTick(tick));
+    const matches = expectedFingerprint === actualFingerprint;
+    comparisonCache.set(tick, matches);
+    return matches;
+  };
+
+  let lowerBound = 1;
+  let upperBound = null;
+
+  for (const checkpointTick of checkpoints) {
+    if (compareTick(checkpointTick)) {
+      lowerBound = checkpointTick + 1;
+      continue;
+    }
+
+    upperBound = checkpointTick;
+    break;
+  }
+
+  if (upperBound === null) {
+    return null;
+  }
+
+  let left = lowerBound;
+  let right = upperBound;
+  while (left < right) {
+    const midpoint = Math.floor((left + right) / 2);
+    if (compareTick(midpoint)) {
+      left = midpoint + 1;
+    } else {
+      right = midpoint;
+    }
+  }
+
+  return left;
+}
+
 export function assertReplayDeterminismMatch({
   contextLabel,
   seed,

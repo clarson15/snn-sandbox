@@ -6,7 +6,11 @@ import { createInitialWorldFromConfig, normalizeSimulationConfig, toEngineStepPa
 import { runTicks, stepWorld } from './engine';
 import { createSeededPrng } from './prng';
 import { replaySnapshotToTick } from './replay';
-import { assertReplayDeterminismMatch, buildReplayDeterminismFingerprint } from './replayDeterminismDiagnostics';
+import {
+  assertReplayDeterminismMatch,
+  buildReplayDeterminismFingerprint,
+  locateFirstDivergenceTick
+} from './replayDeterminismDiagnostics';
 import { collectReplayEventOrderTrace, formatReplayEventOrderDiffSnippet } from './replayEventOrderTrace';
 import { REPLAY_PARITY_FIXTURES, resolveReplayParityFixtures } from './replayParityFixtures';
 import {
@@ -236,6 +240,37 @@ function collectCadenceReplaySnapshots({ baseWorldState, seed, stepParams, check
   };
 }
 
+function runContinuousToTick({ baseWorldState, seed, stepParams, tick }) {
+  return runTicks(baseWorldState, createSeededPrng(seed), tick, stepParams);
+}
+
+function runCadenceToTick({ baseWorldState, seed, stepParams, cadenceSegments, tick }) {
+  const checkpointsResult = collectCadenceReplaySnapshots({
+    baseWorldState,
+    seed,
+    stepParams,
+    checkpointTicks: [tick],
+    cadenceSegments
+  });
+
+  const checkpoint = checkpointsResult.snapshots[0];
+  return checkpoint?.worldState ?? checkpointsResult.finalWorldState;
+}
+
+function locateFixtureFirstDivergenceTick({
+  maxTick,
+  checkpointInterval,
+  getExpectedWorldStateAtTick,
+  getActualWorldStateAtTick
+}) {
+  return locateFirstDivergenceTick({
+    maxTick,
+    checkpointInterval: Number.isInteger(checkpointInterval) && checkpointInterval > 0 ? checkpointInterval : 25,
+    getExpectedWorldStateAtTick,
+    getActualWorldStateAtTick
+  });
+}
+
 function parseCsvEnvList(value) {
   if (typeof value !== 'string') {
     return [];
@@ -375,12 +410,32 @@ describe('replaySnapshotToTick', () => {
           const baselineFingerprint = buildReplayDeterminismFingerprint(runB);
 
           if (segmentedFingerprint !== baselineFingerprint) {
+            const maxTick = fixture.checkpointTicks[fixture.checkpointTicks.length - 1];
+            const firstDivergenceTick = locateFixtureFirstDivergenceTick({
+              maxTick,
+              getExpectedWorldStateAtTick: (tick) => runCadenceToTick({
+                baseWorldState,
+                seed: config.resolvedSeed,
+                stepParams,
+                cadenceSegments: baselineCadence.segments,
+                tick
+              }),
+              getActualWorldStateAtTick: (tick) => runCadenceToTick({
+                baseWorldState,
+                seed: config.resolvedSeed,
+                stepParams,
+                cadenceSegments: segmentedCadence.segments,
+                tick
+              })
+            });
+
             fixtureFailure = buildReplayFixtureFailureRecord({
               fixtureName: `${fixture.name} [phase=cadence-final]`,
               fixtureId: `${fixture.name}|cadence:${segmentedCadence.id}`,
               fixtureProfile: fixture.profile,
               seed: config.resolvedSeed,
-              milestoneTick: fixture.checkpointTicks[fixture.checkpointTicks.length - 1],
+              milestoneTick: maxTick,
+              firstDivergenceTick,
               expectedWorldState: runB,
               actualWorldState: runA,
               expectedFingerprint: baselineFingerprint,
@@ -394,12 +449,34 @@ describe('replaySnapshotToTick', () => {
             const baselineCheckpoint = milestoneSnapshotsB[index];
 
             if (!segmentedCheckpoint || !baselineCheckpoint || segmentedCheckpoint.tick !== baselineCheckpoint.tick) {
+              const maxTick = segmentedCheckpoint?.tick ?? baselineCheckpoint?.tick ?? fixture.checkpointTicks[fixture.checkpointTicks.length - 1];
+              const firstDivergenceTick = Number.isInteger(maxTick)
+                ? locateFixtureFirstDivergenceTick({
+                  maxTick,
+                  getExpectedWorldStateAtTick: (tick) => runCadenceToTick({
+                    baseWorldState,
+                    seed: config.resolvedSeed,
+                    stepParams,
+                    cadenceSegments: baselineCadence.segments,
+                    tick
+                  }),
+                  getActualWorldStateAtTick: (tick) => runCadenceToTick({
+                    baseWorldState,
+                    seed: config.resolvedSeed,
+                    stepParams,
+                    cadenceSegments: segmentedCadence.segments,
+                    tick
+                  })
+                })
+                : null;
+
               fixtureFailure = buildReplayFixtureFailureRecord({
                 fixtureName: `${fixture.name} [phase=cadence-checkpoint]`,
                 fixtureId: `${fixture.name}|cadence:${segmentedCadence.id}`,
                 fixtureProfile: fixture.profile,
                 seed: config.resolvedSeed,
                 milestoneTick: segmentedCheckpoint?.tick ?? baselineCheckpoint?.tick ?? null,
+                firstDivergenceTick,
                 expectedWorldState: baselineCheckpoint?.worldState ?? runB,
                 actualWorldState: segmentedCheckpoint?.worldState ?? runA,
                 expectedFingerprint: baselineCheckpoint?.fingerprint,
@@ -409,12 +486,31 @@ describe('replaySnapshotToTick', () => {
             }
 
             if (segmentedCheckpoint.fingerprint !== baselineCheckpoint.fingerprint) {
+              const firstDivergenceTick = locateFixtureFirstDivergenceTick({
+                maxTick: segmentedCheckpoint.tick,
+                getExpectedWorldStateAtTick: (tick) => runCadenceToTick({
+                  baseWorldState,
+                  seed: config.resolvedSeed,
+                  stepParams,
+                  cadenceSegments: baselineCadence.segments,
+                  tick
+                }),
+                getActualWorldStateAtTick: (tick) => runCadenceToTick({
+                  baseWorldState,
+                  seed: config.resolvedSeed,
+                  stepParams,
+                  cadenceSegments: segmentedCadence.segments,
+                  tick
+                })
+              });
+
               fixtureFailure = buildReplayFixtureFailureRecord({
                 fixtureName: `${fixture.name} [phase=cadence-checkpoint]`,
                 fixtureId: `${fixture.name}|cadence:${segmentedCadence.id}`,
                 fixtureProfile: fixture.profile,
                 seed: config.resolvedSeed,
                 milestoneTick: segmentedCheckpoint.tick,
+                firstDivergenceTick,
                 expectedWorldState: baselineCheckpoint.worldState,
                 actualWorldState: segmentedCheckpoint.worldState,
                 expectedFingerprint: baselineCheckpoint.fingerprint,
@@ -446,10 +542,28 @@ describe('replaySnapshotToTick', () => {
           const fingerprintB = buildReplayDeterminismFingerprint(runB);
 
           if (fingerprintA !== fingerprintB) {
+            const maxTick = fixture.checkpointTicks[fixture.checkpointTicks.length - 1];
+            const firstDivergenceTick = locateFixtureFirstDivergenceTick({
+              maxTick,
+              getExpectedWorldStateAtTick: (tick) => runContinuousToTick({
+                baseWorldState,
+                seed: config.resolvedSeed,
+                stepParams,
+                tick
+              }),
+              getActualWorldStateAtTick: (tick) => runContinuousToTick({
+                baseWorldState,
+                seed: config.resolvedSeed,
+                stepParams,
+                tick
+              })
+            });
+
             fixtureFailure = buildReplayFixtureFailureRecord({
               fixtureName: `${fixture.name} [phase=pre-save]`,
               fixtureProfile: fixture.profile,
               seed: config.resolvedSeed,
+              firstDivergenceTick,
               expectedWorldState: runB,
               actualWorldState: runA,
               expectedFingerprint: fingerprintB,
@@ -475,12 +589,32 @@ describe('replaySnapshotToTick', () => {
             const expectedMilestone = milestoneSnapshotsB[index];
 
             if (!actualMilestone || !expectedMilestone || actualMilestone.tick !== expectedMilestone.tick) {
+              const maxTick = actualMilestone?.tick ?? expectedMilestone?.tick ?? fixture.checkpointTicks[fixture.checkpointTicks.length - 1];
+              const firstDivergenceTick = Number.isInteger(maxTick)
+                ? locateFixtureFirstDivergenceTick({
+                  maxTick,
+                  getExpectedWorldStateAtTick: (tick) => runContinuousToTick({
+                    baseWorldState,
+                    seed: config.resolvedSeed,
+                    stepParams,
+                    tick
+                  }),
+                  getActualWorldStateAtTick: (tick) => runContinuousToTick({
+                    baseWorldState,
+                    seed: config.resolvedSeed,
+                    stepParams,
+                    tick
+                  })
+                })
+                : null;
+
               fixtureFailure = buildReplayFixtureFailureRecord({
                 fixtureName: `${fixture.name} [phase=milestone-checkpoint]`,
                 fixtureId: fixture.name,
                 fixtureProfile: fixture.profile,
                 seed: config.resolvedSeed,
                 milestoneTick: actualMilestone?.tick ?? expectedMilestone?.tick ?? null,
+                firstDivergenceTick,
                 expectedWorldState: expectedMilestone?.worldState ?? runB,
                 actualWorldState: actualMilestone?.worldState ?? runA,
                 expectedFingerprint: expectedMilestone?.fingerprint,
@@ -490,12 +624,29 @@ describe('replaySnapshotToTick', () => {
             }
 
             if (actualMilestone.fingerprint !== expectedMilestone.fingerprint) {
+              const firstDivergenceTick = locateFixtureFirstDivergenceTick({
+                maxTick: actualMilestone.tick,
+                getExpectedWorldStateAtTick: (tick) => runContinuousToTick({
+                  baseWorldState,
+                  seed: config.resolvedSeed,
+                  stepParams,
+                  tick
+                }),
+                getActualWorldStateAtTick: (tick) => runContinuousToTick({
+                  baseWorldState,
+                  seed: config.resolvedSeed,
+                  stepParams,
+                  tick
+                })
+              });
+
               fixtureFailure = buildReplayFixtureFailureRecord({
                 fixtureName: `${fixture.name} [phase=milestone-checkpoint]`,
                 fixtureId: fixture.name,
                 fixtureProfile: fixture.profile,
                 seed: config.resolvedSeed,
                 milestoneTick: actualMilestone.tick,
+                firstDivergenceTick,
                 expectedWorldState: expectedMilestone.worldState,
                 actualWorldState: actualMilestone.worldState,
                 expectedFingerprint: expectedMilestone.fingerprint,
@@ -512,10 +663,27 @@ describe('replaySnapshotToTick', () => {
           const fingerprintB = buildReplayDeterminismFingerprint(runB);
 
           if (fingerprintA !== fingerprintB) {
+            const firstDivergenceTick = locateFixtureFirstDivergenceTick({
+              maxTick: fixture.tickBudget,
+              getExpectedWorldStateAtTick: (tick) => runContinuousToTick({
+                baseWorldState,
+                seed: config.resolvedSeed,
+                stepParams,
+                tick
+              }),
+              getActualWorldStateAtTick: (tick) => runContinuousToTick({
+                baseWorldState,
+                seed: config.resolvedSeed,
+                stepParams,
+                tick
+              })
+            });
+
             fixtureFailure = buildReplayFixtureFailureRecord({
               fixtureName: `${fixture.name} [phase=pre-save]`,
               fixtureProfile: fixture.profile,
               seed: config.resolvedSeed,
+              firstDivergenceTick,
               expectedWorldState: runB,
               actualWorldState: runA,
               expectedFingerprint: fingerprintB,
@@ -578,10 +746,38 @@ describe('replaySnapshotToTick', () => {
           const baselineFingerprint = buildReplayDeterminismFingerprint(baselineFinal);
 
           if (resumedFingerprint !== baselineFingerprint) {
+            const maxTick = fixture.saveTick + fixture.resumeTickBudget;
+            const firstDivergenceTick = locateFixtureFirstDivergenceTick({
+              maxTick,
+              getExpectedWorldStateAtTick: (tick) => runContinuousToTick({
+                baseWorldState,
+                seed: config.resolvedSeed,
+                stepParams,
+                tick
+              }),
+              getActualWorldStateAtTick: (tick) => {
+                if (tick <= fixture.saveTick) {
+                  return runContinuousToTick({
+                    baseWorldState,
+                    seed: config.resolvedSeed,
+                    stepParams,
+                    tick
+                  });
+                }
+
+                const savePhaseRng = createSeededPrng(config.resolvedSeed);
+                const savePhaseWorldState = runTicks(baseWorldState, savePhaseRng, fixture.saveTick, stepParams);
+                const resumedPhaseRng = createSeededPrng(config.resolvedSeed, savePhaseRng.getState());
+                const resumedTickBudget = tick - fixture.saveTick;
+                return runTicks(savePhaseWorldState, resumedPhaseRng, resumedTickBudget, stepParams);
+              }
+            });
+
             fixtureFailure = buildReplayFixtureFailureRecord({
               fixtureName: `${fixture.name} [phase=post-resume]`,
               fixtureProfile: fixture.profile,
               seed: config.resolvedSeed,
+              firstDivergenceTick,
               expectedWorldState: baselineFinal,
               actualWorldState: resumedFinal
             });
