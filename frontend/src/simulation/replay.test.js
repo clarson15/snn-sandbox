@@ -12,7 +12,7 @@ import { REPLAY_PARITY_FIXTURES, resolveReplayParityFixtures } from './replayPar
 import {
   assertReplayFixtureWorkBudgetWithinThreshold,
   assertReplayRuntimeBudgetWithinThreshold,
-  readReplayRuntimeBudgetMs,
+  readReplayRuntimeBudgetPolicy,
   measureReplayFixtureRuntimeMs
 } from './replayRuntimeBudget';
 import {
@@ -270,7 +270,8 @@ describe('replaySnapshotToTick', () => {
   it('validates deterministic replay parity across a curated multi-fixture matrix', () => {
     const fixtureTimingsMs = [];
     const fixtureFailures = [];
-    const budgetMs = readReplayRuntimeBudgetMs();
+    const runtimeBudgetPolicy = readReplayRuntimeBudgetPolicy();
+    const budgetMs = runtimeBudgetPolicy.budgetMs;
     const selectedFixtureNames = parseCsvEnvList(env.REPLAY_PARITY_FIXTURE_NAMES);
     const selectedFixtureProfiles = parseCsvEnvList(env.REPLAY_PARITY_FIXTURE_PROFILES);
     const fixturesUnderTest = resolveReplayParityFixtures({
@@ -596,10 +597,10 @@ describe('replaySnapshotToTick', () => {
       }
 
       fixtureTimingsMs.push({ name: fixture.name, durationMs });
-      assertReplayRuntimeBudgetWithinThreshold({ fixtureTimingsMs, budgetMs });
+      assertReplayRuntimeBudgetWithinThreshold({ fixtureTimingsMs, budgetMs, policy: runtimeBudgetPolicy });
     }
 
-    const summary = assertReplayRuntimeBudgetWithinThreshold({ fixtureTimingsMs, budgetMs });
+    const summary = assertReplayRuntimeBudgetWithinThreshold({ fixtureTimingsMs, budgetMs, policy: runtimeBudgetPolicy });
 
     if (fixtureFailures.length > 0) {
       const failureSummary = formatReplayParityFailureSummary(fixtureFailures);
