@@ -22,6 +22,29 @@ npm ci
 npm run benchmark
 ```
 
+## 2000-organism stress mode + soak run
+
+The app now includes a quick-start preset named **Stress Test (2000)** for deterministic high-load runs.
+
+For CLI soak validation (10-minute simulation-time target at 30 ticks/sec), run:
+
+```bash
+cd frontend
+npm run benchmark:soak
+```
+
+Optional flags:
+
+- `--ticks <n>` (default `18000`)
+- `--sample-interval <n>` (default `300`)
+- `--max-growth-mb <n>` (default `64`)
+- `--seed <seed>`
+
+The soak benchmark fails with a non-zero exit code when either:
+
+- measured throughput is below `30 ticks/sec`, or
+- heap growth exceeds the configured memory budget.
+
 ## Generate baseline vs candidate comparison
 
 Create a baseline JSON report on a known-good commit:
@@ -106,3 +129,13 @@ When changing thresholds:
 5. Prefer tightening thresholds after optimizations, and keep headroom small enough to catch real regressions without introducing CI flakiness.
 
 Threshold changes should be reviewed like code changes because they directly affect CI quality gates.
+
+## Known bottlenecks from stress profiling
+
+Current profiling indicates the hottest paths at 2000 organisms are:
+
+1. `stepWorld` organism update loop (movement, energy, mutation, reproduction)
+2. Organism interaction neighbor checks (improved by spatial lookup mode)
+3. Canvas draw calls for per-frame organism rendering
+
+The spatial lookup path is required for 2000-organism stress targets; legacy interaction lookup is retained only as a deterministic parity baseline in benchmarks.

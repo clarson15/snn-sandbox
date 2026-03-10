@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { runTicks } from './engine';
 import {
+  applyPreset,
   createDeterministicRunBootstrap,
   createInitialWorldFromConfig,
   loadSimulationConfig,
@@ -156,6 +157,40 @@ describe('simulation config helpers', () => {
       mutationRate: expect.any(String),
       mutationStrength: expect.any(String)
     });
+  });
+
+  it('accepts stress-test population bounds up to 2000', () => {
+    const errors = validateSimulationConfig({
+      name: 'Stress bounds',
+      worldWidth: 1600,
+      worldHeight: 900,
+      initialPopulation: 2000,
+      minimumPopulation: 2000,
+      initialFoodCount: 500,
+      foodSpawnChance: 0.05,
+      foodEnergyValue: 5,
+      maxFood: 2000,
+      mutationRate: 0.05,
+      mutationStrength: 0.1,
+      obstacleCount: 0,
+      obstacleMinSize: 30,
+      obstacleMaxSize: 80,
+      dangerZoneCount: 0,
+      dangerZoneRadius: 40,
+      dangerZoneDamage: 0.5
+    });
+
+    expect(errors.initialPopulation).toBeUndefined();
+    expect(errors.minimumPopulation).toBeUndefined();
+  });
+
+  it('exposes a deterministic 2000-organism stress preset', () => {
+    const stressPresetConfig = applyPreset('stress-test-2000');
+
+    expect(stressPresetConfig.initialPopulation).toBe(2000);
+    expect(stressPresetConfig.minimumPopulation).toBe(400);
+    expect(stressPresetConfig.worldWidth).toBe(1600);
+    expect(stressPresetConfig.worldHeight).toBe(900);
   });
 
   it('normalizes missing evolution values with deterministic defaults', () => {
