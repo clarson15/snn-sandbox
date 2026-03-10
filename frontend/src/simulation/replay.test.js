@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { env } from 'node:process';
 
 import { createInitialWorldFromConfig, normalizeSimulationConfig, toEngineStepParams } from './config';
-import { runTicks } from './engine';
+import { runTicks, stepWorld } from './engine';
 import { createSeededPrng } from './prng';
 import { replaySnapshotToTick } from './replay';
 import { assertReplayDeterminismMatch, buildReplayDeterminismFingerprint } from './replayDeterminismDiagnostics';
@@ -106,6 +106,62 @@ function collectParityDiffPaths(actual, expected, basePath = 'snapshot', acc = [
   return acc;
 }
 
+function buildMinimumPopulationRecoveryParitySnapshot(worldState) {
+  const organisms = [...(worldState?.organisms ?? [])]
+    .map((organism) => ({
+      id: organism.id,
+      generation: Number(organism.generation ?? 0),
+      traits: {
+        size: roundForResumeParity(organism?.traits?.size),
+        speed: roundForResumeParity(organism?.traits?.speed),
+        visionRange: roundForResumeParity(organism?.traits?.visionRange),
+        turnRate: roundForResumeParity(organism?.traits?.turnRate),
+        metabolism: roundForResumeParity(organism?.traits?.metabolism)
+      }
+    }))
+    .sort((left, right) => left.id.localeCompare(right.id));
+
+  return {
+    tick: Number(worldState?.tick ?? 0),
+    populationCount: organisms.length,
+    foodCount: Number(worldState?.food?.length ?? 0),
+    organisms
+  };
+}
+
+function collectMinimumPopulationRecoveryTimeline({ baseWorldState, seed, tickBudget, stepParams }) {
+  const rng = createSeededPrng(seed);
+  let worldState = JSON.parse(JSON.stringify(baseWorldState));
+  const timeline = [];
+
+  for (let tick = 0; tick < tickBudget; tick += 1) {
+    worldState = stepWorld(worldState, rng, stepParams);
+    timeline.push(buildMinimumPopulationRecoveryParitySnapshot(worldState));
+  }
+
+  return timeline;
+}
+
+function withForbiddenAmbientRandomnessApisBlocked(work) {
+  const originalMathRandom = Math.random;
+  const originalDateNow = Date.now;
+
+  Math.random = () => {
+    throw new Error('Determinism violation: Math.random() was called during replay parity fixture execution.');
+  };
+
+  Date.now = () => {
+    throw new Error('Determinism violation: Date.now() was called during replay parity fixture execution.');
+  };
+
+  try {
+    return work();
+  } finally {
+    Math.random = originalMathRandom;
+    Date.now = originalDateNow;
+  }
+}
+
 describe('replaySnapshotToTick', () => {
   it('validates deterministic replay parity across a curated multi-fixture matrix', () => {
     const fixtureTimingsMs = [];
@@ -114,7 +170,7 @@ describe('replaySnapshotToTick', () => {
     for (const fixture of REPLAY_PARITY_FIXTURES) {
       let fixtureFailure = null;
 
-      const durationMs = measureReplayFixtureRuntimeMs(() => {
+      const durationMs = measureReplayFixtureRuntimeMs(() => withForbiddenAmbientRandomnessApisBlocked(() => {
         const config = normalizeSimulationConfig(
           {
             name: `Determinism fixture: ${fixture.name}`,
@@ -163,6 +219,26 @@ describe('replaySnapshotToTick', () => {
         });
         expect(fingerprintA).toBe(fingerprintB);
 
+        if (fixture.name === 'minimum-population-recovery') {
+          const timelineA = collectMinimumPopulationRecoveryTimeline({
+            baseWorldState,
+            seed: config.resolvedSeed,
+            tickBudget: fixture.tickBudget,
+            stepParams
+          });
+          const timelineB = collectMinimumPopulationRecoveryTimeline({
+            baseWorldState,
+            seed: config.resolvedSeed,
+            tickBudget: fixture.tickBudget,
+            stepParams
+          });
+
+          expect(timelineA).toEqual(timelineB);
+
+          const floorTriggered = timelineA.some((snapshot) => snapshot.populationCount === fixture.minimumPopulation);
+          expect(floorTriggered).toBe(true);
+        }
+
         if (Number.isInteger(fixture.saveTick) && Number.isInteger(fixture.resumeTickBudget) && fixture.saveTick > 0 && fixture.resumeTickBudget > 0) {
           const baselineRng = createSeededPrng(config.resolvedSeed);
           const baselineFinal = runTicks(baseWorldState, baselineRng, fixture.saveTick + fixture.resumeTickBudget, stepParams);
@@ -199,7 +275,7 @@ describe('replaySnapshotToTick', () => {
           });
           expect(resumedFingerprint).toBe(baselineFingerprint);
         }
-      });
+      }));
 
       if (fixtureFailure) {
         fixtureFailures.push(fixtureFailure);
