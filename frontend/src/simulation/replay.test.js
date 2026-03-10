@@ -18,6 +18,7 @@ import {
 import {
   buildReplayFixtureFailureRecord,
   formatReplayParityFailureSummary,
+  writeReplayParityFailureArtifact,
   writeReplayParityFailureSummary
 } from './replayParityFailureSummary';
 
@@ -377,6 +378,7 @@ describe('replaySnapshotToTick', () => {
             fixtureFailure = buildReplayFixtureFailureRecord({
               fixtureName: `${fixture.name} [phase=cadence-final]`,
               fixtureId: `${fixture.name}|cadence:${segmentedCadence.id}`,
+              fixtureProfile: fixture.profile,
               seed: config.resolvedSeed,
               milestoneTick: fixture.checkpointTicks[fixture.checkpointTicks.length - 1],
               expectedWorldState: runB,
@@ -395,6 +397,7 @@ describe('replaySnapshotToTick', () => {
               fixtureFailure = buildReplayFixtureFailureRecord({
                 fixtureName: `${fixture.name} [phase=cadence-checkpoint]`,
                 fixtureId: `${fixture.name}|cadence:${segmentedCadence.id}`,
+                fixtureProfile: fixture.profile,
                 seed: config.resolvedSeed,
                 milestoneTick: segmentedCheckpoint?.tick ?? baselineCheckpoint?.tick ?? null,
                 expectedWorldState: baselineCheckpoint?.worldState ?? runB,
@@ -409,6 +412,7 @@ describe('replaySnapshotToTick', () => {
               fixtureFailure = buildReplayFixtureFailureRecord({
                 fixtureName: `${fixture.name} [phase=cadence-checkpoint]`,
                 fixtureId: `${fixture.name}|cadence:${segmentedCadence.id}`,
+                fixtureProfile: fixture.profile,
                 seed: config.resolvedSeed,
                 milestoneTick: segmentedCheckpoint.tick,
                 expectedWorldState: baselineCheckpoint.worldState,
@@ -444,6 +448,7 @@ describe('replaySnapshotToTick', () => {
           if (fingerprintA !== fingerprintB) {
             fixtureFailure = buildReplayFixtureFailureRecord({
               fixtureName: `${fixture.name} [phase=pre-save]`,
+              fixtureProfile: fixture.profile,
               seed: config.resolvedSeed,
               expectedWorldState: runB,
               actualWorldState: runA,
@@ -473,6 +478,7 @@ describe('replaySnapshotToTick', () => {
               fixtureFailure = buildReplayFixtureFailureRecord({
                 fixtureName: `${fixture.name} [phase=milestone-checkpoint]`,
                 fixtureId: fixture.name,
+                fixtureProfile: fixture.profile,
                 seed: config.resolvedSeed,
                 milestoneTick: actualMilestone?.tick ?? expectedMilestone?.tick ?? null,
                 expectedWorldState: expectedMilestone?.worldState ?? runB,
@@ -487,6 +493,7 @@ describe('replaySnapshotToTick', () => {
               fixtureFailure = buildReplayFixtureFailureRecord({
                 fixtureName: `${fixture.name} [phase=milestone-checkpoint]`,
                 fixtureId: fixture.name,
+                fixtureProfile: fixture.profile,
                 seed: config.resolvedSeed,
                 milestoneTick: actualMilestone.tick,
                 expectedWorldState: expectedMilestone.worldState,
@@ -507,6 +514,7 @@ describe('replaySnapshotToTick', () => {
           if (fingerprintA !== fingerprintB) {
             fixtureFailure = buildReplayFixtureFailureRecord({
               fixtureName: `${fixture.name} [phase=pre-save]`,
+              fixtureProfile: fixture.profile,
               seed: config.resolvedSeed,
               expectedWorldState: runB,
               actualWorldState: runA,
@@ -572,6 +580,7 @@ describe('replaySnapshotToTick', () => {
           if (resumedFingerprint !== baselineFingerprint) {
             fixtureFailure = buildReplayFixtureFailureRecord({
               fixtureName: `${fixture.name} [phase=post-resume]`,
+              fixtureProfile: fixture.profile,
               seed: config.resolvedSeed,
               expectedWorldState: baselineFinal,
               actualWorldState: resumedFinal
@@ -604,9 +613,11 @@ describe('replaySnapshotToTick', () => {
 
     if (fixtureFailures.length > 0) {
       const failureSummary = formatReplayParityFailureSummary(fixtureFailures);
-      const outputPath = env.REPLAY_PARITY_FAILURE_SUMMARY_PATH ?? 'frontend/test-results/replay-parity-failure-summary.md';
-      const resolvedPath = writeReplayParityFailureSummary(failureSummary, outputPath);
-      throw new Error(`[REPLAY_PARITY_DRIFT] Replay parity fixture mismatches detected. Summary written to ${resolvedPath}\n${failureSummary}`);
+      const summaryOutputPath = env.REPLAY_PARITY_FAILURE_SUMMARY_PATH ?? 'frontend/test-results/replay-parity-failure-summary.md';
+      const artifactOutputPath = env.REPLAY_PARITY_FAILURE_ARTIFACT_PATH ?? 'frontend/test-results/replay-parity-failure-artifact.json';
+      const resolvedSummaryPath = writeReplayParityFailureSummary(failureSummary, summaryOutputPath);
+      const resolvedArtifactPath = writeReplayParityFailureArtifact(fixtureFailures, artifactOutputPath);
+      throw new Error(`[REPLAY_PARITY_DRIFT] Replay parity fixture mismatches detected. Summary written to ${resolvedSummaryPath}. Artifact written to ${resolvedArtifactPath}\n${failureSummary}`);
     }
 
     // Stable output ordering comes from manifest order; values are fixed precision.

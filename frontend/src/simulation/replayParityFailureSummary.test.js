@@ -6,7 +6,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildReplayFixtureFailureRecord,
+  buildReplayParityFailureArtifact,
   formatReplayParityFailureSummary,
+  writeReplayParityFailureArtifact,
   writeReplayParityFailureSummary
 } from './replayParityFailureSummary';
 
@@ -25,6 +27,7 @@ describe('replayParityFailureSummary', () => {
 
     const record = buildReplayFixtureFailureRecord({
       fixtureName: 'fixture-a',
+      fixtureProfile: 'dense-food',
       seed: 'seed-a',
       expectedWorldState,
       actualWorldState
@@ -33,9 +36,17 @@ describe('replayParityFailureSummary', () => {
     expect(record).toEqual({
       fixtureName: 'fixture-a',
       fixtureId: 'fixture-a',
+      fixtureProfile: 'dense-food',
       seed: 'seed-a',
       milestoneTick: null,
+      entityId: 'org-a',
       firstMismatchPath: 'snapshot.organisms[0].energy',
+      mismatchFields: [{ path: 'snapshot.organisms[0].energy', expected: 4, actual: 7 }],
+      firstDivergenceSnapshot: {
+        path: 'snapshot.organisms[0].energy',
+        expectedValue: 4,
+        actualValue: 7
+      },
       expectedDigest: '01e7d1b3',
       actualDigest: '4a63e6fa',
       expectedFingerprint: '01e7d1b3',
@@ -70,6 +81,48 @@ describe('replayParityFailureSummary', () => {
     );
   });
 
+  it('builds a deterministic JSON artifact payload without timestamps', () => {
+    const artifact = buildReplayParityFailureArtifact([
+      {
+        fixtureName: 'fixture-a',
+        fixtureProfile: 'dense-food',
+        seed: 'seed-a',
+        milestoneTick: 42,
+        entityId: 'org-1',
+        mismatchFields: [{ path: 'snapshot.organisms[0].energy', expected: 4, actual: 7 }],
+        firstDivergenceSnapshot: { path: 'snapshot.organisms[0].energy', expectedValue: 4, actualValue: 7 },
+        firstMismatchPath: 'snapshot.organisms[0].energy',
+        expectedDigest: 'aaaa1111',
+        actualDigest: 'bbbb2222',
+        expectedFingerprint: 'aaaa1111',
+        actualFingerprint: 'bbbb2222',
+        eventOrderingDiffSummary: ''
+      }
+    ]);
+
+    expect(artifact).toEqual({
+      schemaVersion: '1.0.0',
+      failures: [
+        {
+          fixture: 'fixture-a',
+          profile: 'dense-food',
+          seed: 'seed-a',
+          tick: 42,
+          entityId: 'org-1',
+          mismatchFields: [{ path: 'snapshot.organisms[0].energy', expected: 4, actual: 7 }],
+          firstDivergenceSnapshot: { path: 'snapshot.organisms[0].energy', expectedValue: 4, actualValue: 7 },
+          firstMismatchPath: 'snapshot.organisms[0].energy',
+          expectedDigest: 'aaaa1111',
+          actualDigest: 'bbbb2222',
+          expectedFingerprint: 'aaaa1111',
+          actualFingerprint: 'bbbb2222',
+          eventOrderingDiffSummary: ''
+        }
+      ]
+    });
+    expect(JSON.stringify(artifact)).not.toContain('timestamp');
+  });
+
   it('writes summary output to disk', () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'replay-parity-summary-'));
     const outputPath = path.join(tempDir, 'reports', 'summary.md');
@@ -79,5 +132,30 @@ describe('replayParityFailureSummary', () => {
 
     expect(resolvedPath).toBe(outputPath);
     expect(fs.readFileSync(outputPath, 'utf8')).toBe(`${summary}\n`);
+  });
+
+  it('writes JSON artifact output to disk', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'replay-parity-artifact-'));
+    const outputPath = path.join(tempDir, 'reports', 'artifact.json');
+    const records = [
+      {
+        fixtureName: 'fixture-b',
+        fixtureProfile: 'sparse-food',
+        seed: 'seed-b',
+        milestoneTick: 9,
+        firstMismatchPath: 'snapshot.tick',
+        mismatchFields: [{ path: 'snapshot.tick', expected: 9, actual: 10 }],
+        firstDivergenceSnapshot: { path: 'snapshot.tick', expectedValue: 9, actualValue: 10 },
+        expectedDigest: '11111111',
+        actualDigest: '22222222'
+      }
+    ];
+
+    const resolvedPath = writeReplayParityFailureArtifact(records, outputPath);
+
+    expect(resolvedPath).toBe(outputPath);
+    const parsed = JSON.parse(fs.readFileSync(outputPath, 'utf8'));
+    expect(parsed.schemaVersion).toBe('1.0.0');
+    expect(parsed.failures[0].profile).toBe('sparse-food');
   });
 });
