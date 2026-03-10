@@ -7,6 +7,7 @@ import { runTicks, stepWorld } from './engine';
 import { createSeededPrng } from './prng';
 import { replaySnapshotToTick } from './replay';
 import { assertReplayDeterminismMatch, buildReplayDeterminismFingerprint } from './replayDeterminismDiagnostics';
+import { collectReplayEventOrderTrace, formatReplayEventOrderDiffSnippet } from './replayEventOrderTrace';
 import { REPLAY_PARITY_FIXTURES } from './replayParityFixtures';
 import {
   assertReplayRuntimeBudgetWithinThreshold,
@@ -233,79 +234,6 @@ function collectCadenceReplaySnapshots({ baseWorldState, seed, stepParams, check
   };
 }
 
-function buildDenseCollisionTickOrderingSummary(previousWorldState, nextWorldState) {
-  const previousIds = new Set((previousWorldState?.organisms ?? []).map((organism) => organism.id));
-  const nextIds = new Set((nextWorldState?.organisms ?? []).map((organism) => organism.id));
-
-  const births = (nextWorldState?.organisms ?? [])
-    .filter((organism) => !previousIds.has(organism.id))
-    .map((organism) => organism.id);
-  const deaths = (previousWorldState?.organisms ?? [])
-    .filter((organism) => !nextIds.has(organism.id))
-    .map((organism) => organism.id);
-
-  const energyLeaders = [...(nextWorldState?.organisms ?? [])]
-    .sort((left, right) => {
-      const energyDelta = roundForResumeParity(right.energy) - roundForResumeParity(left.energy);
-      if (energyDelta !== 0) {
-        return energyDelta;
-      }
-
-      return left.id.localeCompare(right.id);
-    })
-    .slice(0, 8)
-    .map((organism) => organism.id);
-
-  return {
-    tick: Number(nextWorldState?.tick ?? 0),
-    births,
-    deaths,
-    populationCount: Number(nextWorldState?.organisms?.length ?? 0),
-    foodCount: Number(nextWorldState?.food?.length ?? 0),
-    energyLeaders
-  };
-}
-
-function collectDenseCollisionTickOrderingTimeline({ baseWorldState, seed, tickBudget, stepParams }) {
-  const rng = createSeededPrng(seed);
-  let previousWorldState = JSON.parse(JSON.stringify(baseWorldState));
-  const timeline = [];
-
-  for (let tick = 0; tick < tickBudget; tick += 1) {
-    const nextWorldState = stepWorld(previousWorldState, rng, stepParams);
-    timeline.push(buildDenseCollisionTickOrderingSummary(previousWorldState, nextWorldState));
-    previousWorldState = nextWorldState;
-  }
-
-  return timeline;
-}
-
-function formatPerTickEventOrderingDiffSummary(expectedTimeline, actualTimeline) {
-  const maxLength = Math.max(expectedTimeline.length, actualTimeline.length);
-  const mismatchLines = [];
-
-  for (let index = 0; index < maxLength; index += 1) {
-    const expected = expectedTimeline[index] ?? null;
-    const actual = actualTimeline[index] ?? null;
-
-    if (JSON.stringify(expected) === JSON.stringify(actual)) {
-      continue;
-    }
-
-    mismatchLines.push(
-      `tick=${expected?.tick ?? actual?.tick ?? 'unknown'} expected=${JSON.stringify(expected)} actual=${JSON.stringify(actual)}`
-    );
-
-    if (mismatchLines.length >= 6) {
-      break;
-    }
-  }
-
-  return mismatchLines.length > 0
-    ? `Per-tick event ordering diff summary:\n- ${mismatchLines.join('\n- ')}`
-    : 'Per-tick event ordering diff summary: no ordering mismatch lines captured.';
-}
-
 function withForbiddenAmbientRandomnessApisBlocked(work) {
   const originalMathRandom = Math.random;
   const originalDateNow = Date.now;
@@ -360,20 +288,22 @@ describe('replaySnapshotToTick', () => {
             return '';
           }
 
-          const orderingTimelineA = collectDenseCollisionTickOrderingTimeline({
+          const expectedTrace = collectReplayEventOrderTrace({
             baseWorldState,
             seed: config.resolvedSeed,
             tickBudget: fixture.tickBudget,
-            stepParams
+            createSeededPrng,
+            stepWorld: (worldState, rng) => stepWorld(worldState, rng, stepParams)
           });
-          const orderingTimelineB = collectDenseCollisionTickOrderingTimeline({
+          const actualTrace = collectReplayEventOrderTrace({
             baseWorldState,
             seed: config.resolvedSeed,
             tickBudget: fixture.tickBudget,
-            stepParams
+            createSeededPrng,
+            stepWorld: (worldState, rng) => stepWorld(worldState, rng, stepParams)
           });
 
-          return formatPerTickEventOrderingDiffSummary(orderingTimelineB, orderingTimelineA);
+          return formatReplayEventOrderDiffSnippet(expectedTrace, actualTrace);
         };
 
         const hasMilestoneCheckpoints = Array.isArray(fixture.checkpointTicks) && fixture.checkpointTicks.length > 0;
