@@ -64,6 +64,24 @@ const RAW_REPLAY_PARITY_FIXTURES = [
     mutationRate: 0.2,
     mutationStrength: 0.24,
     tickBudget: 100
+  },
+  {
+    name: 'cross-session-resume-drift',
+    purpose: 'Validate deterministic parity before and after persisted save/resume across a two-phase replay path.',
+    seed: 'fixture-cross-session-resume-drift',
+    worldWidth: 840,
+    worldHeight: 500,
+    initialPopulation: 28,
+    minimumPopulation: 14,
+    initialFoodCount: 42,
+    foodSpawnChance: 0.06,
+    foodEnergyValue: 7,
+    maxFood: 165,
+    mutationRate: 0.1,
+    mutationStrength: 0.16,
+    tickBudget: 150,
+    saveTick: 70,
+    resumeTickBudget: 80
   }
 ];
 

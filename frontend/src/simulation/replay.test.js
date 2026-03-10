@@ -144,7 +144,7 @@ describe('replaySnapshotToTick', () => {
 
         if (fingerprintA !== fingerprintB) {
           fixtureFailure = buildReplayFixtureFailureRecord({
-            fixtureName: fixture.name,
+            fixtureName: `${fixture.name} [phase=pre-save]`,
             seed: config.resolvedSeed,
             expectedWorldState: runB,
             actualWorldState: runA
@@ -153,7 +153,7 @@ describe('replaySnapshotToTick', () => {
         }
 
         assertReplayDeterminismMatch({
-          contextLabel: `fixture=${fixture.name}`,
+          contextLabel: `fixture=${fixture.name} phase=pre-save`,
           seed: config.resolvedSeed,
           stepParams,
           actualWorldState: runA,
@@ -162,6 +162,43 @@ describe('replaySnapshotToTick', () => {
           expectedFingerprint: fingerprintB
         });
         expect(fingerprintA).toBe(fingerprintB);
+
+        if (Number.isInteger(fixture.saveTick) && Number.isInteger(fixture.resumeTickBudget) && fixture.saveTick > 0 && fixture.resumeTickBudget > 0) {
+          const baselineRng = createSeededPrng(config.resolvedSeed);
+          const baselineFinal = runTicks(baseWorldState, baselineRng, fixture.saveTick + fixture.resumeTickBudget, stepParams);
+
+          const saveRng = createSeededPrng(config.resolvedSeed);
+          const worldAtSave = runTicks(baseWorldState, saveRng, fixture.saveTick, stepParams);
+          const persistedSnapshot = JSON.parse(JSON.stringify(worldAtSave));
+          const persistedRngState = saveRng.getState();
+
+          const resumedRng = createSeededPrng(config.resolvedSeed, persistedRngState);
+          const resumedFinal = runTicks(persistedSnapshot, resumedRng, fixture.resumeTickBudget, stepParams);
+
+          const resumedFingerprint = buildReplayDeterminismFingerprint(resumedFinal);
+          const baselineFingerprint = buildReplayDeterminismFingerprint(baselineFinal);
+
+          if (resumedFingerprint !== baselineFingerprint) {
+            fixtureFailure = buildReplayFixtureFailureRecord({
+              fixtureName: `${fixture.name} [phase=post-resume]`,
+              seed: config.resolvedSeed,
+              expectedWorldState: baselineFinal,
+              actualWorldState: resumedFinal
+            });
+            return;
+          }
+
+          assertReplayDeterminismMatch({
+            contextLabel: `fixture=${fixture.name} phase=post-resume saveTick=${fixture.saveTick} resumeTicks=${fixture.resumeTickBudget}`,
+            seed: config.resolvedSeed,
+            stepParams,
+            actualWorldState: resumedFinal,
+            expectedWorldState: baselineFinal,
+            actualFingerprint: resumedFingerprint,
+            expectedFingerprint: baselineFingerprint
+          });
+          expect(resumedFingerprint).toBe(baselineFingerprint);
+        }
       });
 
       if (fixtureFailure) {
