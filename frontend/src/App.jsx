@@ -178,24 +178,27 @@ function createFormStateFromConfig(config) {
   };
 }
 
-function getControlDisableReasons({ hasSimulation, replayActive, paused }) {
+function getControlDisableReasons({ hasSimulation, replayActive, paused, spectatorMode }) {
   const simulationRequiredReason = 'Start a simulation to enable this control.';
+  const spectatorModeReason = 'Spectator mode is active. Changes cannot be saved.';
 
   return {
     copySeed: hasSimulation ? '' : simulationRequiredReason,
-    regenerateSeed: hasSimulation ? '' : simulationRequiredReason,
-    restartFromSeed: hasSimulation ? '' : simulationRequiredReason,
-    pause: !hasSimulation ? simulationRequiredReason : replayActive ? 'Replay mode is active. Resume live simulation to pause playback.' : '',
-    resume: !hasSimulation ? simulationRequiredReason : replayActive ? 'Replay mode is active. Resume live simulation before using runtime playback controls.' : '',
-    speed: !hasSimulation ? simulationRequiredReason : replayActive ? 'Replay mode is active. Resume live simulation to change speed.' : '',
+    regenerateSeed: hasSimulation ? '' : spectatorMode ? spectatorModeReason : simulationRequiredReason,
+    restartFromSeed: hasSimulation ? '' : spectatorMode ? spectatorModeReason : simulationRequiredReason,
+    pause: !hasSimulation ? simulationRequiredReason : replayActive ? 'Replay mode is active. Resume live simulation to pause playback.' : spectatorMode ? spectatorModeReason : '',
+    resume: !hasSimulation ? simulationRequiredReason : replayActive ? 'Replay mode is active. Resume live simulation before using runtime playback controls.' : spectatorMode ? spectatorModeReason : '',
+    speed: !hasSimulation ? simulationRequiredReason : replayActive ? 'Replay mode is active. Resume live simulation to change speed.' : spectatorMode ? spectatorModeReason : '',
     step: !hasSimulation
       ? simulationRequiredReason
       : replayActive
         ? 'Replay mode is active. Resume live simulation to step ticks.'
         : !paused
           ? 'Pause the simulation to step one tick at a time.'
-          : '',
-    saveSnapshot: hasSimulation ? '' : simulationRequiredReason
+          : spectatorMode
+            ? spectatorModeReason
+            : '',
+    saveSnapshot: hasSimulation ? '' : spectatorMode ? spectatorModeReason : simulationRequiredReason
   };
 }
 
@@ -291,6 +294,8 @@ function App() {
   });
   const [formState, setFormState] = useState(initialFormState);
   const [formBaselineState, setFormBaselineState] = useState(initialFormState);
+  const [spectatorMode, setSpectatorMode] = useState(false);
+  const [shareStatus, setShareStatus] = useState('');
 
   const worldRef = useRef(null);
   const pausedRef = useRef(paused);
@@ -354,7 +359,8 @@ function App() {
       deleteStatus,
       copyMetadataStatus,
       replayStatus,
-      replayPresetStatus
+      replayPresetStatus,
+      shareStatus
     ].forEach((message) => publishControlToast(message));
   }, [
     seedControlStatus,
@@ -363,7 +369,8 @@ function App() {
     deleteStatus,
     copyMetadataStatus,
     replayStatus,
-    replayPresetStatus
+    replayPresetStatus,
+    shareStatus
   ]);
 
   useEffect(() => {
@@ -509,6 +516,41 @@ function App() {
         setSavedSimulationsError('Unable to load saved simulations. Retry from a fresh page load.');
       });
   }, []);
+
+  // Check URL for spectator mode and auto-load snapshot
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const snapshotIdParam = params.get('snapshot');
+    const spectatorParam = params.get('spectator');
+
+    if (snapshotIdParam) {
+      setSpectatorMode(spectatorParam === 'true');
+
+      // Find and load the snapshot
+      const snapshot = savedSimulations.find((s) => s.id === snapshotIdParam);
+      if (snapshot) {
+        // Auto-select and load the snapshot
+        setSavedSimulationListViewState((previous) => ({
+          ...previous,
+          selectedSnapshotId: snapshotIdParam
+        }));
+        // Load the simulation
+        getSimulationSnapshot(snapshotIdParam)
+          .then((snapshotData) => {
+            const validated = validateAndNormalizeLoadedSnapshot(snapshotData);
+            const config = createFormStateFromConfig(validated);
+            setFormState(config);
+            setFormBaselineState(config);
+            setActiveLoadedMetadata(validated);
+            setResolvedSeed(validated.seed);
+            applySimulationConfig(validated, { paused: true });
+          })
+          .catch(() => {
+            setLoadStatus('Failed to load shared simulation.');
+          });
+      }
+    }
+  }, [savedSimulations]);
 
   const savedSimulationListView = useMemo(
     () => deriveSavedSimulationListView(savedSimulations, savedSimulationListViewState),
@@ -1168,6 +1210,27 @@ function App() {
     }
   };
 
+  const onShareSimulation = async () => {
+    if (!activeLoadedMetadata?.id) {
+      setShareStatus('Save the simulation first to share it.');
+      return;
+    }
+
+    const writeText = globalThis?.navigator?.clipboard?.writeText;
+    if (typeof writeText !== 'function') {
+      setShareStatus('Clipboard is unavailable.');
+      return;
+    }
+
+    try {
+      const shareUrl = `${window.location.origin}${window.location.pathname}?snapshot=${encodeURIComponent(activeLoadedMetadata.id)}&spectator=true`;
+      await writeText(shareUrl);
+      setShareStatus('Share URL copied to clipboard!');
+    } catch {
+      setShareStatus('Failed to copy share URL.');
+    }
+  };
+
   const onRestartRun = () => {
     if (!activeConfigRef.current) {
       return;
@@ -1220,8 +1283,8 @@ function App() {
   const hasSimulation = useMemo(() => Boolean(worldRef.current && rngRef.current), [tickDisplay, resolvedSeed]);
 
   const controlDisableReasons = useMemo(
-    () => getControlDisableReasons({ hasSimulation, replayActive, paused }),
-    [hasSimulation, replayActive, paused]
+    () => getControlDisableReasons({ hasSimulation, replayActive, paused, spectatorMode }),
+    [hasSimulation, replayActive, paused, spectatorMode]
   );
 
   const derivedStats = useMemo(() => deriveSimulationStats(displayWorld), [displayWorld, tickDisplay, resolvedSeed]);
@@ -2382,6 +2445,14 @@ function App() {
         <ControlButtonWithHint name="save-as-snapshot" onClick={onSaveAsSimulation} reason={controlDisableReasons.saveSnapshot}>
           Save As
         </ControlButtonWithHint>
+        {!spectatorMode && activeLoadedMetadata?.id ? (
+          <ControlButtonWithHint name="share-snapshot" onClick={onShareSimulation} reason={''}>
+            Share
+          </ControlButtonWithHint>
+        ) : null}
+        {spectatorMode ? (
+          <p><strong>🔍 Spectator Mode</strong> - You are viewing a shared simulation. Changes cannot be saved.</p>
+        ) : null}
         {saveAsValidationError ? <p aria-live="polite">{saveAsValidationError}</p> : null}
         <button
           type="button"
