@@ -66,6 +66,22 @@ const RAW_REPLAY_PARITY_FIXTURES = [
     tickBudget: 100
   },
   {
+    name: 'minimum-population-recovery',
+    purpose: 'Force deterministic minimum-population floor recovery under starvation pressure and verify canonical timeline parity.',
+    seed: 'fixture-minimum-population-recovery',
+    worldWidth: 700,
+    worldHeight: 420,
+    initialPopulation: 8,
+    minimumPopulation: 14,
+    initialFoodCount: 0,
+    foodSpawnChance: 0,
+    foodEnergyValue: 5,
+    maxFood: 0,
+    mutationRate: 0.1,
+    mutationStrength: 0.14,
+    tickBudget: 150
+  },
+  {
     name: 'cross-session-resume-drift',
     purpose: 'Validate deterministic parity before and after persisted save/resume across a two-phase replay path.',
     seed: 'fixture-cross-session-resume-drift',
