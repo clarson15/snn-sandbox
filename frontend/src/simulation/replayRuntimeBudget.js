@@ -63,8 +63,33 @@ export function assertReplayRuntimeBudgetWithinThreshold({ fixtureTimingsMs, bud
   const summary = buildReplayRuntimeBudgetReport({ fixtureTimingsMs, budgetMs });
 
   if (summary.totalMs > budgetMs) {
-    throw new Error(`Replay parity runtime budget exceeded.\n${summary.report}`);
+    throw new Error(`[REPLAY_RUNTIME_BUDGET] Replay parity runtime budget exceeded.\n${summary.report}`);
   }
 
   return summary;
+}
+
+export function assertReplayFixtureWorkBudgetWithinThreshold({ fixture }) {
+  const workBudget = fixture?.workBudget;
+
+  if (!workBudget || workBudget.enabled !== true) {
+    return;
+  }
+
+  const projectedWorkUnits = Number(fixture?.tickBudget ?? 0) * Number(fixture?.initialPopulation ?? 0);
+  const maxWorkUnits = Number(workBudget.maxWorkUnits ?? 0);
+
+  if (!Number.isFinite(projectedWorkUnits) || !Number.isFinite(maxWorkUnits) || projectedWorkUnits <= 0 || maxWorkUnits <= 0) {
+    throw new Error(
+      `[REPLAY_RUNTIME_BUDGET] Fixture ${fixture?.name ?? '<unknown>'} has invalid deterministic work budget configuration.`
+    );
+  }
+
+  if (projectedWorkUnits > maxWorkUnits) {
+    throw new Error(
+      `[REPLAY_RUNTIME_BUDGET] Fixture ${fixture.name} exceeded deterministic work budget: ` +
+        `projectedWorkUnits=${projectedWorkUnits} > maxWorkUnits=${maxWorkUnits}. ` +
+        `Adjust tickBudget/initialPopulation or explicitly raise workBudget.maxWorkUnits with rationale.`
+    );
+  }
 }

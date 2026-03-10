@@ -10,6 +10,7 @@ import { assertReplayDeterminismMatch, buildReplayDeterminismFingerprint } from 
 import { collectReplayEventOrderTrace, formatReplayEventOrderDiffSnippet } from './replayEventOrderTrace';
 import { REPLAY_PARITY_FIXTURES } from './replayParityFixtures';
 import {
+  assertReplayFixtureWorkBudgetWithinThreshold,
   assertReplayRuntimeBudgetWithinThreshold,
   readReplayRuntimeBudgetMs,
   measureReplayFixtureRuntimeMs
@@ -258,8 +259,10 @@ describe('replaySnapshotToTick', () => {
   it('validates deterministic replay parity across a curated multi-fixture matrix', () => {
     const fixtureTimingsMs = [];
     const fixtureFailures = [];
+    const budgetMs = readReplayRuntimeBudgetMs();
 
     for (const fixture of REPLAY_PARITY_FIXTURES) {
+      assertReplayFixtureWorkBudgetWithinThreshold({ fixture });
       let fixtureFailure = null;
 
       const durationMs = measureReplayFixtureRuntimeMs(() => withForbiddenAmbientRandomnessApisBlocked(() => {
@@ -569,16 +572,16 @@ describe('replaySnapshotToTick', () => {
       }
 
       fixtureTimingsMs.push({ name: fixture.name, durationMs });
+      assertReplayRuntimeBudgetWithinThreshold({ fixtureTimingsMs, budgetMs });
     }
 
-    const budgetMs = readReplayRuntimeBudgetMs();
     const summary = assertReplayRuntimeBudgetWithinThreshold({ fixtureTimingsMs, budgetMs });
 
     if (fixtureFailures.length > 0) {
       const failureSummary = formatReplayParityFailureSummary(fixtureFailures);
       const outputPath = env.REPLAY_PARITY_FAILURE_SUMMARY_PATH ?? 'frontend/test-results/replay-parity-failure-summary.md';
       const resolvedPath = writeReplayParityFailureSummary(failureSummary, outputPath);
-      throw new Error(`Replay parity fixture mismatches detected. Summary written to ${resolvedPath}\n${failureSummary}`);
+      throw new Error(`[REPLAY_PARITY_DRIFT] Replay parity fixture mismatches detected. Summary written to ${resolvedPath}\n${failureSummary}`);
     }
 
     // Stable output ordering comes from manifest order; values are fixed precision.

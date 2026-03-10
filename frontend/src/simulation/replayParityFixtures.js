@@ -140,6 +140,9 @@ const RAW_REPLAY_PARITY_FIXTURES = [
   {
     name: 'dense-collision-tie-break-ordering',
     purpose: 'Stress dense same-tick collisions and adjacency churn while asserting stable per-tick tie-break ordering summaries.',
+    // Runtime guardrails:
+    // - deterministic work budget keeps fixture complexity stable in CI (tickBudget * initialPopulation)
+    // - wall-clock budget is enforced by REPLAY_PARITY_BUDGET_MS in replay.test.js
     seed: 'fixture-dense-collision-tie-break-ordering',
     worldWidth: 320,
     worldHeight: 200,
@@ -152,6 +155,10 @@ const RAW_REPLAY_PARITY_FIXTURES = [
     mutationRate: 0.16,
     mutationStrength: 0.2,
     tickBudget: 70,
+    workBudget: {
+      enabled: true,
+      maxWorkUnits: 2520
+    },
     assertDeterministicTieBreakOrdering: true,
     tieBreakExpectations: [
       'Food consumption candidate selection is resolved by nearest distance, then lexical food id when distances tie.',
