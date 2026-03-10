@@ -320,6 +320,7 @@ function App() {
   const [formBaselineState, setFormBaselineState] = useState(initialFormState);
   const [selectedPresetId, setSelectedPresetId] = useState('');
   const [spectatorMode, setSpectatorMode] = useState(false);
+  const [sideNavDrawerOpen, setSideNavDrawerOpen] = useState(false);
   const [shareStatus, setShareStatus] = useState('');
   const [queryPrefillStatus, setQueryPrefillStatus] = useState(initialQueryPrefill.warningMessage);
 
@@ -677,6 +678,14 @@ function App() {
 
       return nextPinned;
     });
+  };
+
+  const onToggleSideNavDrawer = () => {
+    setSideNavDrawerOpen((previous) => !previous);
+  };
+
+  const onCloseSideNavDrawer = () => {
+    setSideNavDrawerOpen(false);
   };
 
   const selectAdjacentOrganism = (offset) => {
@@ -2375,7 +2384,40 @@ function App() {
       <header className="app-header">
         <h1>SNN Sandbox</h1>
         <p>Configure and run deterministic simulations</p>
+        <button type="button" className="side-nav-toggle" onClick={onToggleSideNavDrawer} aria-label="Toggle navigation menu">
+          ☰ Menu
+        </button>
       </header>
+
+      {/* Side navigation drawer */}
+      <div
+        className={`side-nav-drawer-overlay ${sideNavDrawerOpen ? 'is-visible' : ''}`}
+        onClick={onCloseSideNavDrawer}
+        aria-hidden="true"
+      />
+      <nav className={`side-nav-drawer ${sideNavDrawerOpen ? 'is-open' : ''}`} aria-label="side navigation">
+        <div className="side-nav-section">
+          <h3>Simulation</h3>
+          <a href="#" className="side-nav-link is-active" onClick={onCloseSideNavDrawer}>
+            🏠 Home / New
+          </a>
+          <button type="button" className="side-nav-link" onClick={onCloseSideNavDrawer}>
+            💾 Saved Simulations
+          </button>
+        </div>
+        <div className="side-nav-section">
+          <h3>Settings</h3>
+          <button type="button" className="side-nav-link" onClick={onCloseSideNavDrawer}>
+            ⚙️ Preferences
+          </button>
+        </div>
+        <div className="side-nav-section">
+          <h3>Help</h3>
+          <button type="button" className="side-nav-link" onClick={onCloseSideNavDrawer}>
+            ❓ About
+          </button>
+        </div>
+      </nav>
 
       {toastsEnabled ? (
         <section className="toast-viewport" aria-label="simulation control toasts" aria-live="polite" aria-atomic="true">
@@ -3064,7 +3106,7 @@ function App() {
         />
       </section>
 
-      <section className="config-panel" aria-label="organism inspector" role="region">
+      <section className="config-panel inspector-overlay" aria-label="organism inspector" role="region">
         <h2 id="organism-inspector-heading">Organism inspector</h2>
         <div className="field-row" role="group" aria-label="organism selection controls">
           <button
