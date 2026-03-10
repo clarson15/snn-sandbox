@@ -9,7 +9,62 @@ function hash(value) {
   return JSON.stringify(value);
 }
 
+function buildDeterminismSmokeSnapshot(worldState) {
+  const organisms = [...(worldState.organisms ?? [])]
+    .map((organism) => ({
+      id: organism.id,
+      x: organism.x,
+      y: organism.y,
+      energy: organism.energy
+    }))
+    .sort((left, right) => left.id.localeCompare(right.id));
+
+  return {
+    tick: worldState.tick,
+    populationCount: organisms.length,
+    foodCount: worldState.food?.length ?? 0,
+    organisms
+  };
+}
+
 describe('replaySnapshotToTick', () => {
+  it('smoke-tests same-seed replay determinism using a stable world snapshot contract', () => {
+    const config = normalizeSimulationConfig(
+      {
+        name: 'Determinism smoke fixture',
+        seed: 'same-seed-replay-smoke',
+        worldWidth: 800,
+        worldHeight: 480,
+        initialPopulation: 24,
+        minimumPopulation: 12,
+        initialFoodCount: 35,
+        foodSpawnChance: 0.05,
+        foodEnergyValue: 6,
+        maxFood: 140,
+        mutationRate: 0.08,
+        mutationStrength: 0.12
+      },
+      'same-seed-replay-smoke'
+    );
+
+    const stepParams = toEngineStepParams(config);
+    const baseWorldState = createInitialWorldFromConfig(config);
+    const fixedTickBudget = 120;
+
+    const runA = runTicks(baseWorldState, createSeededPrng(config.resolvedSeed), fixedTickBudget, stepParams);
+    const runB = runTicks(baseWorldState, createSeededPrng(config.resolvedSeed), fixedTickBudget, stepParams);
+
+    // Snapshot contract (keep stable for CI smoke checks):
+    // - populationCount and foodCount
+    // - per-organism id + position + energy
+    // - deterministic ordering by organism id before equality comparison
+    // Any non-deterministic source in the update path should change this snapshot and fail the test.
+    const snapshotA = buildDeterminismSmokeSnapshot(runA);
+    const snapshotB = buildDeterminismSmokeSnapshot(runB);
+
+    expect(snapshotA).toEqual(snapshotB);
+  });
+
   it('replays deterministically to the same tick for identical seed + params + base snapshot', () => {
     const config = normalizeSimulationConfig(
       {
