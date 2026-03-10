@@ -8,7 +8,7 @@ import { createSeededPrng } from './prng';
 import { replaySnapshotToTick } from './replay';
 import { assertReplayDeterminismMatch, buildReplayDeterminismFingerprint } from './replayDeterminismDiagnostics';
 import { collectReplayEventOrderTrace, formatReplayEventOrderDiffSnippet } from './replayEventOrderTrace';
-import { REPLAY_PARITY_FIXTURES } from './replayParityFixtures';
+import { REPLAY_PARITY_FIXTURES, resolveReplayParityFixtures } from './replayParityFixtures';
 import {
   assertReplayFixtureWorkBudgetWithinThreshold,
   assertReplayRuntimeBudgetWithinThreshold,
@@ -235,6 +235,17 @@ function collectCadenceReplaySnapshots({ baseWorldState, seed, stepParams, check
   };
 }
 
+function parseCsvEnvList(value) {
+  if (typeof value !== 'string') {
+    return [];
+  }
+
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
 function withForbiddenAmbientRandomnessApisBlocked(work) {
   const originalMathRandom = Math.random;
   const originalDateNow = Date.now;
@@ -260,8 +271,21 @@ describe('replaySnapshotToTick', () => {
     const fixtureTimingsMs = [];
     const fixtureFailures = [];
     const budgetMs = readReplayRuntimeBudgetMs();
+    const selectedFixtureNames = parseCsvEnvList(env.REPLAY_PARITY_FIXTURE_NAMES);
+    const selectedFixtureProfiles = parseCsvEnvList(env.REPLAY_PARITY_FIXTURE_PROFILES);
+    const fixturesUnderTest = resolveReplayParityFixtures({
+      fixtureNames: selectedFixtureNames,
+      profileIds: selectedFixtureProfiles
+    });
 
-    for (const fixture of REPLAY_PARITY_FIXTURES) {
+    if (fixturesUnderTest.length === 0) {
+      throw new Error(
+        '[REPLAY_FIXTURE_SELECTION] No replay fixtures matched REPLAY_PARITY_FIXTURE_NAMES/REPLAY_PARITY_FIXTURE_PROFILES. '
+          + `Available fixtures: ${REPLAY_PARITY_FIXTURES.map((fixture) => fixture.name).join(', ')}`
+      );
+    }
+
+    for (const fixture of fixturesUnderTest) {
       assertReplayFixtureWorkBudgetWithinThreshold({ fixture });
       let fixtureFailure = null;
 
