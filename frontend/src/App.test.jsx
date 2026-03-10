@@ -615,6 +615,8 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
 
     expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: 1b207');
+    const controlsRegion = screen.getByRole('region', { name: /simulation controls/i });
+    expect(within(controlsRegion).getByRole('button', { name: /copy seed/i })).toBeInTheDocument();
 
     const tickNode = screen.getByText(/^tick count:/i);
     await waitFor(() => {
@@ -644,6 +646,19 @@ describe('App', () => {
     );
     expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: 3640e');
     expect(tickNode).toHaveTextContent('Tick count: 0');
+  });
+
+  it('shows recoverable feedback when copy seed clipboard write fails', async () => {
+    clipboardWriteText.mockRejectedValueOnce(new Error('clipboard denied'));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+    fireEvent.click(screen.getByRole('button', { name: /copy seed/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/failed to copy seed\./i)).toBeInTheDocument();
+    });
   });
 
   it('cancels restart and regenerate flows when unsaved-progress confirmation is declined', async () => {

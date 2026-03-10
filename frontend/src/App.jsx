@@ -2415,6 +2415,9 @@ function App() {
 
       <section className="controls" aria-label="simulation controls">
         <p>Active seed: {resolvedSeed || 'No active simulation'}</p>
+        <ControlButtonWithHint name="copy-seed-controls" onClick={onCopyActiveSeed} reason={controlDisableReasons.copySeed}>
+          Copy seed
+        </ControlButtonWithHint>
         <ControlButtonWithHint name="regenerate-seed" onClick={onRegenerateSeed} reason={controlDisableReasons.regenerateSeed}>
           Regenerate seed + restart
         </ControlButtonWithHint>
@@ -2931,9 +2934,6 @@ function App() {
           {isDetailedHudVisible ? (
             <p>Tick budget clamp: {schedulerClampState.active ? `Active (dropped ${schedulerClampState.droppedTicks} ticks this frame)` : 'Inactive'}</p>
           ) : null}
-          <ControlButtonWithHint name="copy-seed-hud" onClick={onCopyActiveSeed} reason={controlDisableReasons.copySeed}>
-            Copy seed
-          </ControlButtonWithHint>
         </section>
 
         <canvas
