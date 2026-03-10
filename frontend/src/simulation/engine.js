@@ -619,3 +619,172 @@ export function runTickSchedule(initialState, rng, schedule, params = {}) {
 
   return current;
 }
+
+// ============================================================
+// Species Detection - Cluster organisms by genetic similarity
+// ============================================================
+
+/**
+ * Calculate genetic distance between two organisms based on traits and brain.
+ * Uses normalized Euclidean distance for traits and Jaccard similarity for brain synapses.
+ * @param {WorldOrganism} a
+ * @param {WorldOrganism} b
+ * @returns {number} distance (0 = identical, higher = more different)
+ */
+function calculateGeneticDistance(a, b) {
+  // Trait distance (normalized)
+  const traitNames = ['size', 'speed', 'visionRange', 'turnRate', 'metabolism'];
+  let traitDistance = 0;
+
+  for (const trait of traitNames) {
+    const aVal = Number(a?.traits?.[trait] ?? 0);
+    const bVal = Number(b?.traits?.[trait] ?? 0);
+    // Normalize by typical range for each trait
+    const maxVals = { size: 5, speed: 5, visionRange: 50, turnRate: 1, metabolism: 1 };
+    const normalizedDiff = (aVal - bVal) / (maxVals[trait] || 1);
+    traitDistance += normalizedDiff * normalizedDiff;
+  }
+  traitDistance = Math.sqrt(traitDistance);
+
+  // Brain distance (Jaccard-based)
+  const synapsesA = a?.brain?.synapses ?? [];
+  const synapsesB = b?.brain?.synapses ?? [];
+
+  if (synapsesA.length === 0 && synapsesB.length === 0) {
+    return traitDistance; // Only trait distance if both have no brain
+  }
+
+  // Create signature sets for brain comparison
+  const sigA = new Set(synapsesAsignature(a.brain));
+  const sigB = new Set(synapsesAsignature(b.brain));
+
+  if (sigA.size === 0 && sigB.size === 0) {
+    return traitDistance;
+  }
+
+  // Jaccard distance: 1 - (intersection / union)
+  let intersection = 0;
+  for (const s of sigA) {
+    if (sigB.has(s)) intersection += 1;
+  }
+  const union = sigA.size + sigB.size - intersection;
+  const brainDistance = union > 0 ? 1 - (intersection / union) : 0;
+
+  // Combine distances (equal weight)
+  return traitDistance + brainDistance;
+}
+
+/**
+ * Create a signature string for each synapse (source -> target)
+ * @param {object} brain
+ * @returns {string[]}
+ */
+function synapsesAsignature(brain) {
+  const synapses = brain?.synapses ?? [];
+  return synapses.map(s => `${s.sourceNeuronId ?? s.source}_${s.targetNeuronId ?? s.target}`);
+}
+
+/**
+ * Predefined species colors for visual distinction
+ */
+const SPECIES_COLORS = [
+  '#38bdf8', // blue (default)
+  '#f472b6', // pink
+  '#a78bfa', // purple
+  '#34d399', // emerald
+  '#fbbf24', // amber
+  '#fb7185', // rose
+  '#22d3ee', // cyan
+  '#a3e635', // lime
+  '#f97316', // orange
+  '#c084fc'  // violet
+];
+
+/**
+ * Detect species in a population using agglomerative clustering.
+ * Organisms with genetic distance below threshold are grouped into the same species.
+ *
+ * @param {WorldOrganism[]} organisms
+ * @param {number} [similarityThreshold=0.5] max distance to be considered same species
+ * @returns {Map<string, string>} Map of organism ID -> species ID
+ */
+export function detectSpecies(organisms, similarityThreshold = 0.5) {
+  if (!organisms || organisms.length === 0) {
+    return new Map();
+  }
+
+  // Each organism starts as its own species
+  const speciesAssignments = new Map();
+  const speciesRepresentatives = organisms.map((o, i) => ({ organism: o, speciesId: `species-${i}` }));
+
+  // Assign initial species IDs
+  for (const rep of speciesRepresentatives) {
+    speciesAssignments.set(rep.organism.id, rep.speciesId);
+  }
+
+  // Agglomerative clustering: merge closest species
+  let hasMerged = true;
+  while (hasMerged && speciesRepresentatives.length > 1) {
+    hasMerged = false;
+
+    let minDistance = Infinity;
+    let mergePair = null;
+
+    // Find closest pair of species representatives
+    for (let i = 0; i < speciesRepresentatives.length; i++) {
+      for (let j = i + 1; j < speciesRepresentatives.length; j++) {
+        const repA = speciesRepresentatives[i];
+        const repB = speciesRepresentatives[j];
+
+        // Skip if already same species
+        if (speciesAssignments.get(repA.organism.id) === speciesAssignments.get(repB.organism.id)) {
+          continue;
+        }
+
+        const dist = calculateGeneticDistance(repA.organism, repB.organism);
+        if (dist < minDistance) {
+          minDistance = dist;
+          mergePair = [i, j];
+        }
+      }
+    }
+
+    // Merge if below threshold
+    if (mergePair && minDistance <= similarityThreshold) {
+      hasMerged = true;
+      const [idxA, idxB] = mergePair;
+      const speciesIdA = speciesAssignments.get(speciesRepresentatives[idxA].organism.id);
+      const speciesIdB = speciesAssignments.get(speciesRepresentatives[idxB].organism.id);
+
+      // Merge all organisms from species B into species A
+      for (const rep of speciesRepresentatives) {
+        if (speciesAssignments.get(rep.organism.id) === speciesIdB) {
+          speciesAssignments.set(rep.organism.id, speciesIdA);
+        }
+      }
+
+      // Update representative to the one with lower ID (deterministic)
+      if (speciesIdA.localeCompare(speciesIdB) > 0) {
+        speciesRepresentatives[idxA] = speciesRepresentatives[idxB];
+      }
+      speciesRepresentatives.splice(idxB, 1);
+    }
+  }
+
+  return speciesAssignments;
+}
+
+/**
+ * Get a deterministic color for a species based on its ID.
+ * @param {string} speciesId
+ * @returns {string} hex color
+ */
+export function getSpeciesColor(speciesId) {
+  if (!speciesId) return SPECIES_COLORS[0];
+
+  // Extract numeric suffix from species ID (e.g., "species-5" -> 5)
+  const match = speciesId.match(/species-(\d+)/);
+  const index = match ? parseInt(match[1], 10) : 0;
+
+  return SPECIES_COLORS[index % SPECIES_COLORS.length];
+}
