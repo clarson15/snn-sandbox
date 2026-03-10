@@ -16,7 +16,16 @@ export const DEFAULT_CONFIG = {
   foodEnergyValue: 5,
   maxFood: 120,
   mutationRate: 0.05,
-  mutationStrength: 0.1
+  mutationStrength: 0.1,
+  // Environmental hazards
+  enableObstacles: false,
+  obstacleCount: 3,
+  obstacleMinSize: 30,
+  obstacleMaxSize: 80,
+  enableDangerZones: false,
+  dangerZoneCount: 2,
+  dangerZoneRadius: 40,
+  dangerZoneDamage: 0.5
 };
 
 export function resolveSeed(seedInput) {
@@ -59,7 +68,14 @@ export function validateSimulationConfig(input) {
     ['foodEnergyValue', 1, 100, 'Food energy value must be between 1 and 100.'],
     ['maxFood', 1, 2000, 'Max food must be between 1 and 2000.'],
     ['mutationRate', 0, 1, 'Mutation rate must be between 0 and 1.'],
-    ['mutationStrength', 0, 1, 'Mutation strength must be between 0 and 1.']
+    ['mutationStrength', 0, 1, 'Mutation strength must be between 0 and 1.'],
+    // Hazard validation
+    ['obstacleCount', 0, 20, 'Obstacle count must be between 0 and 20.'],
+    ['obstacleMinSize', 10, 200, 'Obstacle min size must be between 10 and 200.'],
+    ['obstacleMaxSize', 10, 200, 'Obstacle max size must be between 10 and 200.'],
+    ['dangerZoneCount', 0, 10, 'Danger zone count must be between 0 and 10.'],
+    ['dangerZoneRadius', 10, 200, 'Danger zone radius must be between 10 and 200.'],
+    ['dangerZoneDamage', 0, 5, 'Danger zone damage must be between 0 and 5.']
   ];
 
   for (const [field, min, max, message] of numericChecks) {
@@ -94,7 +110,16 @@ export function normalizeSimulationConfig(input, resolvedSeed) {
     foodEnergyValue: Number(input.foodEnergyValue ?? DEFAULT_CONFIG.foodEnergyValue),
     maxFood: Number(input.maxFood ?? DEFAULT_CONFIG.maxFood),
     mutationRate: Number(input.mutationRate ?? DEFAULT_CONFIG.mutationRate),
-    mutationStrength: Number(input.mutationStrength ?? DEFAULT_CONFIG.mutationStrength)
+    mutationStrength: Number(input.mutationStrength ?? DEFAULT_CONFIG.mutationStrength),
+    // Environmental hazards
+    enableObstacles: Boolean(input.enableObstacles ?? DEFAULT_CONFIG.enableObstacles),
+    obstacleCount: Number(input.obstacleCount ?? DEFAULT_CONFIG.obstacleCount),
+    obstacleMinSize: Number(input.obstacleMinSize ?? DEFAULT_CONFIG.obstacleMinSize),
+    obstacleMaxSize: Number(input.obstacleMaxSize ?? DEFAULT_CONFIG.obstacleMaxSize),
+    enableDangerZones: Boolean(input.enableDangerZones ?? DEFAULT_CONFIG.enableDangerZones),
+    dangerZoneCount: Number(input.dangerZoneCount ?? DEFAULT_CONFIG.dangerZoneCount),
+    dangerZoneRadius: Number(input.dangerZoneRadius ?? DEFAULT_CONFIG.dangerZoneRadius),
+    dangerZoneDamage: Number(input.dangerZoneDamage ?? DEFAULT_CONFIG.dangerZoneDamage)
   };
 }
 
@@ -177,10 +202,47 @@ export function createInitialWorldFromConfig(config) {
     energyValue: config.foodEnergyValue
   }));
 
+  // Generate obstacles if enabled
+  const obstacles = [];
+  if (config.enableObstacles && config.obstacleCount > 0) {
+    for (let i = 0; i < config.obstacleCount; i++) {
+      const width = config.obstacleMinSize + rng.nextFloat() * (config.obstacleMaxSize - config.obstacleMinSize);
+      const height = config.obstacleMinSize + rng.nextFloat() * (config.obstacleMaxSize - config.obstacleMinSize);
+      const x = rng.nextFloat() * (config.worldWidth - width);
+      const y = rng.nextFloat() * (config.worldHeight - height);
+      obstacles.push({
+        id: `obstacle-${i}`,
+        x,
+        y,
+        width,
+        height
+      });
+    }
+  }
+
+  // Generate danger zones if enabled
+  const dangerZones = [];
+  if (config.enableDangerZones && config.dangerZoneCount > 0) {
+    for (let i = 0; i < config.dangerZoneCount; i++) {
+      const x = config.dangerZoneRadius + rng.nextFloat() * (config.worldWidth - 2 * config.dangerZoneRadius);
+      const y = config.dangerZoneRadius + rng.nextFloat() * (config.worldHeight - 2 * config.dangerZoneRadius);
+      dangerZones.push({
+        id: `dangerzone-${i}`,
+        x,
+        y,
+        radius: config.dangerZoneRadius,
+        damagePerTick: config.dangerZoneDamage
+      });
+    }
+  }
+
+  // Store hazards in the world state for rendering and engine access
   return createWorldState({
     tick: 0,
     organisms,
-    food
+    food,
+    obstacles,
+    dangerZones
   });
 }
 

@@ -209,7 +209,15 @@ describe('simulation config helpers', () => {
       maxFood: 180,
       mutationRate: 0.3,
       mutationStrength: 0.4,
-      resolvedSeed: undefined
+      resolvedSeed: undefined,
+      enableObstacles: false,
+      obstacleCount: 3,
+      obstacleMinSize: 30,
+      obstacleMaxSize: 80,
+      enableDangerZones: false,
+      dangerZoneCount: 2,
+      dangerZoneRadius: 40,
+      dangerZoneDamage: 0.5
     });
   });
 
@@ -242,7 +250,15 @@ describe('simulation config helpers', () => {
       maxFood: 120,
       mutationRate: 0.05,
       mutationStrength: 0.1,
-      resolvedSeed: undefined
+      resolvedSeed: undefined,
+      enableObstacles: false,
+      obstacleCount: 3,
+      obstacleMinSize: 30,
+      obstacleMaxSize: 80,
+      enableDangerZones: false,
+      dangerZoneCount: 2,
+      dangerZoneRadius: 40,
+      dangerZoneDamage: 0.5
     });
   });
 
