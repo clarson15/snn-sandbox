@@ -273,6 +273,7 @@ function App() {
   const [replaySnapshotMetadata, setReplaySnapshotMetadata] = useState(null);
   const [replayPresetName, setReplayPresetName] = useState('');
   const [replayPresetStatus, setReplayPresetStatus] = useState('');
+  const [replayPlaying, setReplayPlaying] = useState(false);
   const [replayComparisonPresets, setReplayComparisonPresets] = useState(() => loadReplayComparisonPresets());
   const [selectedMismatchEventKey, setSelectedMismatchEventKey] = useState(null);
   const [mismatchEventFilters, setMismatchEventFilters] = useState({ types: [], severities: [] });
@@ -1897,6 +1898,48 @@ function App() {
     jumpReplayToTick(nextTick, 'Replay tick applied.', false);
   };
 
+  // Auto-advance replay when playing
+  useEffect(() => {
+    if (!replayPlaying || !replayContextRef.current) {
+      return;
+    }
+
+    const currentTick = replayWorldState?.tick ?? replayContextRef.current.baseWorldState.tick;
+    const maxTick = replayTimeline.latestRecordedTick;
+
+    if (currentTick >= maxTick) {
+      setReplayPlaying(false);
+      setReplayStatus('Replay reached end.');
+      return;
+    }
+
+    const advanceInterval = setInterval(() => {
+      const tick = replayWorldState?.tick ?? replayContextRef.current.baseWorldState.tick;
+      if (tick >= replayTimeline.latestRecordedTick) {
+        setReplayPlaying(false);
+        setReplayStatus('Replay reached end.');
+        return;
+      }
+      const nextTick = tick + 1;
+      jumpReplayToTick(nextTick, '', false);
+    }, 100);
+
+    return () => clearInterval(advanceInterval);
+  }, [replayPlaying, replayWorldState?.tick, replayTimeline.latestRecordedTick]);
+
+  const onReplayPlay = () => {
+    if (!replayContextRef.current) {
+      return;
+    }
+    setReplayPlaying(true);
+    setReplayStatus('Replaying...');
+  };
+
+  const onReplayPause = () => {
+    setReplayPlaying(false);
+    setReplayStatus('Replay paused.');
+  };
+
   const onJumpToFirstMismatch = () => {
     if (!replaySummaryStrip.canJumpToFirstMismatch || replaySummaryStrip.firstMismatchTick === null) {
       return;
@@ -2609,6 +2652,13 @@ function App() {
                 <option key={`tick-option-${markerTick}`} value={markerTick} />
               ))}
             </datalist>
+            <div className="field-row">
+              {replayPlaying ? (
+                <button type="button" onClick={onReplayPause}>Pause</button>
+              ) : (
+                <button type="button" onClick={onReplayPlay}>Play</button>
+              )}
+            </div>
             <label>
               Jump to tick
               <input
