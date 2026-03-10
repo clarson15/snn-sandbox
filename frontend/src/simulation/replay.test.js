@@ -5,6 +5,12 @@ import { runTicks } from './engine';
 import { createSeededPrng } from './prng';
 import { replaySnapshotToTick } from './replay';
 import { assertReplayDeterminismMatch, buildReplayDeterminismFingerprint } from './replayDeterminismDiagnostics';
+import { REPLAY_PARITY_FIXTURES } from './replayParityFixtures';
+import {
+  assertReplayRuntimeBudgetWithinThreshold,
+  readReplayRuntimeBudgetMs,
+  measureReplayFixtureRuntimeMs
+} from './replayRuntimeBudget';
 
 function hash(value) {
   return JSON.stringify(value);
@@ -12,93 +18,57 @@ function hash(value) {
 
 describe('replaySnapshotToTick', () => {
   it('validates deterministic replay parity across a curated multi-fixture matrix', () => {
-    const fixtures = [
-      {
-        name: 'baseline-smoke',
-        seed: 'fixture-baseline-smoke',
-        worldWidth: 800,
-        worldHeight: 480,
-        initialPopulation: 24,
-        minimumPopulation: 12,
-        initialFoodCount: 35,
-        foodSpawnChance: 0.05,
-        foodEnergyValue: 6,
-        maxFood: 140,
-        mutationRate: 0.08,
-        mutationStrength: 0.12,
-        tickBudget: 120
-      },
-      {
-        name: 'high-food-low-mutation',
-        seed: 'fixture-high-food-low-mutation',
-        worldWidth: 920,
-        worldHeight: 520,
-        initialPopulation: 30,
-        minimumPopulation: 16,
-        initialFoodCount: 48,
-        foodSpawnChance: 0.08,
-        foodEnergyValue: 7,
-        maxFood: 180,
-        mutationRate: 0.03,
-        mutationStrength: 0.06,
-        tickBudget: 140
-      },
-      {
-        name: 'tight-world-high-mutation',
-        seed: 'fixture-tight-world-high-mutation',
-        worldWidth: 640,
-        worldHeight: 360,
-        initialPopulation: 20,
-        minimumPopulation: 10,
-        initialFoodCount: 24,
-        foodSpawnChance: 0.03,
-        foodEnergyValue: 5,
-        maxFood: 110,
-        mutationRate: 0.12,
-        mutationStrength: 0.18,
-        tickBudget: 130
-      }
-    ];
+    const fixtureTimingsMs = [];
 
-    for (const fixture of fixtures) {
-      const config = normalizeSimulationConfig(
-        {
-          name: `Determinism fixture: ${fixture.name}`,
-          seed: fixture.seed,
-          worldWidth: fixture.worldWidth,
-          worldHeight: fixture.worldHeight,
-          initialPopulation: fixture.initialPopulation,
-          minimumPopulation: fixture.minimumPopulation,
-          initialFoodCount: fixture.initialFoodCount,
-          foodSpawnChance: fixture.foodSpawnChance,
-          foodEnergyValue: fixture.foodEnergyValue,
-          maxFood: fixture.maxFood,
-          mutationRate: fixture.mutationRate,
-          mutationStrength: fixture.mutationStrength
-        },
-        fixture.seed
-      );
+    for (const fixture of REPLAY_PARITY_FIXTURES) {
+      const durationMs = measureReplayFixtureRuntimeMs(() => {
+        const config = normalizeSimulationConfig(
+          {
+            name: `Determinism fixture: ${fixture.name}`,
+            seed: fixture.seed,
+            worldWidth: fixture.worldWidth,
+            worldHeight: fixture.worldHeight,
+            initialPopulation: fixture.initialPopulation,
+            minimumPopulation: fixture.minimumPopulation,
+            initialFoodCount: fixture.initialFoodCount,
+            foodSpawnChance: fixture.foodSpawnChance,
+            foodEnergyValue: fixture.foodEnergyValue,
+            maxFood: fixture.maxFood,
+            mutationRate: fixture.mutationRate,
+            mutationStrength: fixture.mutationStrength
+          },
+          fixture.seed
+        );
 
-      const stepParams = toEngineStepParams(config);
-      const baseWorldState = createInitialWorldFromConfig(config);
+        const stepParams = toEngineStepParams(config);
+        const baseWorldState = createInitialWorldFromConfig(config);
 
-      const runA = runTicks(baseWorldState, createSeededPrng(config.resolvedSeed), fixture.tickBudget, stepParams);
-      const runB = runTicks(baseWorldState, createSeededPrng(config.resolvedSeed), fixture.tickBudget, stepParams);
+        const runA = runTicks(baseWorldState, createSeededPrng(config.resolvedSeed), fixture.tickBudget, stepParams);
+        const runB = runTicks(baseWorldState, createSeededPrng(config.resolvedSeed), fixture.tickBudget, stepParams);
 
-      const fingerprintA = buildReplayDeterminismFingerprint(runA);
-      const fingerprintB = buildReplayDeterminismFingerprint(runB);
+        const fingerprintA = buildReplayDeterminismFingerprint(runA);
+        const fingerprintB = buildReplayDeterminismFingerprint(runB);
 
-      assertReplayDeterminismMatch({
-        contextLabel: `fixture=${fixture.name}`,
-        seed: config.resolvedSeed,
-        stepParams,
-        actualWorldState: runA,
-        expectedWorldState: runB,
-        actualFingerprint: fingerprintA,
-        expectedFingerprint: fingerprintB
+        assertReplayDeterminismMatch({
+          contextLabel: `fixture=${fixture.name}`,
+          seed: config.resolvedSeed,
+          stepParams,
+          actualWorldState: runA,
+          expectedWorldState: runB,
+          actualFingerprint: fingerprintA,
+          expectedFingerprint: fingerprintB
+        });
+        expect(fingerprintA).toBe(fingerprintB);
       });
-      expect(fingerprintA).toBe(fingerprintB);
+
+      fixtureTimingsMs.push({ name: fixture.name, durationMs });
     }
+
+    const budgetMs = readReplayRuntimeBudgetMs();
+    const summary = assertReplayRuntimeBudgetWithinThreshold({ fixtureTimingsMs, budgetMs });
+
+    // Stable output ordering comes from manifest order; values are fixed precision.
+    console.info(summary.report);
   });
 
   it('smoke-tests same-seed replay determinism using a stable world snapshot contract', () => {
