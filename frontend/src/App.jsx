@@ -3,7 +3,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createWorldState, stepWorld } from './simulation/engine';
 import {
   DEFAULT_CONFIG,
+  SIMULATION_PRESETS,
+  applyPreset,
   createDeterministicRunBootstrap,
+  getPresetById,
   loadSimulationConfig,
   normalizeSimulationConfig,
   resolveSeed,
@@ -294,6 +297,7 @@ function App() {
   });
   const [formState, setFormState] = useState(initialFormState);
   const [formBaselineState, setFormBaselineState] = useState(initialFormState);
+  const [selectedPresetId, setSelectedPresetId] = useState('');
   const [spectatorMode, setSpectatorMode] = useState(false);
   const [shareStatus, setShareStatus] = useState('');
 
@@ -1012,6 +1016,41 @@ function App() {
 
   const onResetConfigToDefaults = () => {
     setFormState(createFormStateFromConfig(DEFAULT_CONFIG));
+    setSelectedPresetId('');
+    setErrors({});
+  };
+
+  const onPresetChange = (event) => {
+    const presetId = event.target.value;
+    setSelectedPresetId(presetId);
+
+    if (!presetId) {
+      return;
+    }
+
+    const preset = getPresetById(presetId);
+    if (!preset) {
+      return;
+    }
+
+    // Apply preset values to form state, preserving name and seed
+    const newFormState = {
+      ...formState,
+      name: formState.name || DEFAULT_CONFIG.name,
+      seed: '',
+      worldWidth: String(preset.config.worldWidth),
+      worldHeight: String(preset.config.worldHeight),
+      initialPopulation: String(preset.config.initialPopulation),
+      minimumPopulation: String(preset.config.minimumPopulation),
+      initialFoodCount: String(preset.config.initialFoodCount),
+      foodSpawnChance: String(preset.config.foodSpawnChance),
+      foodEnergyValue: String(preset.config.foodEnergyValue),
+      maxFood: String(preset.config.maxFood),
+      mutationRate: String(preset.config.mutationRate),
+      mutationStrength: String(preset.config.mutationStrength)
+    };
+
+    setFormState(newFormState);
     setErrors({});
   };
 
@@ -2258,6 +2297,23 @@ function App() {
 
       <section className="config-panel" aria-label="simulation configuration">
         <h2>Simulation config</h2>
+
+        <label>
+          Quick-start preset
+          <select value={selectedPresetId} onChange={onPresetChange}>
+            <option value="">Custom (select a preset)</option>
+            {SIMULATION_PRESETS.map((preset) => (
+              <option key={preset.id} value={preset.id}>
+                {preset.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        {selectedPresetId && (
+          <p className="field-hint">
+            {getPresetById(selectedPresetId)?.description}
+          </p>
+        )}
 
         <label>
           Simulation name

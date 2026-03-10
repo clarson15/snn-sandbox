@@ -4,6 +4,106 @@ import { createSeededPrng } from './prng.js';
 export const STORAGE_KEY = 'snn-sandbox.latest-simulation-config';
 export const SEED_FALLBACK_COUNTER_KEY = 'snn-sandbox.seed-fallback-counter';
 
+// Simulation quick-start presets
+export const SIMULATION_PRESETS = [
+  {
+    id: 'balanced',
+    name: 'Balanced',
+    description: 'Default settings for a stable, balanced ecosystem',
+    config: {
+      worldWidth: 800,
+      worldHeight: 480,
+      initialPopulation: 12,
+      minimumPopulation: 12,
+      initialFoodCount: 30,
+      foodSpawnChance: 0.04,
+      foodEnergyValue: 5,
+      maxFood: 120,
+      mutationRate: 0.05,
+      mutationStrength: 0.1
+    }
+  },
+  {
+    id: 'dense-colony',
+    name: 'Dense Colony',
+    description: 'High population with abundant food resources',
+    config: {
+      worldWidth: 1200,
+      worldHeight: 720,
+      initialPopulation: 50,
+      minimumPopulation: 30,
+      initialFoodCount: 100,
+      foodSpawnChance: 0.08,
+      foodEnergyValue: 5,
+      maxFood: 400,
+      mutationRate: 0.03,
+      mutationStrength: 0.05
+    }
+  },
+  {
+    id: 'rapid-evolution',
+    name: 'Rapid Evolution',
+    description: 'High mutation rate for fast evolutionary changes',
+    config: {
+      worldWidth: 800,
+      worldHeight: 480,
+      initialPopulation: 20,
+      minimumPopulation: 10,
+      initialFoodCount: 40,
+      foodSpawnChance: 0.05,
+      foodEnergyValue: 5,
+      maxFood: 150,
+      mutationRate: 0.2,
+      mutationStrength: 0.3
+    }
+  },
+  {
+    id: 'sparse-survival',
+    name: 'Sparse Survival',
+    description: 'Low population with scarce resources - survival of the fittest',
+    config: {
+      worldWidth: 1600,
+      worldHeight: 960,
+      initialPopulation: 6,
+      minimumPopulation: 4,
+      initialFoodCount: 15,
+      foodSpawnChance: 0.02,
+      foodEnergyValue: 8,
+      maxFood: 60,
+      mutationRate: 0.1,
+      mutationStrength: 0.15
+    }
+  }
+];
+
+/**
+ * Get a preset by its ID
+ * @param {string} presetId - The preset ID to look up
+ * @returns {object|null} The preset object or null if not found
+ */
+export function getPresetById(presetId) {
+  return SIMULATION_PRESETS.find((p) => p.id === presetId) || null;
+}
+
+/**
+ * Apply a preset's configuration values to a base config object
+ * @param {string} presetId - The preset ID to apply
+ * @param {object} baseConfig - Base config to merge preset values into
+ * @returns {object} Config with preset values applied
+ */
+export function applyPreset(presetId, baseConfig = {}) {
+  const preset = getPresetById(presetId);
+  if (!preset) {
+    return { ...DEFAULT_CONFIG, ...baseConfig };
+  }
+
+  return {
+    ...DEFAULT_CONFIG,
+    ...baseConfig,
+    ...preset.config
+  };
+}
+
 export const DEFAULT_CONFIG = {
   name: 'New Simulation',
   seed: '',
