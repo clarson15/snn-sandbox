@@ -179,6 +179,60 @@ function collectReplayMilestoneSnapshots({ baseWorldState, seed, stepParams, che
   };
 }
 
+function collectCadenceReplaySnapshots({ baseWorldState, seed, stepParams, checkpointTicks, cadenceSegments }) {
+  const checkpoints = [...new Set((checkpointTicks ?? []).filter((tick) => Number.isInteger(tick) && tick > 0))]
+    .sort((left, right) => left - right);
+  const segments = (cadenceSegments ?? []).filter((segment) => Number.isInteger(segment) && segment > 0);
+
+  if (checkpoints.length === 0 || segments.length === 0) {
+    return {
+      snapshots: [],
+      finalWorldState: JSON.parse(JSON.stringify(baseWorldState))
+    };
+  }
+
+  const checkpointSet = new Set(checkpoints);
+  const targetTick = checkpoints[checkpoints.length - 1];
+  const rng = createSeededPrng(seed);
+  let worldState = JSON.parse(JSON.stringify(baseWorldState));
+  const snapshots = [];
+  let tick = 0;
+
+  for (const segment of segments) {
+    for (let step = 0; step < segment; step += 1) {
+      if (tick >= targetTick) {
+        break;
+      }
+
+      worldState = stepWorld(worldState, rng, stepParams);
+      tick += 1;
+
+      if (!checkpointSet.has(tick)) {
+        continue;
+      }
+
+      snapshots.push({
+        tick,
+        worldState: JSON.parse(JSON.stringify(worldState)),
+        fingerprint: buildReplayDeterminismFingerprint(worldState)
+      });
+    }
+
+    if (tick >= targetTick) {
+      break;
+    }
+  }
+
+  if (tick < targetTick) {
+    throw new Error(`Invalid cadence plan: segments total ${tick} ticks but target checkpoint requires ${targetTick} ticks.`);
+  }
+
+  return {
+    snapshots,
+    finalWorldState: JSON.parse(JSON.stringify(worldState))
+  };
+}
+
 function withForbiddenAmbientRandomnessApisBlocked(work) {
   const originalMathRandom = Math.random;
   const originalDateNow = Date.now;
@@ -230,13 +284,91 @@ describe('replaySnapshotToTick', () => {
         const baseWorldState = createInitialWorldFromConfig(config);
 
         const hasMilestoneCheckpoints = Array.isArray(fixture.checkpointTicks) && fixture.checkpointTicks.length > 0;
+        const hasCadencePlans = Array.isArray(fixture.cadencePlans) && fixture.cadencePlans.length > 0;
 
         let runA;
         let runB;
         let milestoneSnapshotsA = [];
         let milestoneSnapshotsB = [];
 
-        if (hasMilestoneCheckpoints) {
+        if (hasCadencePlans && hasMilestoneCheckpoints) {
+          const baselineCadence = fixture.cadencePlans.find((plan) => plan.id === 'continuous') ?? fixture.cadencePlans[0];
+          const segmentedCadence = fixture.cadencePlans.find((plan) => plan.id !== baselineCadence?.id) ?? fixture.cadencePlans[1];
+
+          if (!baselineCadence || !segmentedCadence) {
+            throw new Error(`Fixture ${fixture.name} must define at least two cadence plans for chunked parity validation.`);
+          }
+
+          const baselineResult = collectCadenceReplaySnapshots({
+            baseWorldState,
+            seed: config.resolvedSeed,
+            stepParams,
+            checkpointTicks: fixture.checkpointTicks,
+            cadenceSegments: baselineCadence.segments
+          });
+          const segmentedResult = collectCadenceReplaySnapshots({
+            baseWorldState,
+            seed: config.resolvedSeed,
+            stepParams,
+            checkpointTicks: fixture.checkpointTicks,
+            cadenceSegments: segmentedCadence.segments
+          });
+
+          milestoneSnapshotsA = segmentedResult.snapshots;
+          milestoneSnapshotsB = baselineResult.snapshots;
+          runA = segmentedResult.finalWorldState;
+          runB = baselineResult.finalWorldState;
+
+          const segmentedFingerprint = buildReplayDeterminismFingerprint(runA);
+          const baselineFingerprint = buildReplayDeterminismFingerprint(runB);
+
+          if (segmentedFingerprint !== baselineFingerprint) {
+            fixtureFailure = buildReplayFixtureFailureRecord({
+              fixtureName: `${fixture.name} [phase=cadence-final]`,
+              fixtureId: `${fixture.name}|cadence:${segmentedCadence.id}`,
+              seed: config.resolvedSeed,
+              milestoneTick: fixture.checkpointTicks[fixture.checkpointTicks.length - 1],
+              expectedWorldState: runB,
+              actualWorldState: runA,
+              expectedFingerprint: baselineFingerprint,
+              actualFingerprint: segmentedFingerprint
+            });
+            return;
+          }
+
+          for (let index = 0; index < milestoneSnapshotsA.length; index += 1) {
+            const segmentedCheckpoint = milestoneSnapshotsA[index];
+            const baselineCheckpoint = milestoneSnapshotsB[index];
+
+            if (!segmentedCheckpoint || !baselineCheckpoint || segmentedCheckpoint.tick !== baselineCheckpoint.tick) {
+              fixtureFailure = buildReplayFixtureFailureRecord({
+                fixtureName: `${fixture.name} [phase=cadence-checkpoint]`,
+                fixtureId: `${fixture.name}|cadence:${segmentedCadence.id}`,
+                seed: config.resolvedSeed,
+                milestoneTick: segmentedCheckpoint?.tick ?? baselineCheckpoint?.tick ?? null,
+                expectedWorldState: baselineCheckpoint?.worldState ?? runB,
+                actualWorldState: segmentedCheckpoint?.worldState ?? runA,
+                expectedFingerprint: baselineCheckpoint?.fingerprint,
+                actualFingerprint: segmentedCheckpoint?.fingerprint
+              });
+              return;
+            }
+
+            if (segmentedCheckpoint.fingerprint !== baselineCheckpoint.fingerprint) {
+              fixtureFailure = buildReplayFixtureFailureRecord({
+                fixtureName: `${fixture.name} [phase=cadence-checkpoint]`,
+                fixtureId: `${fixture.name}|cadence:${segmentedCadence.id}`,
+                seed: config.resolvedSeed,
+                milestoneTick: segmentedCheckpoint.tick,
+                expectedWorldState: baselineCheckpoint.worldState,
+                actualWorldState: segmentedCheckpoint.worldState,
+                expectedFingerprint: baselineCheckpoint.fingerprint,
+                actualFingerprint: segmentedCheckpoint.fingerprint
+              });
+              return;
+            }
+          }
+        } else if (hasMilestoneCheckpoints) {
           const milestonesAResult = collectReplayMilestoneSnapshots({
             baseWorldState,
             seed: config.resolvedSeed,
@@ -254,36 +386,31 @@ describe('replaySnapshotToTick', () => {
           milestoneSnapshotsB = milestonesBResult.snapshots;
           runA = milestonesAResult.finalWorldState;
           runB = milestonesBResult.finalWorldState;
-        } else {
-          runA = runTicks(baseWorldState, createSeededPrng(config.resolvedSeed), fixture.tickBudget, stepParams);
-          runB = runTicks(baseWorldState, createSeededPrng(config.resolvedSeed), fixture.tickBudget, stepParams);
-        }
 
-        const fingerprintA = buildReplayDeterminismFingerprint(runA);
-        const fingerprintB = buildReplayDeterminismFingerprint(runB);
+          const fingerprintA = buildReplayDeterminismFingerprint(runA);
+          const fingerprintB = buildReplayDeterminismFingerprint(runB);
 
-        if (fingerprintA !== fingerprintB) {
-          fixtureFailure = buildReplayFixtureFailureRecord({
-            fixtureName: `${fixture.name} [phase=pre-save]`,
+          if (fingerprintA !== fingerprintB) {
+            fixtureFailure = buildReplayFixtureFailureRecord({
+              fixtureName: `${fixture.name} [phase=pre-save]`,
+              seed: config.resolvedSeed,
+              expectedWorldState: runB,
+              actualWorldState: runA
+            });
+            return;
+          }
+
+          assertReplayDeterminismMatch({
+            contextLabel: `fixture=${fixture.name} phase=pre-save`,
             seed: config.resolvedSeed,
+            stepParams,
+            actualWorldState: runA,
             expectedWorldState: runB,
-            actualWorldState: runA
+            actualFingerprint: fingerprintA,
+            expectedFingerprint: fingerprintB
           });
-          return;
-        }
+          expect(fingerprintA).toBe(fingerprintB);
 
-        assertReplayDeterminismMatch({
-          contextLabel: `fixture=${fixture.name} phase=pre-save`,
-          seed: config.resolvedSeed,
-          stepParams,
-          actualWorldState: runA,
-          expectedWorldState: runB,
-          actualFingerprint: fingerprintA,
-          expectedFingerprint: fingerprintB
-        });
-        expect(fingerprintA).toBe(fingerprintB);
-
-        if (hasMilestoneCheckpoints) {
           for (let index = 0; index < milestoneSnapshotsA.length; index += 1) {
             const actualMilestone = milestoneSnapshotsA[index];
             const expectedMilestone = milestoneSnapshotsB[index];
@@ -316,6 +443,33 @@ describe('replaySnapshotToTick', () => {
               return;
             }
           }
+        } else {
+          runA = runTicks(baseWorldState, createSeededPrng(config.resolvedSeed), fixture.tickBudget, stepParams);
+          runB = runTicks(baseWorldState, createSeededPrng(config.resolvedSeed), fixture.tickBudget, stepParams);
+
+          const fingerprintA = buildReplayDeterminismFingerprint(runA);
+          const fingerprintB = buildReplayDeterminismFingerprint(runB);
+
+          if (fingerprintA !== fingerprintB) {
+            fixtureFailure = buildReplayFixtureFailureRecord({
+              fixtureName: `${fixture.name} [phase=pre-save]`,
+              seed: config.resolvedSeed,
+              expectedWorldState: runB,
+              actualWorldState: runA
+            });
+            return;
+          }
+
+          assertReplayDeterminismMatch({
+            contextLabel: `fixture=${fixture.name} phase=pre-save`,
+            seed: config.resolvedSeed,
+            stepParams,
+            actualWorldState: runA,
+            expectedWorldState: runB,
+            actualFingerprint: fingerprintA,
+            expectedFingerprint: fingerprintB
+          });
+          expect(fingerprintA).toBe(fingerprintB);
         }
 
         if (fixture.name === 'minimum-population-recovery') {
