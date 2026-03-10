@@ -123,6 +123,36 @@ function deriveRotationDelta(organism) {
   return (rightSignal - leftSignal) * turnRate;
 }
 
+function deriveForwardDelta(organism) {
+  const speed = Number(organism?.traits?.speed ?? 1);
+  if (!Number.isFinite(speed) || speed === 0) {
+    return 0;
+  }
+
+  const synapses = Array.isArray(organism?.brain?.synapses) ? organism.brain.synapses : [];
+  if (synapses.length === 0) {
+    return 0;
+  }
+
+  let forwardSignal = 0;
+
+  for (const synapse of synapses) {
+    if (!synapse || !Number.isFinite(synapse.weight)) {
+      continue;
+    }
+
+    if (
+      synapse.targetId === 'out-forward' ||
+      synapse.targetId === 'out-move-forward' ||
+      synapse.targetId === 'out-move'
+    ) {
+      forwardSignal += synapse.weight;
+    }
+  }
+
+  return Math.max(-1, Math.min(1, forwardSignal)) * speed;
+}
+
 function moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMultiplier) {
   // Use organism's metabolism trait for deterministic energy loss, fallback to param for backward compatibility
   const organismMetabolism = Number.isFinite(organism?.traits?.metabolism)
@@ -337,7 +367,7 @@ function mutateBrain(parentBrain, rng, mutationRate, mutationMagnitude, addSynap
   if (rng.nextFloat() < addSynapseChance) {
     // Add a new synapse with random source/target
     const possibleSources = ['in-energy', 'in-age', 'in-x', 'in-y', 'in-direction', 'in-size', 'in-speed'];
-    const possibleTargets = ['out-turn-left', 'out-turn-right', 'out-move', 'out-gamma'];
+    const possibleTargets = ['out-turn-left', 'out-turn-right', 'out-forward'];
     const sourceId = possibleSources[Math.floor(rng.nextFloat() * possibleSources.length)];
     const targetId = possibleTargets[Math.floor(rng.nextFloat() * possibleTargets.length)];
     synapses.push({
@@ -384,10 +414,15 @@ export function stepWorld(state, rng, params = {}) {
   const brainRemoveSynapseChance = params.brainRemoveSynapseChance ?? 0.05;
 
   const movedOrganisms = state.organisms.map((organism) => {
-    const dx = (rng.nextFloat() * 2 - 1) * movementDelta;
-    const dy = (rng.nextFloat() * 2 - 1) * movementDelta;
+    const baseDirection = organism.direction ?? 0;
+    const rotationDelta = deriveRotationDelta(organism);
+    const direction = normalizeAngle(baseDirection + rotationDelta);
+    const forwardDelta = deriveForwardDelta(organism);
+    const boundedForwardDelta = Math.max(-movementDelta, Math.min(movementDelta, forwardDelta));
+    const dx = Math.cos(direction) * boundedForwardDelta;
+    const dy = Math.sin(direction) * boundedForwardDelta;
 
-    return moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMultiplier);
+    return moveAndSpendEnergy({ ...organism, direction: baseDirection }, dx, dy, metabolismPerTick, movementCostMultiplier);
   });
 
   // Stable iteration ordering for deterministic food consumption.

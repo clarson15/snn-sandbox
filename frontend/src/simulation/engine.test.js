@@ -60,6 +60,36 @@ function deriveRotationDelta(organism) {
   return (rightSignal - leftSignal) * turnRate;
 }
 
+function deriveForwardDelta(organism) {
+  const speed = Number(organism?.traits?.speed ?? 1);
+  if (!Number.isFinite(speed) || speed === 0) {
+    return 0;
+  }
+
+  const synapses = Array.isArray(organism?.brain?.synapses) ? organism.brain.synapses : [];
+  if (synapses.length === 0) {
+    return 0;
+  }
+
+  let forwardSignal = 0;
+
+  for (const synapse of synapses) {
+    if (!synapse || !Number.isFinite(synapse.weight)) {
+      continue;
+    }
+
+    if (
+      synapse.targetId === 'out-forward' ||
+      synapse.targetId === 'out-move-forward' ||
+      synapse.targetId === 'out-move'
+    ) {
+      forwardSignal += synapse.weight;
+    }
+  }
+
+  return Math.max(-1, Math.min(1, forwardSignal)) * speed;
+}
+
 function stepWorldWithLegacyFoodLookup(state, rng, params = {}) {
   const movementDelta = params.movementDelta ?? 1;
   const metabolismPerTick = params.metabolismPerTick ?? 0.1;
@@ -72,11 +102,15 @@ function stepWorldWithLegacyFoodLookup(state, rng, params = {}) {
   const maxFood = params.maxFood ?? Number.POSITIVE_INFINITY;
 
   const movedOrganisms = state.organisms.map((organism) => {
-    const dx = (rng.nextFloat() * 2 - 1) * movementDelta;
-    const dy = (rng.nextFloat() * 2 - 1) * movementDelta;
+    const direction = normalizeAngle((organism.direction ?? 0) + deriveRotationDelta(organism));
+    const boundedForwardDelta = Math.max(
+      -movementDelta,
+      Math.min(movementDelta, deriveForwardDelta(organism))
+    );
+    const dx = Math.cos(direction) * boundedForwardDelta;
+    const dy = Math.sin(direction) * boundedForwardDelta;
     const movementDistance = Math.hypot(dx, dy);
     const energySpent = metabolismPerTick + movementDistance * movementCostMultiplier;
-    const direction = normalizeAngle((organism.direction ?? 0) + deriveRotationDelta(organism));
 
     return {
       ...organism,
@@ -582,6 +616,40 @@ describe('simulation engine skeleton', () => {
     expect(next.organisms[0].direction).toBeCloseTo(1.234, 10);
   });
 
+  it('keeps position and heading unchanged when movement outputs are absent', () => {
+    const state = createWorldState({
+      tick: 0,
+      organisms: [
+        {
+          id: 'org-still',
+          x: 11,
+          y: 17,
+          energy: 50,
+          age: 0,
+          generation: 1,
+          direction: 0.75,
+          traits: { size: 1, speed: 1.8, visionRange: 20, turnRate: 0.2, metabolism: 0.01 },
+          brain: {
+            neurons: [],
+            synapses: [{ id: 'syn-noop', sourceId: 'in-energy', targetId: 'out-gamma', weight: 1 }]
+          }
+        }
+      ],
+      food: []
+    });
+
+    const next = runTicks(state, createSeededPrng('no-movement-outputs'), 5, {
+      movementDelta: 2,
+      metabolismPerTick: 0.01,
+      movementCostMultiplier: 0.03,
+      foodSpawnChance: 0
+    });
+
+    expect(next.organisms[0].x).toBeCloseTo(11, 10);
+    expect(next.organisms[0].y).toBeCloseTo(17, 10);
+    expect(next.organisms[0].direction).toBeCloseTo(0.75, 10);
+  });
+
   it('rotates deterministically when rotate output synapses are present', () => {
     const state = createWorldState({
       tick: 0,
@@ -677,7 +745,17 @@ describe('simulation engine skeleton', () => {
     const state = createWorldState({
       tick: 0,
       organisms: [
-        { id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, metabolism: 0 } }
+        {
+          id: 'org-1',
+          x: 50,
+          y: 50,
+          energy: 100,
+          age: 0,
+          generation: 1,
+          direction: 0,
+          traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, metabolism: 0 },
+          brain: { synapses: [{ id: 'syn-forward', sourceId: 'in-energy', targetId: 'out-forward', weight: 1 }] }
+        }
       ],
       food: []
     });
