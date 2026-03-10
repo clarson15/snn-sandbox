@@ -56,7 +56,8 @@ export function buildReplayFixtureFailureRecord({
   fixtureId,
   milestoneTick,
   expectedFingerprint,
-  actualFingerprint
+  actualFingerprint,
+  eventOrderingDiffSummary
 }) {
   const expectedSnapshot = buildReplayDeterminismSnapshot(expectedWorldState);
   const actualSnapshot = buildReplayDeterminismSnapshot(actualWorldState);
@@ -71,7 +72,8 @@ export function buildReplayFixtureFailureRecord({
     expectedDigest: hashStableCanonicalValue(expectedSnapshot),
     actualDigest: hashStableCanonicalValue(actualSnapshot),
     expectedFingerprint: expectedFingerprint ?? hashStableCanonicalValue(expectedSnapshot),
-    actualFingerprint: actualFingerprint ?? hashStableCanonicalValue(actualSnapshot)
+    actualFingerprint: actualFingerprint ?? hashStableCanonicalValue(actualSnapshot),
+    eventOrderingDiffSummary: typeof eventOrderingDiffSummary === 'string' ? eventOrderingDiffSummary : ''
   };
 }
 
@@ -86,15 +88,16 @@ export function formatReplayParityFailureSummary(records) {
       expectedDigest: String(record.expectedDigest),
       actualDigest: String(record.actualDigest),
       expectedFingerprint: String(record.expectedFingerprint ?? record.expectedDigest),
-      actualFingerprint: String(record.actualFingerprint ?? record.actualDigest)
+      actualFingerprint: String(record.actualFingerprint ?? record.actualDigest),
+      eventOrderingDiffSummary: String(record.eventOrderingDiffSummary ?? '').replace(/\n/g, '<br>')
     }))
     .sort((left, right) => left.fixtureName.localeCompare(right.fixtureName));
 
-  const header = '| fixture | fixture id | seed | milestone tick | first mismatch path | expected digest | actual digest | expected fingerprint | actual fingerprint |';
-  const divider = '|---|---|---|---|---|---|---|---|---|';
+  const header = '| fixture | fixture id | seed | milestone tick | first mismatch path | expected digest | actual digest | expected fingerprint | actual fingerprint | event ordering diff summary |';
+  const divider = '|---|---|---|---|---|---|---|---|---|---|';
   const lines = normalizedRecords.map(
     (record) =>
-      `| ${record.fixtureName} | ${record.fixtureId} | ${record.seed} | ${record.milestoneTick} | ${record.firstMismatchPath} | ${record.expectedDigest} | ${record.actualDigest} | ${record.expectedFingerprint} | ${record.actualFingerprint} |`
+      `| ${record.fixtureName} | ${record.fixtureId} | ${record.seed} | ${record.milestoneTick} | ${record.firstMismatchPath} | ${record.expectedDigest} | ${record.actualDigest} | ${record.expectedFingerprint} | ${record.actualFingerprint} | ${record.eventOrderingDiffSummary || '-'} |`
   );
 
   return [header, divider, ...lines].join('\n');

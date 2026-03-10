@@ -233,6 +233,79 @@ function collectCadenceReplaySnapshots({ baseWorldState, seed, stepParams, check
   };
 }
 
+function buildDenseCollisionTickOrderingSummary(previousWorldState, nextWorldState) {
+  const previousIds = new Set((previousWorldState?.organisms ?? []).map((organism) => organism.id));
+  const nextIds = new Set((nextWorldState?.organisms ?? []).map((organism) => organism.id));
+
+  const births = (nextWorldState?.organisms ?? [])
+    .filter((organism) => !previousIds.has(organism.id))
+    .map((organism) => organism.id);
+  const deaths = (previousWorldState?.organisms ?? [])
+    .filter((organism) => !nextIds.has(organism.id))
+    .map((organism) => organism.id);
+
+  const energyLeaders = [...(nextWorldState?.organisms ?? [])]
+    .sort((left, right) => {
+      const energyDelta = roundForResumeParity(right.energy) - roundForResumeParity(left.energy);
+      if (energyDelta !== 0) {
+        return energyDelta;
+      }
+
+      return left.id.localeCompare(right.id);
+    })
+    .slice(0, 8)
+    .map((organism) => organism.id);
+
+  return {
+    tick: Number(nextWorldState?.tick ?? 0),
+    births,
+    deaths,
+    populationCount: Number(nextWorldState?.organisms?.length ?? 0),
+    foodCount: Number(nextWorldState?.food?.length ?? 0),
+    energyLeaders
+  };
+}
+
+function collectDenseCollisionTickOrderingTimeline({ baseWorldState, seed, tickBudget, stepParams }) {
+  const rng = createSeededPrng(seed);
+  let previousWorldState = JSON.parse(JSON.stringify(baseWorldState));
+  const timeline = [];
+
+  for (let tick = 0; tick < tickBudget; tick += 1) {
+    const nextWorldState = stepWorld(previousWorldState, rng, stepParams);
+    timeline.push(buildDenseCollisionTickOrderingSummary(previousWorldState, nextWorldState));
+    previousWorldState = nextWorldState;
+  }
+
+  return timeline;
+}
+
+function formatPerTickEventOrderingDiffSummary(expectedTimeline, actualTimeline) {
+  const maxLength = Math.max(expectedTimeline.length, actualTimeline.length);
+  const mismatchLines = [];
+
+  for (let index = 0; index < maxLength; index += 1) {
+    const expected = expectedTimeline[index] ?? null;
+    const actual = actualTimeline[index] ?? null;
+
+    if (JSON.stringify(expected) === JSON.stringify(actual)) {
+      continue;
+    }
+
+    mismatchLines.push(
+      `tick=${expected?.tick ?? actual?.tick ?? 'unknown'} expected=${JSON.stringify(expected)} actual=${JSON.stringify(actual)}`
+    );
+
+    if (mismatchLines.length >= 6) {
+      break;
+    }
+  }
+
+  return mismatchLines.length > 0
+    ? `Per-tick event ordering diff summary:\n- ${mismatchLines.join('\n- ')}`
+    : 'Per-tick event ordering diff summary: no ordering mismatch lines captured.';
+}
+
 function withForbiddenAmbientRandomnessApisBlocked(work) {
   const originalMathRandom = Math.random;
   const originalDateNow = Date.now;
@@ -282,6 +355,26 @@ describe('replaySnapshotToTick', () => {
 
         const stepParams = toEngineStepParams(config);
         const baseWorldState = createInitialWorldFromConfig(config);
+        const buildTieBreakOrderingDiffSummaryIfNeeded = () => {
+          if (fixture.assertDeterministicTieBreakOrdering !== true) {
+            return '';
+          }
+
+          const orderingTimelineA = collectDenseCollisionTickOrderingTimeline({
+            baseWorldState,
+            seed: config.resolvedSeed,
+            tickBudget: fixture.tickBudget,
+            stepParams
+          });
+          const orderingTimelineB = collectDenseCollisionTickOrderingTimeline({
+            baseWorldState,
+            seed: config.resolvedSeed,
+            tickBudget: fixture.tickBudget,
+            stepParams
+          });
+
+          return formatPerTickEventOrderingDiffSummary(orderingTimelineB, orderingTimelineA);
+        };
 
         const hasMilestoneCheckpoints = Array.isArray(fixture.checkpointTicks) && fixture.checkpointTicks.length > 0;
         const hasCadencePlans = Array.isArray(fixture.cadencePlans) && fixture.cadencePlans.length > 0;
@@ -395,7 +488,10 @@ describe('replaySnapshotToTick', () => {
               fixtureName: `${fixture.name} [phase=pre-save]`,
               seed: config.resolvedSeed,
               expectedWorldState: runB,
-              actualWorldState: runA
+              actualWorldState: runA,
+              expectedFingerprint: fingerprintB,
+              actualFingerprint: fingerprintA,
+              eventOrderingDiffSummary: buildTieBreakOrderingDiffSummaryIfNeeded()
             });
             return;
           }
@@ -455,7 +551,10 @@ describe('replaySnapshotToTick', () => {
               fixtureName: `${fixture.name} [phase=pre-save]`,
               seed: config.resolvedSeed,
               expectedWorldState: runB,
-              actualWorldState: runA
+              actualWorldState: runA,
+              expectedFingerprint: fingerprintB,
+              actualFingerprint: fingerprintA,
+              eventOrderingDiffSummary: buildTieBreakOrderingDiffSummaryIfNeeded()
             });
             return;
           }
@@ -490,6 +589,11 @@ describe('replaySnapshotToTick', () => {
 
           const floorTriggered = timelineA.some((snapshot) => snapshot.populationCount === fixture.minimumPopulation);
           expect(floorTriggered).toBe(true);
+        }
+
+        if (fixture.assertDeterministicTieBreakOrdering === true) {
+          const tieBreakExpectations = fixture.tieBreakExpectations ?? [];
+          expect(tieBreakExpectations.length).toBeGreaterThan(0);
         }
 
         if (Number.isInteger(fixture.saveTick) && Number.isInteger(fixture.resumeTickBudget) && fixture.saveTick > 0 && fixture.resumeTickBudget > 0) {

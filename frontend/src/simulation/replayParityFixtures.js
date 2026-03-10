@@ -136,6 +136,28 @@ const RAW_REPLAY_PARITY_FIXTURES = [
       { id: 'continuous', segments: [180] },
       { id: 'segmented-resume', segments: [37, 41, 29, 73] }
     ]
+  },
+  {
+    name: 'dense-collision-tie-break-ordering',
+    purpose: 'Stress dense same-tick collisions and adjacency churn while asserting stable per-tick tie-break ordering summaries.',
+    seed: 'fixture-dense-collision-tie-break-ordering',
+    worldWidth: 320,
+    worldHeight: 200,
+    initialPopulation: 36,
+    minimumPopulation: 18,
+    initialFoodCount: 14,
+    foodSpawnChance: 0.12,
+    foodEnergyValue: 8,
+    maxFood: 56,
+    mutationRate: 0.16,
+    mutationStrength: 0.2,
+    tickBudget: 70,
+    assertDeterministicTieBreakOrdering: true,
+    tieBreakExpectations: [
+      'Food consumption candidate selection is resolved by nearest distance, then lexical food id when distances tie.',
+      'Reproduction iteration order is lexical organism id for all organisms meeting threshold in the same tick.',
+      'Organism and food arrays are serialized in lexical id order before parity comparisons.'
+    ]
   }
 ];
 
