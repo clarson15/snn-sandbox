@@ -141,7 +141,8 @@ export function buildReplayFixtureFailureRecord({
   expectedFingerprint,
   actualFingerprint,
   eventOrderingDiffSummary,
-  firstDivergenceTick
+  firstDivergenceTick,
+  rngTraceSnippet
 }) {
   const expectedSnapshot = buildReplayDeterminismSnapshot(expectedWorldState);
   const actualSnapshot = buildReplayDeterminismSnapshot(actualWorldState);
@@ -167,7 +168,8 @@ export function buildReplayFixtureFailureRecord({
     actualDigest: hashStableCanonicalValue(actualSnapshot),
     expectedFingerprint: expectedFingerprint ?? hashStableCanonicalValue(expectedSnapshot),
     actualFingerprint: actualFingerprint ?? hashStableCanonicalValue(actualSnapshot),
-    eventOrderingDiffSummary: typeof eventOrderingDiffSummary === 'string' ? eventOrderingDiffSummary : ''
+    eventOrderingDiffSummary: typeof eventOrderingDiffSummary === 'string' ? eventOrderingDiffSummary : '',
+    rngTraceSnippet: typeof rngTraceSnippet === 'string' ? rngTraceSnippet : ''
   };
 }
 
@@ -215,7 +217,8 @@ export function buildReplayParityFailureArtifact(records) {
         actualDigest: String(record.actualDigest),
         expectedFingerprint: String(record.expectedFingerprint ?? record.expectedDigest),
         actualFingerprint: String(record.actualFingerprint ?? record.actualDigest),
-        eventOrderingDiffSummary: String(record.eventOrderingDiffSummary ?? '')
+        eventOrderingDiffSummary: String(record.eventOrderingDiffSummary ?? ''),
+        rngTraceSnippet: String(record.rngTraceSnippet ?? '')
       }))
       .sort((left, right) => left.fixture.localeCompare(right.fixture))
   };

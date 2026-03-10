@@ -52,7 +52,8 @@ describe('replayParityFailureSummary', () => {
       actualDigest: '4a63e6fa',
       expectedFingerprint: '01e7d1b3',
       actualFingerprint: '4a63e6fa',
-      eventOrderingDiffSummary: ''
+      eventOrderingDiffSummary: '',
+      rngTraceSnippet: ''
     });
   });
 
@@ -98,7 +99,8 @@ describe('replayParityFailureSummary', () => {
         actualDigest: 'bbbb2222',
         expectedFingerprint: 'aaaa1111',
         actualFingerprint: 'bbbb2222',
-        eventOrderingDiffSummary: ''
+        eventOrderingDiffSummary: '',
+        rngTraceSnippet: 'tick=19 call=411 consumer=mutateTraits.nextFloat'
       }
     ]);
 
@@ -119,7 +121,8 @@ describe('replayParityFailureSummary', () => {
           actualDigest: 'bbbb2222',
           expectedFingerprint: 'aaaa1111',
           actualFingerprint: 'bbbb2222',
-          eventOrderingDiffSummary: ''
+          eventOrderingDiffSummary: '',
+          rngTraceSnippet: 'tick=19 call=411 consumer=mutateTraits.nextFloat'
         }
       ]
     });

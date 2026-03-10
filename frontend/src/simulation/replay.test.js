@@ -302,6 +302,156 @@ function withForbiddenAmbientRandomnessApisBlocked(work) {
   }
 }
 
+function normalizeTraceConsumer(stack) {
+  const traceLine = String(stack ?? '')
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => line.includes('/simulation/') && !line.includes('replay.test.js'));
+
+  return traceLine ? traceLine.replace(/^at\s+/, '') : 'unknown';
+}
+
+function createTraceablePrng(seed, initialState, traceEntries, tickRef) {
+  const base = createSeededPrng(seed, initialState);
+  let callIndex = 0;
+
+  return {
+    nextFloat() {
+      const stateBefore = base.getState();
+      const value = base.nextFloat();
+      const stateAfter = base.getState();
+      traceEntries.push({
+        tick: tickRef.current,
+        callIndex,
+        api: 'nextFloat',
+        consumer: normalizeTraceConsumer(new Error().stack),
+        stateBefore,
+        stateAfter,
+        value: Number(value.toFixed(10))
+      });
+      callIndex += 1;
+      return value;
+    },
+
+    nextInt(min, maxExclusive) {
+      const stateBefore = base.getState();
+      const value = base.nextInt(min, maxExclusive);
+      const stateAfter = base.getState();
+      traceEntries.push({
+        tick: tickRef.current,
+        callIndex,
+        api: 'nextInt',
+        consumer: normalizeTraceConsumer(new Error().stack),
+        stateBefore,
+        stateAfter,
+        value
+      });
+      callIndex += 1;
+      return value;
+    },
+
+    getState() {
+      return base.getState();
+    }
+  };
+}
+
+function collectRngCallTrace({ baseWorldState, seed, stepParams, tickBudget, cadenceSegments }) {
+  if (!Number.isInteger(tickBudget) || tickBudget <= 0) {
+    return [];
+  }
+
+  const traceEntries = [];
+  const tickRef = { current: 0 };
+  const rng = createTraceablePrng(seed, undefined, traceEntries, tickRef);
+  let worldState = JSON.parse(JSON.stringify(baseWorldState));
+
+  const segments = Array.isArray(cadenceSegments)
+    ? cadenceSegments.filter((segment) => Number.isInteger(segment) && segment > 0)
+    : null;
+
+  if (!segments || segments.length === 0) {
+    for (let tick = 1; tick <= tickBudget; tick += 1) {
+      tickRef.current = tick;
+      worldState = stepWorld(worldState, rng, stepParams);
+    }
+
+    return traceEntries;
+  }
+
+  let tick = 0;
+  for (const segment of segments) {
+    for (let step = 0; step < segment; step += 1) {
+      if (tick >= tickBudget) {
+        return traceEntries;
+      }
+
+      tick += 1;
+      tickRef.current = tick;
+      worldState = stepWorld(worldState, rng, stepParams);
+    }
+  }
+
+  return traceEntries;
+}
+
+function buildRngTraceSnippet({ baseWorldState, seed, stepParams, firstDivergenceTick, expectedCadenceSegments, actualCadenceSegments }) {
+  if (!Number.isInteger(firstDivergenceTick) || firstDivergenceTick <= 0) {
+    return '';
+  }
+
+  const expectedTrace = collectRngCallTrace({
+    baseWorldState,
+    seed,
+    stepParams,
+    tickBudget: firstDivergenceTick,
+    cadenceSegments: expectedCadenceSegments
+  });
+  const actualTrace = collectRngCallTrace({
+    baseWorldState,
+    seed,
+    stepParams,
+    tickBudget: firstDivergenceTick,
+    cadenceSegments: actualCadenceSegments
+  });
+
+  const maxLength = Math.max(expectedTrace.length, actualTrace.length);
+  let divergenceIndex = -1;
+  for (let index = 0; index < maxLength; index += 1) {
+    const expectedEntry = expectedTrace[index];
+    const actualEntry = actualTrace[index];
+    if (JSON.stringify(expectedEntry) !== JSON.stringify(actualEntry)) {
+      divergenceIndex = index;
+      break;
+    }
+  }
+
+  if (divergenceIndex < 0) {
+    return '';
+  }
+
+  const start = Math.max(divergenceIndex - 2, 0);
+  const end = Math.min(divergenceIndex + 3, maxLength);
+  const lines = [];
+
+  for (let index = start; index < end; index += 1) {
+    const expectedEntry = expectedTrace[index] ?? null;
+    const actualEntry = actualTrace[index] ?? null;
+    lines.push(
+      `${index === divergenceIndex ? '>' : ' '}#${index} expected=${JSON.stringify(expectedEntry)} actual=${JSON.stringify(actualEntry)}`
+    );
+  }
+
+  return lines.join('\n');
+}
+
+function buildFailureRecordWithTrace(recordArgs, traceArgs) {
+  return buildReplayFixtureFailureRecord({
+    ...recordArgs,
+    rngTraceSnippet: buildRngTraceSnippet(traceArgs)
+  });
+}
+
 describe('replaySnapshotToTick', () => {
   it('validates deterministic replay parity across a curated multi-fixture matrix', () => {
     const fixtureTimingsMs = [];
@@ -429,7 +579,7 @@ describe('replaySnapshotToTick', () => {
               })
             });
 
-            fixtureFailure = buildReplayFixtureFailureRecord({
+            fixtureFailure = buildFailureRecordWithTrace({
               fixtureName: `${fixture.name} [phase=cadence-final]`,
               fixtureId: `${fixture.name}|cadence:${segmentedCadence.id}`,
               fixtureProfile: fixture.profile,
@@ -440,6 +590,13 @@ describe('replaySnapshotToTick', () => {
               actualWorldState: runA,
               expectedFingerprint: baselineFingerprint,
               actualFingerprint: segmentedFingerprint
+            }, {
+              baseWorldState,
+              seed: config.resolvedSeed,
+              stepParams,
+              firstDivergenceTick,
+              expectedCadenceSegments: baselineCadence.segments,
+              actualCadenceSegments: segmentedCadence.segments
             });
             return;
           }
@@ -470,7 +627,7 @@ describe('replaySnapshotToTick', () => {
                 })
                 : null;
 
-              fixtureFailure = buildReplayFixtureFailureRecord({
+              fixtureFailure = buildFailureRecordWithTrace({
                 fixtureName: `${fixture.name} [phase=cadence-checkpoint]`,
                 fixtureId: `${fixture.name}|cadence:${segmentedCadence.id}`,
                 fixtureProfile: fixture.profile,
@@ -481,6 +638,13 @@ describe('replaySnapshotToTick', () => {
                 actualWorldState: segmentedCheckpoint?.worldState ?? runA,
                 expectedFingerprint: baselineCheckpoint?.fingerprint,
                 actualFingerprint: segmentedCheckpoint?.fingerprint
+              }, {
+                baseWorldState,
+                seed: config.resolvedSeed,
+                stepParams,
+                firstDivergenceTick,
+                expectedCadenceSegments: baselineCadence.segments,
+                actualCadenceSegments: segmentedCadence.segments
               });
               return;
             }
@@ -504,7 +668,7 @@ describe('replaySnapshotToTick', () => {
                 })
               });
 
-              fixtureFailure = buildReplayFixtureFailureRecord({
+              fixtureFailure = buildFailureRecordWithTrace({
                 fixtureName: `${fixture.name} [phase=cadence-checkpoint]`,
                 fixtureId: `${fixture.name}|cadence:${segmentedCadence.id}`,
                 fixtureProfile: fixture.profile,
@@ -515,6 +679,13 @@ describe('replaySnapshotToTick', () => {
                 actualWorldState: segmentedCheckpoint.worldState,
                 expectedFingerprint: baselineCheckpoint.fingerprint,
                 actualFingerprint: segmentedCheckpoint.fingerprint
+              }, {
+                baseWorldState,
+                seed: config.resolvedSeed,
+                stepParams,
+                firstDivergenceTick,
+                expectedCadenceSegments: baselineCadence.segments,
+                actualCadenceSegments: segmentedCadence.segments
               });
               return;
             }
@@ -559,7 +730,7 @@ describe('replaySnapshotToTick', () => {
               })
             });
 
-            fixtureFailure = buildReplayFixtureFailureRecord({
+            fixtureFailure = buildFailureRecordWithTrace({
               fixtureName: `${fixture.name} [phase=pre-save]`,
               fixtureProfile: fixture.profile,
               seed: config.resolvedSeed,
@@ -569,6 +740,11 @@ describe('replaySnapshotToTick', () => {
               expectedFingerprint: fingerprintB,
               actualFingerprint: fingerprintA,
               eventOrderingDiffSummary: buildTieBreakOrderingDiffSummaryIfNeeded()
+            }, {
+              baseWorldState,
+              seed: config.resolvedSeed,
+              stepParams,
+              firstDivergenceTick
             });
             return;
           }
@@ -608,7 +784,7 @@ describe('replaySnapshotToTick', () => {
                 })
                 : null;
 
-              fixtureFailure = buildReplayFixtureFailureRecord({
+              fixtureFailure = buildFailureRecordWithTrace({
                 fixtureName: `${fixture.name} [phase=milestone-checkpoint]`,
                 fixtureId: fixture.name,
                 fixtureProfile: fixture.profile,
@@ -619,6 +795,11 @@ describe('replaySnapshotToTick', () => {
                 actualWorldState: actualMilestone?.worldState ?? runA,
                 expectedFingerprint: expectedMilestone?.fingerprint,
                 actualFingerprint: actualMilestone?.fingerprint
+              }, {
+                baseWorldState,
+                seed: config.resolvedSeed,
+                stepParams,
+                firstDivergenceTick
               });
               return;
             }
@@ -640,7 +821,7 @@ describe('replaySnapshotToTick', () => {
                 })
               });
 
-              fixtureFailure = buildReplayFixtureFailureRecord({
+              fixtureFailure = buildFailureRecordWithTrace({
                 fixtureName: `${fixture.name} [phase=milestone-checkpoint]`,
                 fixtureId: fixture.name,
                 fixtureProfile: fixture.profile,
@@ -651,6 +832,11 @@ describe('replaySnapshotToTick', () => {
                 actualWorldState: actualMilestone.worldState,
                 expectedFingerprint: expectedMilestone.fingerprint,
                 actualFingerprint: actualMilestone.fingerprint
+              }, {
+                baseWorldState,
+                seed: config.resolvedSeed,
+                stepParams,
+                firstDivergenceTick
               });
               return;
             }
@@ -679,7 +865,7 @@ describe('replaySnapshotToTick', () => {
               })
             });
 
-            fixtureFailure = buildReplayFixtureFailureRecord({
+            fixtureFailure = buildFailureRecordWithTrace({
               fixtureName: `${fixture.name} [phase=pre-save]`,
               fixtureProfile: fixture.profile,
               seed: config.resolvedSeed,
@@ -689,6 +875,11 @@ describe('replaySnapshotToTick', () => {
               expectedFingerprint: fingerprintB,
               actualFingerprint: fingerprintA,
               eventOrderingDiffSummary: buildTieBreakOrderingDiffSummaryIfNeeded()
+            }, {
+              baseWorldState,
+              seed: config.resolvedSeed,
+              stepParams,
+              firstDivergenceTick
             });
             return;
           }

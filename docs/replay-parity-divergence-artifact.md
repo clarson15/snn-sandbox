@@ -37,7 +37,8 @@ The thrown test error prints the resolved artifact path so CI logs point directl
       "actualDigest": "b2c3d4e5",
       "expectedFingerprint": "a1b2c3d4",
       "actualFingerprint": "b2c3d4e5",
-      "eventOrderingDiffSummary": ""
+      "eventOrderingDiffSummary": "",
+      "rngTraceSnippet": "..."
     }
   ]
 }
@@ -48,3 +49,4 @@ The thrown test error prints the resolved artifact path so CI logs point directl
 - Artifact contents are deterministic (no timestamps).
 - `mismatchFields` is intentionally capped to keep artifact size bounded for CI.
 - `entityId` is populated when the first mismatch maps to an organism/food entry with an id.
+- `rngTraceSnippet` is emitted on failure paths only and contains a bounded deterministic diff window around the first divergent RNG call-trace entry.
