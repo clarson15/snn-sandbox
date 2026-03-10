@@ -69,6 +69,7 @@ import {
 } from './simulation/api';
 import { formatSimulationTimestamp } from './simulation/timestamp';
 import { generateDeterministicCopyName } from './simulation/saveName';
+import { buildDeterministicShareUrl, resolveDeterministicQueryPrefill } from './simulation/shareLink';
 import {
   DEFAULT_SAVED_SIMULATION_LIST_VIEW_STATE,
   deriveSavedSimulationListView,
@@ -181,17 +182,6 @@ function createFormStateFromConfig(config) {
   };
 }
 
-function resolveSeedQueryPrefill(search) {
-  const params = new URLSearchParams(search);
-  const seedParam = params.get('seed');
-
-  if (typeof seedParam !== 'string') {
-    return '';
-  }
-
-  const trimmedSeed = seedParam.trim();
-  return trimmedSeed.length > 0 ? trimmedSeed : '';
-}
 
 function getControlDisableReasons({ hasSimulation, replayActive, paused, spectatorMode }) {
   const simulationRequiredReason = 'Start a simulation to enable this control.';
@@ -199,6 +189,7 @@ function getControlDisableReasons({ hasSimulation, replayActive, paused, spectat
 
   return {
     copySeed: hasSimulation ? '' : simulationRequiredReason,
+    copyShareLink: hasSimulation ? '' : simulationRequiredReason,
     regenerateSeed: hasSimulation ? '' : spectatorMode ? spectatorModeReason : simulationRequiredReason,
     restartFromSeed: hasSimulation ? '' : spectatorMode ? spectatorModeReason : simulationRequiredReason,
     pause: !hasSimulation ? simulationRequiredReason : replayActive ? 'Replay mode is active. Resume live simulation to pause playback.' : spectatorMode ? spectatorModeReason : '',
@@ -299,22 +290,25 @@ function App() {
   const [schedulerClampState, setSchedulerClampState] = useState({ active: false, droppedTicks: 0 });
   const [statsTrendHistory, setStatsTrendHistory] = useState([]);
   const [hudVisibilityPreset, setHudVisibilityPreset] = useState(() => loadHudVisibilityPreset());
+  const [initialQueryPrefill] = useState(() => {
+    if (typeof window === 'undefined') {
+      return { prefill: null, warningMessage: '' };
+    }
+
+    return resolveDeterministicQueryPrefill(window.location.search);
+  });
+
   const [initialFormState] = useState(() => {
     const saved = loadSimulationConfig();
     const baseFormState = createFormStateFromConfig(saved ?? DEFAULT_CONFIG);
 
-    if (typeof window === 'undefined') {
-      return baseFormState;
-    }
-
-    const querySeedPrefill = resolveSeedQueryPrefill(window.location.search);
-    if (!querySeedPrefill) {
+    if (!initialQueryPrefill.prefill) {
       return baseFormState;
     }
 
     return {
       ...baseFormState,
-      seed: querySeedPrefill
+      ...initialQueryPrefill.prefill
     };
   });
   const [formState, setFormState] = useState(initialFormState);
@@ -322,6 +316,7 @@ function App() {
   const [selectedPresetId, setSelectedPresetId] = useState('');
   const [spectatorMode, setSpectatorMode] = useState(false);
   const [shareStatus, setShareStatus] = useState('');
+  const [queryPrefillStatus, setQueryPrefillStatus] = useState(initialQueryPrefill.warningMessage);
 
   const worldRef = useRef(null);
   const pausedRef = useRef(paused);
@@ -1010,6 +1005,9 @@ function App() {
   const onFieldChange = (field) => (event) => {
     const nextValue = event.target.value;
     setFormState((prev) => ({ ...prev, [field]: nextValue }));
+    if (queryPrefillStatus) {
+      setQueryPrefillStatus('');
+    }
     setErrors((prev) => {
       if (!prev[field]) {
         return prev;
@@ -1268,6 +1266,31 @@ function App() {
       setSeedControlStatus('Seed copied.');
     } catch {
       setSeedControlStatus('Failed to copy seed.');
+    }
+  };
+
+  const onCopyShareLink = async () => {
+    if (!activeConfigRef.current || !resolvedSeed) {
+      return;
+    }
+
+    const writeText = globalThis?.navigator?.clipboard?.writeText;
+    if (typeof writeText !== 'function') {
+      setSeedControlStatus('Clipboard is unavailable.');
+      return;
+    }
+
+    try {
+      const shareUrl = buildDeterministicShareUrl({
+        origin: window.location.origin,
+        pathname: window.location.pathname,
+        seed: resolvedSeed,
+        parameters: activeConfigRef.current
+      });
+      await writeText(shareUrl);
+      setSeedControlStatus('Share link copied.');
+    } catch {
+      setSeedControlStatus('Failed to copy share link.');
     }
   };
 
@@ -2431,6 +2454,7 @@ function App() {
         {hasUnsavedFormChanges ? (
           <p aria-live="polite">Unsaved setup changes in: {dirtyFormFields.join(', ')}.</p>
         ) : null}
+        {queryPrefillStatus ? <p aria-live="polite">{queryPrefillStatus}</p> : null}
       </section>
 
       {resolvedSeed ? <p className="seed-banner">Resolved seed: {resolvedSeed}</p> : null}
@@ -2439,6 +2463,9 @@ function App() {
         <p>Active seed: {resolvedSeed || 'No active simulation'}</p>
         <ControlButtonWithHint name="copy-seed-controls" onClick={onCopyActiveSeed} reason={controlDisableReasons.copySeed}>
           Copy seed
+        </ControlButtonWithHint>
+        <ControlButtonWithHint name="copy-share-link" onClick={onCopyShareLink} reason={controlDisableReasons.copyShareLink}>
+          Copy share link
         </ControlButtonWithHint>
         <ControlButtonWithHint name="regenerate-seed" onClick={onRegenerateSeed} reason={controlDisableReasons.regenerateSeed}>
           Regenerate seed + restart

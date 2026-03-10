@@ -195,6 +195,35 @@ describe('App', () => {
     window.history.replaceState({}, '', '/');
   });
 
+  it('prefills deterministic parameters from query values without auto-starting', () => {
+    window.history.replaceState({}, '', '/?seed=shared-seed-42&worldWidth=1234&worldHeight=640&initialPopulation=33&minimumPopulation=21&initialFoodCount=55&foodSpawnChance=0.06&foodEnergyValue=11&maxFood=300&mutationRate=0.2&mutationStrength=0.15');
+
+    render(<App />);
+
+    expect(screen.getByLabelText(/^seed \(optional\)$/i)).toHaveValue('shared-seed-42');
+    expect(screen.getByLabelText(/world width/i)).toHaveValue(1234);
+    expect(screen.getByLabelText(/world height/i)).toHaveValue(640);
+    expect(screen.getByLabelText(/initial population/i)).toHaveValue(33);
+    expect(screen.getByLabelText(/minimum population/i)).toHaveValue(21);
+    expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: No active simulation');
+
+    window.history.replaceState({}, '', '/');
+  });
+
+  it('shows non-blocking feedback when shared query values are missing or invalid', () => {
+    window.history.replaceState({}, '', '/?seed=seed-1&worldWidth=invalid&worldHeight=640');
+
+    render(<App />);
+
+    expect(screen.getByText(/some shared link values were missing or invalid/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/world width/i)).toHaveValue(800);
+
+    fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '900' } });
+    expect(screen.queryByText(/some shared link values were missing or invalid/i)).not.toBeInTheDocument();
+
+    window.history.replaceState({}, '', '/');
+  });
+
   it('resets setup form values back to project defaults', () => {
     render(<App />);
 
@@ -651,6 +680,13 @@ describe('App', () => {
 
     await waitFor(() => {
       expect(clipboardWriteText).toHaveBeenCalledWith('1b207');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /copy share link/i }));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(
+        expect.stringContaining('?seed=1b207&worldWidth=800&worldHeight=480&initialPopulation=12&minimumPopulation=12&initialFoodCount=30&foodSpawnChance=0.04&foodEnergyValue=5&maxFood=120&mutationRate=0.05&mutationStrength=0.1')
+      );
     });
 
     fireEvent.click(screen.getByRole('button', { name: /new run with same seed/i }));
