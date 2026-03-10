@@ -23,6 +23,89 @@ function hash(value) {
   return JSON.stringify(value);
 }
 
+function roundForResumeParity(value, precision = 6) {
+  if (!Number.isFinite(value)) {
+    return value;
+  }
+
+  return Number(value.toFixed(precision));
+}
+
+function buildSaveResumeParitySnapshot({ worldState, rngState, resolvedSeed }) {
+  const organisms = [...(worldState?.organisms ?? [])]
+    .map((organism) => ({
+      id: organism.id,
+      x: roundForResumeParity(organism.x),
+      y: roundForResumeParity(organism.y),
+      direction: roundForResumeParity(organism.direction ?? 0),
+      energy: roundForResumeParity(organism.energy),
+      age: Number(organism.age ?? 0),
+      generation: Number(organism.generation ?? 0)
+    }))
+    .sort((left, right) => left.id.localeCompare(right.id));
+
+  const food = [...(worldState?.food ?? [])]
+    .map((item) => ({
+      id: item.id,
+      x: roundForResumeParity(item.x),
+      y: roundForResumeParity(item.y),
+      energyValue: roundForResumeParity(item.energyValue)
+    }))
+    .sort((left, right) => left.id.localeCompare(right.id));
+
+  return {
+    tick: Number(worldState?.tick ?? 0),
+    resolvedSeed: String(resolvedSeed ?? ''),
+    rngState,
+    organisms,
+    food
+  };
+}
+
+function collectParityDiffPaths(actual, expected, basePath = 'snapshot', acc = []) {
+  if (actual === expected) {
+    return acc;
+  }
+
+  const actualType = Object.prototype.toString.call(actual);
+  const expectedType = Object.prototype.toString.call(expected);
+
+  if (actualType !== expectedType) {
+    acc.push(`${basePath} type mismatch: actual=${actualType} expected=${expectedType}`);
+    return acc;
+  }
+
+  if (actual === null || expected === null || typeof actual !== 'object') {
+    acc.push(`${basePath} value mismatch: actual=${JSON.stringify(actual)} expected=${JSON.stringify(expected)}`);
+    return acc;
+  }
+
+  const keySet = new Set([...Object.keys(actual), ...Object.keys(expected)]);
+  const keys = [...keySet].sort();
+
+  for (const key of keys) {
+    const childPath = Array.isArray(actual) ? `${basePath}[${key}]` : `${basePath}.${key}`;
+
+    if (!(key in actual)) {
+      acc.push(`${childPath} missing in actual`);
+      continue;
+    }
+
+    if (!(key in expected)) {
+      acc.push(`${childPath} missing in expected`);
+      continue;
+    }
+
+    collectParityDiffPaths(actual[key], expected[key], childPath, acc);
+
+    if (acc.length >= 12) {
+      break;
+    }
+  }
+
+  return acc;
+}
+
 describe('replaySnapshotToTick', () => {
   it('validates deterministic replay parity across a curated multi-fixture matrix', () => {
     const fixtureTimingsMs = [];
@@ -228,6 +311,69 @@ describe('replaySnapshotToTick', () => {
 
     expect(replayed.tick).toBe(75);
     expect(hash(replayed.worldState)).toEqual(hash(baselineWorldAt75));
+  });
+
+  it('preserves replay-equivalent state when resuming from a persisted save snapshot', () => {
+    const config = normalizeSimulationConfig(
+      {
+        name: 'Save resume replay parity fixture',
+        seed: 'save-resume-parity-seed',
+        worldWidth: 800,
+        worldHeight: 480,
+        initialPopulation: 20,
+        minimumPopulation: 10,
+        initialFoodCount: 25,
+        foodSpawnChance: 0.05,
+        foodEnergyValue: 6,
+        maxFood: 150,
+        mutationRate: 0.08,
+        mutationStrength: 0.12
+      },
+      'save-resume-parity-seed'
+    );
+
+    const stepParams = toEngineStepParams(config);
+    const baseWorldState = createInitialWorldFromConfig(config);
+    const saveTick = 60;
+    const finalTick = 120;
+
+    const uninterruptedRng = createSeededPrng(config.resolvedSeed);
+    const uninterruptedFinalWorld = runTicks(baseWorldState, uninterruptedRng, finalTick, stepParams);
+
+    const saveRunRng = createSeededPrng(config.resolvedSeed);
+    const worldAtSave = runTicks(baseWorldState, saveRunRng, saveTick, stepParams);
+    const persistedWorldSnapshot = JSON.parse(JSON.stringify(worldAtSave));
+    const persistedRngState = saveRunRng.getState();
+
+    const resumedRng = createSeededPrng(config.resolvedSeed, persistedRngState);
+    const resumedFinalWorld = runTicks(
+      persistedWorldSnapshot,
+      resumedRng,
+      finalTick - saveTick,
+      stepParams
+    );
+
+    // Invariant: save/load resume must be replay-equivalent to uninterrupted deterministic execution.
+    const actualSnapshot = buildSaveResumeParitySnapshot({
+      worldState: resumedFinalWorld,
+      rngState: resumedRng.getState(),
+      resolvedSeed: config.resolvedSeed
+    });
+    const expectedSnapshot = buildSaveResumeParitySnapshot({
+      worldState: uninterruptedFinalWorld,
+      rngState: uninterruptedRng.getState(),
+      resolvedSeed: config.resolvedSeed
+    });
+
+    const mismatchPaths = collectParityDiffPaths(actualSnapshot, expectedSnapshot);
+    if (mismatchPaths.length > 0) {
+      throw new Error(
+        `Save/resume replay parity mismatch for seed ${config.resolvedSeed}. ` +
+          `Differences:\n- ${mismatchPaths.join('\n- ')}`
+      );
+    }
+
+    expect(actualSnapshot).toEqual(expectedSnapshot);
   });
 
   it('clamps target ticks below the loaded snapshot tick', () => {
