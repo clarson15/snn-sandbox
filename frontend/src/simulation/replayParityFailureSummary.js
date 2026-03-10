@@ -117,17 +117,32 @@ function getValueAtPath(value, pathValue) {
   return current ?? null;
 }
 
-function deriveEntityIdFromMismatchPath(firstMismatchPath, expectedSnapshot, actualSnapshot) {
+function parseDivergentEntity(firstMismatchPath, expectedSnapshot, actualSnapshot) {
   const match = String(firstMismatchPath ?? '').match(/^snapshot\.(organisms|food)\[(\d+)\]/);
   if (!match) {
     return null;
   }
 
+  const collection = match[1];
   const index = Number.parseInt(match[2], 10);
-  const expectedEntity = expectedSnapshot?.[match[1]]?.[index];
-  const actualEntity = actualSnapshot?.[match[1]]?.[index];
+  const expectedEntity = expectedSnapshot?.[collection]?.[index];
+  const actualEntity = actualSnapshot?.[collection]?.[index];
   const entityId = expectedEntity?.id ?? actualEntity?.id ?? null;
-  return typeof entityId === 'string' && entityId.trim().length > 0 ? entityId : null;
+
+  return {
+    kind: collection === 'organisms' ? 'organism' : 'food',
+    index,
+    id: typeof entityId === 'string' && entityId.trim().length > 0 ? entityId : null
+  };
+}
+
+function buildCompactWorldStateFingerprint(snapshot, firstDivergentEntity) {
+  return {
+    organismCount: Number(snapshot?.populationCount ?? snapshot?.organisms?.length ?? 0),
+    foodCount: Number(snapshot?.foodCount ?? snapshot?.food?.length ?? 0),
+    aggregateHash: hashStableCanonicalValue(snapshot ?? null),
+    firstDivergentEntity: firstDivergentEntity ?? null
+  };
 }
 
 export function buildReplayFixtureFailureRecord({
@@ -148,6 +163,7 @@ export function buildReplayFixtureFailureRecord({
   const actualSnapshot = buildReplayDeterminismSnapshot(actualWorldState);
   const firstMismatchPath = compareValues(expectedSnapshot, actualSnapshot) ?? 'snapshot';
   const mismatchFields = collectMismatchFields(expectedSnapshot, actualSnapshot);
+  const divergentEntity = parseDivergentEntity(firstMismatchPath, expectedSnapshot, actualSnapshot);
 
   return {
     fixtureName,
@@ -156,13 +172,18 @@ export function buildReplayFixtureFailureRecord({
     seed,
     milestoneTick: Number.isInteger(milestoneTick) ? milestoneTick : null,
     firstDivergenceTick: Number.isInteger(firstDivergenceTick) ? firstDivergenceTick : null,
-    entityId: deriveEntityIdFromMismatchPath(firstMismatchPath, expectedSnapshot, actualSnapshot),
+    entityId: divergentEntity?.id ?? null,
+    firstDivergentEntity: divergentEntity,
     firstMismatchPath,
     mismatchFields,
     firstDivergenceSnapshot: {
       path: firstMismatchPath,
       expectedValue: getValueAtPath(expectedSnapshot, firstMismatchPath),
       actualValue: getValueAtPath(actualSnapshot, firstMismatchPath)
+    },
+    firstDivergenceFingerprint: {
+      baseline: buildCompactWorldStateFingerprint(expectedSnapshot, divergentEntity),
+      candidate: buildCompactWorldStateFingerprint(actualSnapshot, divergentEntity)
     },
     expectedDigest: hashStableCanonicalValue(expectedSnapshot),
     actualDigest: hashStableCanonicalValue(actualSnapshot),
@@ -210,6 +231,8 @@ export function buildReplayParityFailureArtifact(records) {
         tick: Number.isInteger(record.milestoneTick) ? record.milestoneTick : null,
         firstDivergenceTick: Number.isInteger(record.firstDivergenceTick) ? record.firstDivergenceTick : null,
         entityId: record.entityId ?? null,
+        firstDivergentEntity: record.firstDivergentEntity ?? null,
+        firstDivergenceFingerprint: record.firstDivergenceFingerprint ?? null,
         mismatchFields: Array.isArray(record.mismatchFields) ? record.mismatchFields : [],
         firstDivergenceSnapshot: record.firstDivergenceSnapshot ?? null,
         firstMismatchPath: String(record.firstMismatchPath),

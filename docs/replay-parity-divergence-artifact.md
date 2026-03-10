@@ -20,6 +20,33 @@ The thrown test error prints the resolved artifact path so CI logs point directl
       "tick": 120,
       "firstDivergenceTick": 87,
       "entityId": "org-0007",
+      "firstDivergentEntity": {
+        "kind": "organism",
+        "index": 7,
+        "id": "org-0007"
+      },
+      "firstDivergenceFingerprint": {
+        "baseline": {
+          "organismCount": 64,
+          "foodCount": 92,
+          "aggregateHash": "a1b2c3d4",
+          "firstDivergentEntity": {
+            "kind": "organism",
+            "index": 7,
+            "id": "org-0007"
+          }
+        },
+        "candidate": {
+          "organismCount": 64,
+          "foodCount": 92,
+          "aggregateHash": "b2c3d4e5",
+          "firstDivergentEntity": {
+            "kind": "organism",
+            "index": 7,
+            "id": "org-0007"
+          }
+        }
+      },
       "mismatchFields": [
         {
           "path": "snapshot.organisms[7].energy",
@@ -49,4 +76,6 @@ The thrown test error prints the resolved artifact path so CI logs point directl
 - Artifact contents are deterministic (no timestamps).
 - `mismatchFields` is intentionally capped to keep artifact size bounded for CI.
 - `entityId` is populated when the first mismatch maps to an organism/food entry with an id.
+- `firstDivergentEntity` always includes deterministic `kind` + `index` when the mismatch path maps to an organism/food entry (id may be null).
+- `firstDivergenceFingerprint` provides compact baseline/candidate world-state fingerprints at divergence (`organismCount`, `foodCount`, deterministic `aggregateHash`, and divergent entity metadata).
 - `rngTraceSnippet` is emitted on failure paths only and contains a bounded deterministic diff window around the first divergent RNG call-trace entry.
