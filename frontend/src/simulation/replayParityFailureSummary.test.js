@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildReplayFixtureFailureRecord,
   buildReplayParityFailureArtifact,
+  buildReplayParityLocalReproCommand,
   formatReplayParityFailureSummary,
   writeReplayParityFailureArtifact,
   writeReplayParityFailureSummary
@@ -112,10 +113,23 @@ describe('replayParityFailureSummary', () => {
     ]);
 
     expect(summary).toBe(
-      ['| fixture | fixture id | seed | milestone tick | first mismatch path | expected digest | actual digest | expected fingerprint | actual fingerprint | event ordering diff summary |',
-      '|---|---|---|---|---|---|---|---|---|---|',
-      '| alpha | alpha | seed-a | - | snapshot.organisms[0].x | 33333333 | 44444444 | 33333333 | 44444444 | - |',
-      '| zeta | zeta | seed-z | - | snapshot.tick | 11111111 | 22222222 | 11111111 | 22222222 | - |'].join('\n')
+      ['| fixture | fixture id | profile | seed | milestone tick | first mismatch path | expected digest | actual digest | expected fingerprint | actual fingerprint | local repro command | event ordering diff summary |',
+      '|---|---|---|---|---|---|---|---|---|---|---|---|',
+      '| alpha | alpha | - | seed-a | - | snapshot.organisms[0].x | 33333333 | 44444444 | 33333333 | 44444444 | REPLAY_PARITY_FIXTURE_NAMES="alpha" REPLAY_PARITY_FIXTURE_PROFILES="" REPLAY_PARITY_SEED="seed-a" npm --prefix frontend test -- src/simulation/replay.test.js -t "validates deterministic replay parity across a curated multi-fixture matrix" | - |',
+      '| zeta | zeta | - | seed-z | - | snapshot.tick | 11111111 | 22222222 | 11111111 | 22222222 | REPLAY_PARITY_FIXTURE_NAMES="zeta" REPLAY_PARITY_FIXTURE_PROFILES="" REPLAY_PARITY_SEED="seed-z" npm --prefix frontend test -- src/simulation/replay.test.js -t "validates deterministic replay parity across a curated multi-fixture matrix" | - |'].join('\n')
+    );
+  });
+
+  it('builds a one-command local repro hint for the failing fixture case', () => {
+    const command = buildReplayParityLocalReproCommand({
+      fixtureName: 'chunked-tick-execution-equivalence [phase=cadence-checkpoint]',
+      fixtureId: 'chunked-tick-execution-equivalence|cadence:segmented-resume',
+      fixtureProfile: 'sparse-food',
+      seed: 'fixture-chunked-tick-execution-equivalence'
+    });
+
+    expect(command).toBe(
+      'REPLAY_PARITY_FIXTURE_NAMES="chunked-tick-execution-equivalence" REPLAY_PARITY_FIXTURE_PROFILES="sparse-food" REPLAY_PARITY_SEED="fixture-chunked-tick-execution-equivalence" npm --prefix frontend test -- src/simulation/replay.test.js -t "validates deterministic replay parity across a curated multi-fixture matrix"'
     );
   });
 
