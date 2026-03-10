@@ -98,6 +98,23 @@ const RAW_REPLAY_PARITY_FIXTURES = [
     tickBudget: 150,
     saveTick: 70,
     resumeTickBudget: 80
+  },
+  {
+    name: 'long-horizon-parity-checkpoints',
+    purpose: 'Catch deterministic replay drift that emerges after extended mutation/reproduction cycles using early/mid/late checkpoint parity.',
+    seed: 'fixture-long-horizon-parity-checkpoints',
+    worldWidth: 640,
+    worldHeight: 360,
+    initialPopulation: 10,
+    minimumPopulation: 5,
+    initialFoodCount: 12,
+    foodSpawnChance: 0.02,
+    foodEnergyValue: 6,
+    maxFood: 36,
+    mutationRate: 0.1,
+    mutationStrength: 0.15,
+    tickBudget: 360,
+    checkpointTicks: [120, 240, 360]
   }
 ];
 
