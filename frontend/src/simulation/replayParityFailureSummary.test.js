@@ -41,12 +41,27 @@ describe('replayParityFailureSummary', () => {
       milestoneTick: null,
       firstDivergenceTick: null,
       entityId: 'org-a',
+      firstDivergentEntity: { kind: 'organism', index: 0, id: 'org-a' },
       firstMismatchPath: 'snapshot.organisms[0].energy',
       mismatchFields: [{ path: 'snapshot.organisms[0].energy', expected: 4, actual: 7 }],
       firstDivergenceSnapshot: {
         path: 'snapshot.organisms[0].energy',
         expectedValue: 4,
         actualValue: 7
+      },
+      firstDivergenceFingerprint: {
+        baseline: {
+          organismCount: 1,
+          foodCount: 0,
+          aggregateHash: '01e7d1b3',
+          firstDivergentEntity: { kind: 'organism', index: 0, id: 'org-a' }
+        },
+        candidate: {
+          organismCount: 1,
+          foodCount: 0,
+          aggregateHash: '4a63e6fa',
+          firstDivergentEntity: { kind: 'organism', index: 0, id: 'org-a' }
+        }
       },
       expectedDigest: '01e7d1b3',
       actualDigest: '4a63e6fa',
@@ -55,6 +70,27 @@ describe('replayParityFailureSummary', () => {
       eventOrderingDiffSummary: '',
       rngTraceSnippet: ''
     });
+  });
+
+  it('captures divergent organism index when id is missing', () => {
+    const record = buildReplayFixtureFailureRecord({
+      fixtureName: 'fixture-idless-organism',
+      seed: 'seed-idless-organism',
+      expectedWorldState: {
+        tick: 3,
+        organisms: [{ id: '', x: 1, y: 1, energy: 2 }],
+        food: []
+      },
+      actualWorldState: {
+        tick: 3,
+        organisms: [{ id: '', x: 2, y: 1, energy: 2 }],
+        food: []
+      }
+    });
+
+    expect(record.entityId).toBeNull();
+    expect(record.firstDivergentEntity).toEqual({ kind: 'organism', index: 0, id: null });
+    expect(record.firstDivergenceFingerprint?.baseline?.firstDivergentEntity).toEqual({ kind: 'organism', index: 0, id: null });
   });
 
   it('formats stable markdown table ordering by fixture name', () => {
@@ -92,6 +128,21 @@ describe('replayParityFailureSummary', () => {
         milestoneTick: 42,
         firstDivergenceTick: 19,
         entityId: 'org-1',
+        firstDivergentEntity: { kind: 'organism', index: 0, id: 'org-1' },
+        firstDivergenceFingerprint: {
+          baseline: {
+            organismCount: 2,
+            foodCount: 3,
+            aggregateHash: 'aaaa1111',
+            firstDivergentEntity: { kind: 'organism', index: 0, id: 'org-1' }
+          },
+          candidate: {
+            organismCount: 2,
+            foodCount: 3,
+            aggregateHash: 'bbbb2222',
+            firstDivergentEntity: { kind: 'organism', index: 0, id: 'org-1' }
+          }
+        },
         mismatchFields: [{ path: 'snapshot.organisms[0].energy', expected: 4, actual: 7 }],
         firstDivergenceSnapshot: { path: 'snapshot.organisms[0].energy', expectedValue: 4, actualValue: 7 },
         firstMismatchPath: 'snapshot.organisms[0].energy',
@@ -114,6 +165,21 @@ describe('replayParityFailureSummary', () => {
           tick: 42,
           firstDivergenceTick: 19,
           entityId: 'org-1',
+          firstDivergentEntity: { kind: 'organism', index: 0, id: 'org-1' },
+          firstDivergenceFingerprint: {
+            baseline: {
+              organismCount: 2,
+              foodCount: 3,
+              aggregateHash: 'aaaa1111',
+              firstDivergentEntity: { kind: 'organism', index: 0, id: 'org-1' }
+            },
+            candidate: {
+              organismCount: 2,
+              foodCount: 3,
+              aggregateHash: 'bbbb2222',
+              firstDivergentEntity: { kind: 'organism', index: 0, id: 'org-1' }
+            }
+          },
           mismatchFields: [{ path: 'snapshot.organisms[0].energy', expected: 4, actual: 7 }],
           firstDivergenceSnapshot: { path: 'snapshot.organisms[0].energy', expectedValue: 4, actualValue: 7 },
           firstMismatchPath: 'snapshot.organisms[0].energy',
