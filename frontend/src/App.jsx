@@ -166,6 +166,10 @@ function deriveRunLifecycleMetadata({ seed, tickCount, snapshotId, simulationVer
   };
 }
 
+function normalizeComparableSeed(seed) {
+  return String(seed ?? '').trim();
+}
+
 function createFormStateFromConfig(config) {
   return {
     ...config,
@@ -346,6 +350,10 @@ function App() {
     [formBaselineState, formState]
   );
   const hasUnsavedFormChanges = dirtyFormFields.length > 0;
+  const urlSeed = useMemo(() => normalizeComparableSeed(initialQueryPrefill.prefill?.seed), [initialQueryPrefill.prefill?.seed]);
+  const normalizedActiveSeed = useMemo(() => normalizeComparableSeed(resolvedSeed), [resolvedSeed]);
+  const hasUrlSeedMismatch = Boolean(urlSeed && normalizedActiveSeed && urlSeed !== normalizedActiveSeed);
+
   const currentRunLifecycleMetadata = useMemo(
     () => deriveRunLifecycleMetadata({
       seed: resolvedSeed,
@@ -1362,6 +1370,27 @@ function App() {
     );
     applySimulationConfig(config, { paused: false });
     setSeedControlStatus('Generated a new seed and restarted from tick 0.');
+  };
+
+  const onUseUrlSeed = () => {
+    if (!urlSeed) {
+      return;
+    }
+
+    if (hasSimulation && !confirmDiscardUnsavedRunChanges()) {
+      setSeedControlStatus('Use URL seed cancelled.');
+      return;
+    }
+
+    const nextErrors = validateSimulationConfig(formState);
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
+      return;
+    }
+
+    const config = normalizeSimulationConfig({ ...formState, seed: urlSeed }, urlSeed);
+    applySimulationConfig(config, { paused: false });
+    setSeedControlStatus('Started a new run with the URL seed.');
   };
 
   const hasSimulation = useMemo(() => Boolean(worldRef.current && rngRef.current), [tickDisplay, resolvedSeed]);
@@ -2460,6 +2489,16 @@ function App() {
       {resolvedSeed ? <p className="seed-banner">Resolved seed: {resolvedSeed}</p> : null}
 
       <section className="controls" aria-label="simulation controls">
+        {hasUrlSeedMismatch ? (
+          <div className="seed-mismatch-banner" role="status" aria-live="polite">
+            <p>
+              URL seed <strong>{urlSeed}</strong> does not match active seed <strong>{normalizedActiveSeed}</strong>.
+            </p>
+            <button type="button" onClick={onUseUrlSeed}>
+              Use URL seed
+            </button>
+          </div>
+        ) : null}
         <p>Active seed: {resolvedSeed || 'No active simulation'}</p>
         <ControlButtonWithHint name="copy-seed-controls" onClick={onCopyActiveSeed} reason={controlDisableReasons.copySeed}>
           Copy seed
