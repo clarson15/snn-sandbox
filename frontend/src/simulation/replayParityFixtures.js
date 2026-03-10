@@ -48,6 +48,22 @@ const RAW_REPLAY_PARITY_FIXTURES = [
     mutationRate: 0.12,
     mutationStrength: 0.18,
     tickBudget: 130
+  },
+  {
+    name: 'high-mutation-reproduction-churn',
+    purpose: 'Stress deterministic replay under elevated mutation pressure and rapid reproduction-friendly food abundance.',
+    seed: 'fixture-high-mutation-reproduction-churn',
+    worldWidth: 760,
+    worldHeight: 420,
+    initialPopulation: 36,
+    minimumPopulation: 18,
+    initialFoodCount: 80,
+    foodSpawnChance: 0.11,
+    foodEnergyValue: 8,
+    maxFood: 220,
+    mutationRate: 0.2,
+    mutationStrength: 0.24,
+    tickBudget: 100
   }
 ];
 
