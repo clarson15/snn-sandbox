@@ -48,17 +48,30 @@ function compareValues(expectedValue, actualValue, currentPath = 'snapshot') {
   return currentPath;
 }
 
-export function buildReplayFixtureFailureRecord({ fixtureName, seed, expectedWorldState, actualWorldState }) {
+export function buildReplayFixtureFailureRecord({
+  fixtureName,
+  seed,
+  expectedWorldState,
+  actualWorldState,
+  fixtureId,
+  milestoneTick,
+  expectedFingerprint,
+  actualFingerprint
+}) {
   const expectedSnapshot = buildReplayDeterminismSnapshot(expectedWorldState);
   const actualSnapshot = buildReplayDeterminismSnapshot(actualWorldState);
   const firstMismatchPath = compareValues(expectedSnapshot, actualSnapshot) ?? 'snapshot';
 
   return {
     fixtureName,
+    fixtureId: fixtureId ?? fixtureName,
     seed,
+    milestoneTick: Number.isInteger(milestoneTick) ? milestoneTick : null,
     firstMismatchPath,
     expectedDigest: hashStableCanonicalValue(expectedSnapshot),
-    actualDigest: hashStableCanonicalValue(actualSnapshot)
+    actualDigest: hashStableCanonicalValue(actualSnapshot),
+    expectedFingerprint: expectedFingerprint ?? hashStableCanonicalValue(expectedSnapshot),
+    actualFingerprint: actualFingerprint ?? hashStableCanonicalValue(actualSnapshot)
   };
 }
 
@@ -66,18 +79,22 @@ export function formatReplayParityFailureSummary(records) {
   const normalizedRecords = [...records]
     .map((record) => ({
       fixtureName: String(record.fixtureName),
+      fixtureId: String(record.fixtureId ?? record.fixtureName),
       seed: String(record.seed),
+      milestoneTick: Number.isInteger(record.milestoneTick) ? String(record.milestoneTick) : '-',
       firstMismatchPath: String(record.firstMismatchPath),
       expectedDigest: String(record.expectedDigest),
-      actualDigest: String(record.actualDigest)
+      actualDigest: String(record.actualDigest),
+      expectedFingerprint: String(record.expectedFingerprint ?? record.expectedDigest),
+      actualFingerprint: String(record.actualFingerprint ?? record.actualDigest)
     }))
     .sort((left, right) => left.fixtureName.localeCompare(right.fixtureName));
 
-  const header = '| fixture | seed | first mismatch path | expected digest | actual digest |';
-  const divider = '|---|---|---|---|---|';
+  const header = '| fixture | fixture id | seed | milestone tick | first mismatch path | expected digest | actual digest | expected fingerprint | actual fingerprint |';
+  const divider = '|---|---|---|---|---|---|---|---|---|';
   const lines = normalizedRecords.map(
     (record) =>
-      `| ${record.fixtureName} | ${record.seed} | ${record.firstMismatchPath} | ${record.expectedDigest} | ${record.actualDigest} |`
+      `| ${record.fixtureName} | ${record.fixtureId} | ${record.seed} | ${record.milestoneTick} | ${record.firstMismatchPath} | ${record.expectedDigest} | ${record.actualDigest} | ${record.expectedFingerprint} | ${record.actualFingerprint} |`
   );
 
   return [header, divider, ...lines].join('\n');

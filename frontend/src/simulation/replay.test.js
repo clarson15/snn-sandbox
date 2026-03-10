@@ -142,6 +142,43 @@ function collectMinimumPopulationRecoveryTimeline({ baseWorldState, seed, tickBu
   return timeline;
 }
 
+function collectReplayMilestoneSnapshots({ baseWorldState, seed, stepParams, checkpointTicks }) {
+  const checkpoints = [...new Set((checkpointTicks ?? []).filter((tick) => Number.isInteger(tick) && tick > 0))]
+    .sort((left, right) => left - right);
+
+  if (checkpoints.length === 0) {
+    return {
+      snapshots: [],
+      finalWorldState: JSON.parse(JSON.stringify(baseWorldState))
+    };
+  }
+
+  const maxTick = checkpoints[checkpoints.length - 1];
+  const checkpointSet = new Set(checkpoints);
+  const rng = createSeededPrng(seed);
+  let worldState = JSON.parse(JSON.stringify(baseWorldState));
+  const snapshots = [];
+
+  for (let tick = 1; tick <= maxTick; tick += 1) {
+    worldState = stepWorld(worldState, rng, stepParams);
+
+    if (!checkpointSet.has(tick)) {
+      continue;
+    }
+
+    snapshots.push({
+      tick,
+      worldState: JSON.parse(JSON.stringify(worldState)),
+      fingerprint: buildReplayDeterminismFingerprint(worldState)
+    });
+  }
+
+  return {
+    snapshots,
+    finalWorldState: JSON.parse(JSON.stringify(worldState))
+  };
+}
+
 function withForbiddenAmbientRandomnessApisBlocked(work) {
   const originalMathRandom = Math.random;
   const originalDateNow = Date.now;
@@ -192,8 +229,35 @@ describe('replaySnapshotToTick', () => {
         const stepParams = toEngineStepParams(config);
         const baseWorldState = createInitialWorldFromConfig(config);
 
-        const runA = runTicks(baseWorldState, createSeededPrng(config.resolvedSeed), fixture.tickBudget, stepParams);
-        const runB = runTicks(baseWorldState, createSeededPrng(config.resolvedSeed), fixture.tickBudget, stepParams);
+        const hasMilestoneCheckpoints = Array.isArray(fixture.checkpointTicks) && fixture.checkpointTicks.length > 0;
+
+        let runA;
+        let runB;
+        let milestoneSnapshotsA = [];
+        let milestoneSnapshotsB = [];
+
+        if (hasMilestoneCheckpoints) {
+          const milestonesAResult = collectReplayMilestoneSnapshots({
+            baseWorldState,
+            seed: config.resolvedSeed,
+            stepParams,
+            checkpointTicks: fixture.checkpointTicks
+          });
+          const milestonesBResult = collectReplayMilestoneSnapshots({
+            baseWorldState,
+            seed: config.resolvedSeed,
+            stepParams,
+            checkpointTicks: fixture.checkpointTicks
+          });
+
+          milestoneSnapshotsA = milestonesAResult.snapshots;
+          milestoneSnapshotsB = milestonesBResult.snapshots;
+          runA = milestonesAResult.finalWorldState;
+          runB = milestonesBResult.finalWorldState;
+        } else {
+          runA = runTicks(baseWorldState, createSeededPrng(config.resolvedSeed), fixture.tickBudget, stepParams);
+          runB = runTicks(baseWorldState, createSeededPrng(config.resolvedSeed), fixture.tickBudget, stepParams);
+        }
 
         const fingerprintA = buildReplayDeterminismFingerprint(runA);
         const fingerprintB = buildReplayDeterminismFingerprint(runB);
@@ -218,6 +282,41 @@ describe('replaySnapshotToTick', () => {
           expectedFingerprint: fingerprintB
         });
         expect(fingerprintA).toBe(fingerprintB);
+
+        if (hasMilestoneCheckpoints) {
+          for (let index = 0; index < milestoneSnapshotsA.length; index += 1) {
+            const actualMilestone = milestoneSnapshotsA[index];
+            const expectedMilestone = milestoneSnapshotsB[index];
+
+            if (!actualMilestone || !expectedMilestone || actualMilestone.tick !== expectedMilestone.tick) {
+              fixtureFailure = buildReplayFixtureFailureRecord({
+                fixtureName: `${fixture.name} [phase=milestone-checkpoint]`,
+                fixtureId: fixture.name,
+                seed: config.resolvedSeed,
+                milestoneTick: actualMilestone?.tick ?? expectedMilestone?.tick ?? null,
+                expectedWorldState: expectedMilestone?.worldState ?? runB,
+                actualWorldState: actualMilestone?.worldState ?? runA,
+                expectedFingerprint: expectedMilestone?.fingerprint,
+                actualFingerprint: actualMilestone?.fingerprint
+              });
+              return;
+            }
+
+            if (actualMilestone.fingerprint !== expectedMilestone.fingerprint) {
+              fixtureFailure = buildReplayFixtureFailureRecord({
+                fixtureName: `${fixture.name} [phase=milestone-checkpoint]`,
+                fixtureId: fixture.name,
+                seed: config.resolvedSeed,
+                milestoneTick: actualMilestone.tick,
+                expectedWorldState: expectedMilestone.worldState,
+                actualWorldState: actualMilestone.worldState,
+                expectedFingerprint: expectedMilestone.fingerprint,
+                actualFingerprint: actualMilestone.fingerprint
+              });
+              return;
+            }
+          }
+        }
 
         if (fixture.name === 'minimum-population-recovery') {
           const timelineA = collectMinimumPopulationRecoveryTimeline({
