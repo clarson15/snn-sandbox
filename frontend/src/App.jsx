@@ -39,7 +39,7 @@ import {
   formatTrendIndicator,
   reduceStatsTrendHistory
 } from './simulation/stats';
-import { deriveRunMetadata, serializeRunMetadata } from './simulation/metadata';
+import { deriveRunMetadata, serializeReproducibilityMetadata } from './simulation/metadata';
 import { replaySnapshotToTick } from './simulation/replay';
 import {
   deriveReplaySummaryStrip,
@@ -238,6 +238,7 @@ function App() {
   const [paused, setPaused] = useState(false);
   const [speedMultiplier, setSpeedMultiplier] = useState(1);
   const [tickDisplay, setTickDisplay] = useState(0);
+  const [runStartTick, setRunStartTick] = useState(0);
   const [resolvedSeed, setResolvedSeed] = useState('');
   const [selectedOrganismId, setSelectedOrganismId] = useState(null);
   const [selectedOrganismUnavailable, setSelectedOrganismUnavailable] = useState(false);
@@ -1181,6 +1182,7 @@ function App() {
     setPinnedOrganismSnapshot(null);
     setResolvedSeed(loadedConfig.resolvedSeed);
     setTickDisplay(loadedWorld.tick);
+    setRunStartTick(loadedWorld.tick);
     setSpeedMultiplier(1);
     setPaused(true);
     setPersistedRunMetadata(deriveRunLifecycleMetadata({
@@ -1212,6 +1214,7 @@ function App() {
     setPinnedOrganismSnapshot(null);
     setResolvedSeed(config.resolvedSeed);
     setTickDisplay(0);
+    setRunStartTick(0);
     setSpeedMultiplier(1);
     setPaused(pausedNext);
     replayContextRef.current = null;
@@ -1427,7 +1430,29 @@ function App() {
     [resolvedSeed, tickDisplay, speedMultiplier, activeLoadedMetadata?.id]
   );
 
-  const serializedRunMetadata = useMemo(() => serializeRunMetadata(runMetadata), [runMetadata]);
+  const simulationParametersFingerprint = useMemo(
+    () => deriveSimulationParametersSignature(activeConfigRef.current) ?? '{}',
+    [tickDisplay, resolvedSeed]
+  );
+
+  const simulationParametersFingerprintHash = useMemo(
+    () => hashStableValue(simulationParametersFingerprint),
+    [simulationParametersFingerprint]
+  );
+
+  const runElapsedTicks = useMemo(
+    () => Math.max(0, runMetadata.tickCount - runStartTick),
+    [runMetadata.tickCount, runStartTick]
+  );
+
+  const reproducibilityPayload = useMemo(
+    () => serializeReproducibilityMetadata({
+      seed: runMetadata.seed,
+      configFingerprint: simulationParametersFingerprint,
+      configFingerprintHash: simulationParametersFingerprintHash
+    }),
+    [runMetadata.seed, simulationParametersFingerprint, simulationParametersFingerprintHash]
+  );
 
   const hudSeedLabel = runMetadata.seed.trim() || 'Seed unavailable';
   const isDetailedHudVisible = hudVisibilityPreset === HUD_VISIBILITY_PRESETS.DETAILED;
@@ -2036,10 +2061,10 @@ function App() {
     }
 
     try {
-      await writeText(serializedRunMetadata);
-      setCopyMetadataStatus('Metadata copied.');
+      await writeText(reproducibilityPayload);
+      setCopyMetadataStatus('Reproducibility string copied.');
     } catch {
-      setCopyMetadataStatus('Failed to copy metadata.');
+      setCopyMetadataStatus('Failed to copy reproducibility string.');
     }
   };
 
@@ -2679,12 +2704,18 @@ function App() {
       ) : null}
 
       <section className="config-panel" aria-label="run metadata panel">
-        <h2>Run metadata</h2>
-        <p>Seed: {runMetadata.seed}</p>
-        <p>Current tick: {runMetadata.tickCount}</p>
-        <p>Speed multiplier: {runMetadata.speedMultiplier}</p>
-        <p>Snapshot ID: {runMetadata.snapshotId}</p>
-        <button type="button" onClick={onCopyRunMetadata} disabled={!hasSimulation}>Copy metadata payload</button>
+        <details>
+          <summary>Run metadata</summary>
+          <p>Seed: {runMetadata.seed}</p>
+          <p>Current tick: {runMetadata.tickCount}</p>
+          <p>Run start tick marker: {runStartTick}</p>
+          <p>Run elapsed marker: T+{runElapsedTicks} ticks</p>
+          <p>Speed multiplier: {runMetadata.speedMultiplier}</p>
+          <p>Snapshot ID: {runMetadata.snapshotId}</p>
+          <p>Config fingerprint: {simulationParametersFingerprint}</p>
+          <p>Config fingerprint hash: {simulationParametersFingerprintHash}</p>
+          <button type="button" onClick={onCopyRunMetadata} disabled={!hasSimulation}>Copy reproducibility string</button>
+        </details>
       </section>
 
       {replayActive ? (

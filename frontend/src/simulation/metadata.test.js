@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { deriveRunMetadata, NO_SNAPSHOT_ID, serializeRunMetadata } from './metadata';
+import { deriveRunMetadata, NO_SNAPSHOT_ID, serializeReproducibilityMetadata, serializeRunMetadata } from './metadata';
 
 describe('run metadata', () => {
   it('maps deterministic simulation values with stable snapshot fallback', () => {
@@ -30,5 +30,16 @@ describe('run metadata', () => {
     expect(serializeRunMetadata(metadata)).toBe(
       '{"seed":"seed-abc","tickCount":9,"speedMultiplier":"2x","snapshotId":"sim-9"}'
     );
+  });
+
+  it('serializes reproducibility payload with seed + config fingerprint fields only', () => {
+    expect(
+      serializeReproducibilityMetadata({
+        seed: 'seed-abc',
+        configFingerprint: '{"worldWidth":800}',
+        configFingerprintHash: 'deadbeef',
+        ignored: 'value'
+      })
+    ).toBe('{"seed":"seed-abc","configFingerprint":"{\\"worldWidth\\":800}","configFingerprintHash":"deadbeef"}');
   });
 });

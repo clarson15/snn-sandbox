@@ -17,3 +17,11 @@ export function serializeRunMetadata(metadata) {
     snapshotId: metadata.snapshotId
   });
 }
+
+export function serializeReproducibilityMetadata(metadata) {
+  return JSON.stringify({
+    seed: String(metadata?.seed ?? ''),
+    configFingerprint: String(metadata?.configFingerprint ?? ''),
+    configFingerprintHash: String(metadata?.configFingerprintHash ?? '')
+  });
+}

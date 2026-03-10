@@ -1015,38 +1015,41 @@ describe('App', () => {
     vi.useRealTimers();
   });
 
-  it('renders deterministic run metadata and copies a stable payload', async () => {
+  it('renders deterministic run metadata and copies a stable reproducibility payload', async () => {
     render(<App />);
 
     fireEvent.change(screen.getByLabelText(/seed/i), { target: { value: 'meta-seed' } });
     fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
 
     const runMetadataPanel = screen.getByRole('region', { name: /run metadata panel/i });
+    fireEvent.click(within(runMetadataPanel).getByText(/run metadata/i));
+
     expect(within(runMetadataPanel).getByText(/^seed:/i)).toHaveTextContent('Seed: meta-seed');
+    expect(within(runMetadataPanel).getByText(/^run start tick marker:/i)).toHaveTextContent('Run start tick marker: 0');
     expect(within(runMetadataPanel).getByText(/^speed multiplier:/i)).toHaveTextContent('Speed multiplier: 1x');
     expect(within(runMetadataPanel).getByText(/^snapshot id:/i)).toHaveTextContent('Snapshot ID: No snapshot');
+    expect(within(runMetadataPanel).getByText(/^config fingerprint:/i)).toBeInTheDocument();
+    expect(within(runMetadataPanel).getByText(/^config fingerprint hash:/i)).toBeInTheDocument();
 
     await waitFor(() => {
-      const tickValue = Number.parseInt(screen.getByText(/^current tick:/i).textContent.replace(/\D+/g, ''), 10);
+      const tickValue = Number.parseInt(within(runMetadataPanel).getByText(/^current tick:/i).textContent.replace(/\D+/g, ''), 10);
       expect(tickValue).toBeGreaterThan(0);
     });
 
     fireEvent.click(screen.getByRole('button', { name: /^5x$/i }));
-    expect(screen.getByText(/^speed multiplier:/i)).toHaveTextContent('Speed multiplier: 5x');
-
-    const tickValue = Number.parseInt(screen.getByText(/^current tick:/i).textContent.replace(/\D+/g, ''), 10);
+    expect(within(runMetadataPanel).getByText(/^speed multiplier:/i)).toHaveTextContent('Speed multiplier: 5x');
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /copy metadata payload/i }));
+      fireEvent.click(screen.getByRole('button', { name: /copy reproducibility string/i }));
     });
 
     expect(clipboardWriteText).toHaveBeenCalledTimes(1);
-    expect(screen.getByText(/metadata copied\./i)).toBeInTheDocument();
+    expect(screen.getByText(/reproducibility string copied\./i)).toBeInTheDocument();
 
     const copiedPayload = clipboardWriteText.mock.calls[0][0];
-    expect(copiedPayload).toBe(
-      `{"seed":"meta-seed","tickCount":${tickValue},"speedMultiplier":"5x","snapshotId":"No snapshot"}`
-    );
+    expect(copiedPayload).toContain('"seed":"meta-seed"');
+    expect(copiedPayload).toContain('"configFingerprint":"');
+    expect(copiedPayload).toContain('"configFingerprintHash":"');
   });
 
   it('loads a saved snapshot and shows active snapshot metadata', async () => {
@@ -1063,6 +1066,7 @@ describe('App', () => {
       expect(screen.getByText(/^tick count:/i)).toHaveTextContent('Tick count: 0');
       expect(screen.getByText(/loaded\./i)).toBeInTheDocument();
       const runMetadataPanel = screen.getByRole('region', { name: /run metadata panel/i });
+      fireEvent.click(within(runMetadataPanel).getByText(/run metadata/i));
       expect(within(runMetadataPanel).getByText(/^seed: fixture-seed$/i)).toBeInTheDocument();
       expect(within(runMetadataPanel).getByText(/^snapshot id: sim-fixture$/i)).toBeInTheDocument();
     });
