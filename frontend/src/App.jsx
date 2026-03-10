@@ -2394,7 +2394,7 @@ function App() {
         </section>
       ) : null}
 
-      <section className="config-panel" aria-label="simulation configuration">
+      <section className="config-panel layout-side-drawer-placeholder" aria-label="simulation configuration">
         <h2>Simulation config</h2>
 
         <label>
@@ -2513,7 +2513,7 @@ function App() {
 
       {resolvedSeed ? <p className="seed-banner">Resolved seed: {resolvedSeed}</p> : null}
 
-      <section className="controls" aria-label="simulation controls">
+      <section className="controls layout-bottom-controls-placeholder" aria-label="simulation controls">
         {hasUrlSeedMismatch ? (
           <div className="seed-mismatch-banner" role="status" aria-live="polite">
             <p>
