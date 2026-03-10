@@ -163,6 +163,31 @@ const RAW_REPLAY_PARITY_FIXTURES = [
     ]
   },
   {
+    name: 'boundary-wrap-and-heading-pressure',
+    profile: REPLAY_PROFILE_MATRIX.denseFood.id,
+    purpose: 'Force repeated edge-touching movement with dense boundary traffic to detect deterministic drift in world wrapping/clamping behavior.',
+    // Rationale: this fixture intentionally packs agents into a narrow world so many organisms
+    // repeatedly interact with the same boundary regions across ticks.
+    // That pressure helps catch floating-point accumulation and iteration-order edge-case drift
+    // in deterministic replay checks.
+    seed: 'fixture-boundary-wrap-and-heading-pressure',
+    worldWidth: 220,
+    worldHeight: 140,
+    initialPopulation: 34,
+    minimumPopulation: 16,
+    initialFoodCount: 18,
+    foodSpawnChance: 0.09,
+    foodEnergyValue: 7,
+    maxFood: 64,
+    mutationRate: 0.11,
+    mutationStrength: 0.17,
+    tickBudget: 110,
+    workBudget: {
+      enabled: true,
+      maxWorkUnits: 3740
+    }
+  },
+  {
     name: 'dense-collision-tie-break-ordering',
     profile: REPLAY_PROFILE_MATRIX.denseFood.id,
     purpose: 'Stress dense same-tick collisions and adjacency churn while asserting stable per-tick tie-break ordering summaries.',
