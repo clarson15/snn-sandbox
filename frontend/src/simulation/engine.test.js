@@ -1008,5 +1008,71 @@ describe('simulation engine skeleton', () => {
       expect(offspring1.traits.turnRate).toBe(offspring2.traits.turnRate);
       expect(offspring1.traits.metabolism).toBe(offspring2.traits.metabolism);
     });
+
+    it('scales food collection radius with organism visible size (deterministic)', () => {
+      // Food at distance 3 from organism
+      // Small organism (size=1) with base consumeRadius=2 cannot reach it
+      // Large organism (size=4) can reach it
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-small', x: 0, y: 0, energy: 10, traits: { size: 1, speed: 1, visionRange: 1, turnRate: 1, metabolism: 0 } },
+          { id: 'org-large', x: 0, y: 0, energy: 10, traits: { size: 4, speed: 1, visionRange: 1, turnRate: 1, metabolism: 0 } }
+        ],
+        food: [
+          { id: 'food-1', x: 0, y: 3, energyValue: 5 }  // Distance 3 from organism
+        ]
+      });
+
+      // Base consumeRadius is 2, so:
+      // - org-small (size=1): effective radius = max(2, 1) = 2, cannot reach food at distance 3
+      // - org-large (size=4): effective radius = max(2, 4) = 4, can reach food at distance 3
+      const next = stepWorld(state, createSeededPrng('size-radius'), {
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        agingCostMultiplier: 0,
+        consumeRadius: 2,  // base radius
+        foodSpawnChance: 0
+      });
+
+      const smallOrg = next.organisms.find(o => o.id === 'org-small');
+      const largeOrg = next.organisms.find(o => o.id === 'org-large');
+
+      // Small organism cannot reach food at distance 3 (effective radius = 2)
+      expect(smallOrg.energy).toBe(10);
+      // Large organism can reach food at distance 3 (effective radius = 4)
+      expect(largeOrg.energy).toBe(15); // 10 + 5
+      
+      // Food should be consumed by large organism
+      expect(next.food).toHaveLength(0);
+    });
+
+    it('uses visible size (traits.size) not total size for collection radius', () => {
+      // Organism with explicit size trait
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 0, y: 0, energy: 10, traits: { size: 3, speed: 1, visionRange: 1, turnRate: 1, metabolism: 0 } }
+        ],
+        food: [
+          { id: 'food-1', x: 0, y: 2.5, energyValue: 5 }  // Distance 2.5
+        ]
+      });
+
+      // With size=3, effective radius = max(2, 3) = 3, can reach food at distance 2.5
+      const next = stepWorld(state, createSeededPrng('visible-size'), {
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        agingCostMultiplier: 0,
+        consumeRadius: 2,
+        foodSpawnChance: 0
+      });
+
+      const org = next.organisms.find(o => o.id === 'org-1');
+      expect(org.energy).toBe(15); // 10 + 5
+      expect(next.food).toHaveLength(0);
+    });
   });
 });
