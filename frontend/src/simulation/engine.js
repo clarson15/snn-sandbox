@@ -428,17 +428,38 @@ export function stepWorld(state, rng, params = {}) {
   // Stable iteration ordering for deterministic food consumption.
   // Organisms consume in lexical id order; each organism can consume at most one food per tick.
   const foodById = new Map(state.food.map((item) => [item.id, { ...item }]));
-  const consumeRadiusSquared = consumeRadius * consumeRadius;
+  const baseConsumeRadius = params.consumeRadius ?? 2;
   const consumedEnergyByOrganismId = new Map();
-  const indexCellSize = Math.max(consumeRadius, 1);
-  const { cells: foodCellsByKey, foodIdToCellKey } = buildFoodSpatialIndex(foodById.values(), indexCellSize);
 
   const organismsByStableOrder = [...movedOrganisms].sort((a, b) => a.id.localeCompare(b.id));
+
+  // Pre-compute effective consume radii for all organisms and find max for spatial index.
+  // Food collection radius scales with organism's visible size (traits.size).
+  // Uses visible size (not total size) - larger organisms can reach food from further away.
+  // Formula: effectiveRadius = max(baseConsumeRadius, organism.traits.size)
+  // This ensures minimum reachability while scaling proportionally with size.
+  const organismConsumeRadii = new Map();
+  let maxConsumeRadius = baseConsumeRadius;
+  for (const organism of organismsByStableOrder) {
+    const organismSize = organism.traits?.size ?? 1;
+    const effectiveRadius = Math.max(baseConsumeRadius, organismSize);
+    organismConsumeRadii.set(organism.id, effectiveRadius);
+    if (effectiveRadius > maxConsumeRadius) {
+      maxConsumeRadius = effectiveRadius;
+    }
+  }
+
+  // Build spatial index with max radius to ensure all organisms can find nearby food
+  const indexCellSize = Math.max(maxConsumeRadius, 1);
+  const { cells: foodCellsByKey, foodIdToCellKey } = buildFoodSpatialIndex(foodById.values(), indexCellSize);
 
   for (const organism of organismsByStableOrder) {
     if (foodById.size === 0) {
       break;
     }
+
+    const consumeRadius = organismConsumeRadii.get(organism.id);
+    const consumeRadiusSquared = consumeRadius * consumeRadius;
 
     let chosenFoodId = null;
     let chosenDistance = Number.POSITIVE_INFINITY;
