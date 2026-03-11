@@ -320,6 +320,9 @@ function App() {
   const [formBaselineState, setFormBaselineState] = useState(initialFormState);
   const [selectedPresetId, setSelectedPresetId] = useState('');
   const [spectatorMode, setSpectatorMode] = useState(false);
+  const [sideNavDrawerOpen, setSideNavDrawerOpen] = useState(false);
+  const [inspectorPosition, setInspectorPosition] = useState({ x: 0, y: 0 });
+  const [isDraggingInspector, setIsDraggingInspector] = useState(false);
   const [shareStatus, setShareStatus] = useState('');
   const [queryPrefillStatus, setQueryPrefillStatus] = useState(initialQueryPrefill.warningMessage);
 
@@ -332,6 +335,8 @@ function App() {
   const deleteConfirmButtonRef = useRef(null);
   const replayInteractionRegionRef = useRef(null);
   const inspectorSelectionHeadingRef = useRef(null);
+  const inspectorRef = useRef(null);
+  const inspectorDragStartRef = useRef({ x: 0, y: 0 });
   const inspectorSectionButtonRefs = useRef(new Map());
   const rngRef = useRef(null);
   const stepParamsRef = useRef(null);
@@ -437,6 +442,40 @@ function App() {
     window.addEventListener('beforeunload', onBeforeUnload);
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [hasUnsavedFormChanges]);
+
+  // Global drag event handlers for inspector
+  useEffect(() => {
+    if (!isDraggingInspector) {
+      return;
+    }
+
+    const handleMouseMove = (event) => {
+      if (!isDraggingInspector) {
+        return;
+      }
+      const newX = event.clientX - inspectorDragStartRef.current.x;
+      const newY = event.clientY - inspectorDragStartRef.current.y;
+      // Constrain to viewport bounds
+      const maxX = window.innerWidth - 320;
+      const maxY = window.innerHeight - 200;
+      setInspectorPosition({
+        x: Math.max(-300, Math.min(maxX, newX)),
+        y: Math.max(0, Math.min(maxY, newY))
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingInspector(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDraggingInspector]);
 
   const advanceTicks = (count) => {
     if (!worldRef.current || !rngRef.current || !stepParamsRef.current || !Number.isInteger(count) || count <= 0) {
@@ -677,6 +716,49 @@ function App() {
 
       return nextPinned;
     });
+  };
+
+  const onToggleSideNavDrawer = () => {
+    setSideNavDrawerOpen((previous) => !previous);
+  };
+
+  const onCloseSideNavDrawer = () => {
+    setSideNavDrawerOpen(false);
+  };
+
+  const onInspectorDragStart = (event) => {
+    if (!inspectorRef.current) {
+      return;
+    }
+    // Only start drag from the drag handle
+    if (!event.target.classList.contains('inspector-drag-handle')) {
+      return;
+    }
+    event.preventDefault();
+    inspectorDragStartRef.current = {
+      x: event.clientX - inspectorPosition.x,
+      y: event.clientY - inspectorPosition.y
+    };
+    setIsDraggingInspector(true);
+  };
+
+  const onInspectorDrag = (event) => {
+    if (!isDraggingInspector) {
+      return;
+    }
+    const newX = event.clientX - inspectorDragStartRef.current.x;
+    const newY = event.clientY - inspectorDragStartRef.current.y;
+    // Constrain to viewport bounds
+    const maxX = window.innerWidth - 320;
+    const maxY = window.innerHeight - 200;
+    setInspectorPosition({
+      x: Math.max(-300, Math.min(maxX, newX)),
+      y: Math.max(0, Math.min(maxY, newY))
+    });
+  };
+
+  const onInspectorDragEnd = () => {
+    setIsDraggingInspector(false);
   };
 
   const selectAdjacentOrganism = (offset) => {
@@ -2375,7 +2457,40 @@ function App() {
       <header className="app-header">
         <h1>SNN Sandbox</h1>
         <p>Configure and run deterministic simulations</p>
+        <button type="button" className="side-nav-toggle" onClick={onToggleSideNavDrawer} aria-label="Toggle navigation menu">
+          ☰ Menu
+        </button>
       </header>
+
+      {/* Side navigation drawer */}
+      <div
+        className={`side-nav-drawer-overlay ${sideNavDrawerOpen ? 'is-visible' : ''}`}
+        onClick={onCloseSideNavDrawer}
+        aria-hidden="true"
+      />
+      <nav className={`side-nav-drawer ${sideNavDrawerOpen ? 'is-open' : ''}`} aria-label="side navigation">
+        <div className="side-nav-section">
+          <h3>Simulation</h3>
+          <a href="#" className="side-nav-link is-active" onClick={onCloseSideNavDrawer}>
+            🏠 Home / New
+          </a>
+          <button type="button" className="side-nav-link" onClick={onCloseSideNavDrawer}>
+            💾 Saved Simulations
+          </button>
+        </div>
+        <div className="side-nav-section">
+          <h3>Settings</h3>
+          <button type="button" className="side-nav-link" onClick={onCloseSideNavDrawer}>
+            ⚙️ Preferences
+          </button>
+        </div>
+        <div className="side-nav-section">
+          <h3>Help</h3>
+          <button type="button" className="side-nav-link" onClick={onCloseSideNavDrawer}>
+            ❓ About
+          </button>
+        </div>
+      </nav>
 
       {toastsEnabled ? (
         <section className="toast-viewport" aria-label="simulation control toasts" aria-live="polite" aria-atomic="true">
@@ -3064,8 +3179,21 @@ function App() {
         />
       </section>
 
-      <section className="config-panel" aria-label="organism inspector" role="region">
-        <h2 id="organism-inspector-heading">Organism inspector</h2>
+      <section
+        className="config-panel inspector-overlay"
+        aria-label="organism inspector"
+        role="region"
+        ref={inspectorRef}
+        style={{
+          transform: `translate(${inspectorPosition.x}px, ${inspectorPosition.y}px)`,
+          cursor: isDraggingInspector ? 'grabbing' : 'default'
+        }}
+        onMouseDown={onInspectorDragStart}
+      >
+        <div className="inspector-drag-handle">
+          <h2 id="organism-inspector-heading">Organism inspector</h2>
+          <span className="inspector-drag-hint" aria-hidden="true">⋮⋮</span>
+        </div>
         <div className="field-row" role="group" aria-label="organism selection controls">
           <button
             type="button"
