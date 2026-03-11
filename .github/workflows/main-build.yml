@@ -47,9 +47,7 @@ jobs:
           username: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
           password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
 
-      - name: Build and push Docker image (attempt 1)
-        id: docker_push_1
-        continue-on-error: true
+      - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -60,56 +58,6 @@ jobs:
             APP_VERSION=${{ steps.app_version.outputs.value }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Build and push Docker image (attempt 2)
-        id: docker_push_2
-        if: steps.docker_push_1.outcome == 'failure'
-        continue-on-error: true
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: ${{ env.IMAGE_TAG }}
-          build-args: |
-            APP_VERSION=${{ steps.app_version.outputs.value }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build and push Docker image (attempt 3)
-        id: docker_push_3
-        if: steps.docker_push_2.outcome == 'failure'
-        continue-on-error: true
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: ${{ env.IMAGE_TAG }}
-          build-args: |
-            APP_VERSION=${{ steps.app_version.outputs.value }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Verify Docker push succeeded within retry budget
-        run: |
-          if [ "${{ steps.docker_push_1.outcome }}" = "success" ]; then
-            echo "Docker push succeeded on attempt 1"
-            exit 0
-          fi
-
-          if [ "${{ steps.docker_push_2.outcome }}" = "success" ]; then
-            echo "Docker push succeeded on attempt 2"
-            exit 0
-          fi
-
-          if [ "${{ steps.docker_push_3.outcome }}" = "success" ]; then
-            echo "Docker push succeeded on attempt 3"
-            exit 0
-          fi
-
-          echo "Docker push failed after 3 attempts"
-          exit 1
 
       - name: Call deploy webhook
         env:
