@@ -416,40 +416,6 @@ function App() {
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [hasUnsavedFormChanges]);
 
-  // Global drag event handlers for inspector
-  useEffect(() => {
-    if (!isDraggingInspector) {
-      return;
-    }
-
-    const handleMouseMove = (event) => {
-      if (!isDraggingInspector) {
-        return;
-      }
-      const newX = event.clientX - inspectorDragStartRef.current.x;
-      const newY = event.clientY - inspectorDragStartRef.current.y;
-      // Constrain to viewport bounds
-      const maxX = window.innerWidth - 320;
-      const maxY = window.innerHeight - 200;
-      setInspectorPosition({
-        x: Math.max(-300, Math.min(maxX, newX)),
-        y: Math.max(0, Math.min(maxY, newY))
-      });
-    };
-
-    const handleMouseUp = () => {
-      setIsDraggingInspector(false);
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isDraggingInspector]);
-
   const advanceTicks = (count) => {
     if (!worldRef.current || !rngRef.current || !stepParamsRef.current || !Number.isInteger(count) || count <= 0) {
       return;
@@ -697,41 +663,6 @@ function App() {
 
   const onCloseSideNavDrawer = () => {
     setSideNavDrawerOpen(false);
-  };
-
-  const onInspectorDragStart = (event) => {
-    if (!inspectorRef.current) {
-      return;
-    }
-    // Only start drag from the drag handle
-    if (!event.target.classList.contains('inspector-drag-handle')) {
-      return;
-    }
-    event.preventDefault();
-    inspectorDragStartRef.current = {
-      x: event.clientX - inspectorPosition.x,
-      y: event.clientY - inspectorPosition.y
-    };
-    setIsDraggingInspector(true);
-  };
-
-  const onInspectorDrag = (event) => {
-    if (!isDraggingInspector) {
-      return;
-    }
-    const newX = event.clientX - inspectorDragStartRef.current.x;
-    const newY = event.clientY - inspectorDragStartRef.current.y;
-    // Constrain to viewport bounds
-    const maxX = window.innerWidth - 320;
-    const maxY = window.innerHeight - 200;
-    setInspectorPosition({
-      x: Math.max(-300, Math.min(maxX, newX)),
-      y: Math.max(0, Math.min(maxY, newY))
-    });
-  };
-
-  const onInspectorDragEnd = () => {
-    setIsDraggingInspector(false);
   };
 
   const selectAdjacentOrganism = (offset) => {
