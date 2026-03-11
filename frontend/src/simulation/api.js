@@ -190,3 +190,18 @@ export async function deleteSimulationSnapshot(snapshotId) {
     throw new Error(`Failed to delete snapshot (${response.status})`);
   }
 }
+
+export async function getStatus() {
+  const response = await fetch('/api/status', {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get status (${response.status})`);
+  }
+
+  return response.json();
+}

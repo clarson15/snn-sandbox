@@ -1074,6 +1074,13 @@ describe('App', () => {
 
   it('renders deterministic fallback metadata and disables resume for invalid saved rows', async () => {
     globalThis.fetch.mockImplementation(async (url, options = {}) => {
+      if (url === '/api/status' && (!options.method || options.method === 'GET')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ version: 'test-version', environment: 'test' })
+        };
+      }
       if (url === '/api/simulations/snapshots' && (!options.method || options.method === 'GET')) {
         return {
           ok: true,
@@ -1103,7 +1110,7 @@ describe('App', () => {
     expect(within(savedRegion).getByText(/seed metadata unavailable/i)).toBeInTheDocument();
     expect(within(savedRegion).getByText(/tick metadata unavailable/i)).toBeInTheDocument();
     expect(within(savedRegion).getByRole('button', { name: /^resume$/i })).toBeDisabled();
-    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
   });
 
   it('locks per-save resume actions while a snapshot load request is in flight', async () => {
@@ -1113,6 +1120,13 @@ describe('App', () => {
     });
 
     globalThis.fetch.mockImplementation(async (url, options = {}) => {
+      if (url === '/api/status' && (!options.method || options.method === 'GET')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ version: 'test-version', environment: 'test' })
+        };
+      }
       if (url === '/api/simulations/snapshots' && (!options.method || options.method === 'GET')) {
         return {
           ok: true,
@@ -1148,7 +1162,7 @@ describe('App', () => {
 
     fireEvent.click(within(savedRegion).getByRole('button', { name: /loading…/i }));
 
-    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(3);
 
     resolveSnapshot({
       id: 'sim-fixture',

@@ -63,6 +63,7 @@ import {
 import {
   deleteSimulationSnapshot,
   getSimulationSnapshot,
+  getStatus,
   listSimulationSnapshots,
   saveSimulationSnapshot,
   SnapshotNameConflictError
@@ -240,6 +241,7 @@ function App() {
   const [tickDisplay, setTickDisplay] = useState(0);
   const [runStartTick, setRunStartTick] = useState(0);
   const [resolvedSeed, setResolvedSeed] = useState('');
+  const [appVersion, setAppVersion] = useState('unknown');
   const [selectedOrganismId, setSelectedOrganismId] = useState(null);
   const [selectedOrganismUnavailable, setSelectedOrganismUnavailable] = useState(false);
   const [inspectorPinned, setInspectorPinned] = useState(false);
@@ -411,6 +413,16 @@ function App() {
   useEffect(() => {
     pausedRef.current = paused;
   }, [paused]);
+
+  useEffect(() => {
+    getStatus()
+      .then((status) => {
+        setAppVersion(status.version || 'unknown');
+      })
+      .catch(() => {
+        setAppVersion('unknown');
+      });
+  }, []);
 
   useEffect(() => {
     const onResize = () => {
@@ -2457,6 +2469,7 @@ function App() {
       <header className="app-header">
         <h1>SNN Sandbox</h1>
         <p>Configure and run deterministic simulations</p>
+        {appVersion !== 'unknown' && <p className="app-version">Version: {appVersion}</p>}
         <button type="button" className="side-nav-toggle" onClick={onToggleSideNavDrawer} aria-label="Toggle navigation menu">
           ☰ Menu
         </button>
