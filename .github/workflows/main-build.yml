@@ -9,7 +9,7 @@ on:
 
 env:
   REGISTRY: registry.charlielarson.dev
-  IMAGE_TAG: registry.charlielarson.dev/clarson15/snn-sandbox:latest
+  IMAGE_NAME: clarson15/snn-sandbox
 
 jobs:
   build-push-deploy:
@@ -32,9 +32,11 @@ jobs:
           if [ -n "$tag" ]; then
             echo "Using release tag as APP_VERSION: $tag"
             echo "value=${tag#v}" >> "$GITHUB_OUTPUT"
+            echo "sha_tag=${tag#v}" >> "$GITHUB_OUTPUT"
           else
             echo "No semver tag on HEAD; using commit-derived APP_VERSION"
             echo "value=0.0.0+sha.${short_sha}" >> "$GITHUB_OUTPUT"
+            echo "sha_tag=${short_sha}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Set up Docker Buildx
@@ -53,7 +55,9 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ env.IMAGE_TAG }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.app_version.outputs.sha_tag }}
           build-args: |
             APP_VERSION=${{ steps.app_version.outputs.value }}
           cache-from: type=gha
