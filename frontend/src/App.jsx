@@ -2654,7 +2654,7 @@ function App() {
         </ControlButtonWithHint>
         {seedControlStatus ? <p aria-live="polite">{seedControlStatus}</p> : null}
         <p role="status" aria-live="polite">
-          Runtime state: {replayActive ? 'Replay active' : paused ? 'Paused' : `Running at ${speedMultiplier}x`}
+          Tick: {tickDisplay} | {replayActive ? 'Replay active' : paused ? 'Paused' : `Running at ${speedMultiplier}x`}
         </p>
         {hasSimulation ? (
           <>
