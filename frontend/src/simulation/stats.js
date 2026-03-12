@@ -149,7 +149,7 @@ export function formatSimulationStats(stats) {
   const energyDeathWarning = Boolean(stats?.energyDeathWarning);
 
   return {
-    tickCount: String(tickCount),
+    tickCount: String(tickCount).padStart(7, '\u00A0'),
     elapsedTime: `${elapsedSeconds.toFixed(1)}s`,
     population: String(population),
     foodCount: String(foodCount),
