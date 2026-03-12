@@ -1184,6 +1184,74 @@ describe('simulation engine skeleton', () => {
       expect(Array.isArray(next.dangerZones)).toBe(true);
       expect(Array.isArray(next.obstacles)).toBe(true);
     });
+
+    it('removes organisms when energy reaches zero from hazard damage', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 50, y: 50, energy: 3, age: 0, generation: 1, direction: 0 }
+        ],
+        dangerZones: [
+          { x: 50, y: 50, radius: 10, damagePerTick: 2 }
+        ]
+      });
+
+      const rng = createSeededPrng('hazard-death-test');
+      let currentState = state;
+
+      // First tick: energy 3 - 2 = 1
+      currentState = stepWorld(currentState, rng, {
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0
+      });
+      expect(currentState.organisms.length).toBe(1);
+      expect(currentState.organisms[0].energy).toBe(1);
+
+      // Second tick: energy 1 - 2 = -1, organism dies and is removed
+      currentState = stepWorld(currentState, rng, {
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0
+      });
+      expect(currentState.organisms.length).toBe(0);
+    });
+
+    it('applies deterministic damage with same seed', () => {
+      const createState = () => createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1, direction: 0 }
+        ],
+        dangerZones: [
+          { x: 50, y: 50, radius: 10, damagePerTick: 1 }
+        ]
+      });
+
+      const rng1 = createSeededPrng('deterministic-hazard-seed');
+      let result1 = createState();
+      for (let i = 0; i < 10; i++) {
+        result1 = stepWorld(result1, rng1, {
+          movementDelta: 0,
+          metabolismPerTick: 0,
+          movementCostMultiplier: 0
+        });
+      }
+
+      const rng2 = createSeededPrng('deterministic-hazard-seed');
+      let result2 = createState();
+      for (let i = 0; i < 10; i++) {
+        result2 = stepWorld(result2, rng2, {
+          movementDelta: 0,
+          metabolismPerTick: 0,
+          movementCostMultiplier: 0
+        });
+      }
+
+      // Same seed + same params = identical results
+      expect(result1.organisms[0].energy).toBe(result2.organisms[0].energy);
+      expect(result1.organisms[0].energy).toBe(90); // 100 - (10 * 1)
+    });
   });
 
 });
