@@ -173,6 +173,82 @@ input {
   font-weight: 500;
 }
 
+.organism-hud-brain {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #334155;
+}
+
+.organism-hud-brain .brain-graph-controls {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.organism-hud-brain .brain-graph-controls button {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  background: #334155;
+  color: #e2e8f0;
+  border: 1px solid #475569;
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+
+.organism-hud-brain .brain-graph-controls button:hover {
+  background: #475569;
+}
+
+.organism-hud-brain .brain-graph {
+  width: 100%;
+  border: 1px solid #334155;
+  border-radius: 0.375rem;
+  background: #020617;
+}
+
+.organism-hud-brain .brain-graph-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  padding: 0.375rem;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 0.25rem;
+  font-size: 0.7rem;
+}
+
+.organism-hud-brain .brain-graph-legend-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.organism-hud-brain .brain-graph-legend-section strong {
+  font-size: 0.65rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
+.organism-hud-brain .brain-graph-legend-items {
+  display: flex;
+  gap: 0.375rem;
+}
+
+.organism-hud-brain .brain-graph-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  color: #e2e8f0;
+}
+
+.organism-hud-brain .brain-graph-legend-swatch {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 0.125rem;
+}
+
 /* Draggable inspector handle */
 .inspector-drag-handle {
   display: flex;
