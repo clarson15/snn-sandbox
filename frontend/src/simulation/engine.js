@@ -775,20 +775,48 @@ const GENERATION_COLORS = [
  *
  * @param {WorldOrganism[]} organisms
  * @param {number} [similarityThreshold=0.5] max distance to be considered same species
+ * @param {Map<string, string>} [previousSpeciesAssignments] optional previous species map to preserve stable IDs
  * @returns {Map<string, string>} Map of organism ID -> species ID
  */
-export function detectSpecies(organisms, similarityThreshold = 0.5) {
+export function detectSpecies(organisms, similarityThreshold = 0.5, previousSpeciesAssignments = null) {
   if (!organisms || organisms.length === 0) {
     return new Map();
   }
 
-  // Each organism starts as its own species
-  const speciesAssignments = new Map();
-  const speciesRepresentatives = organisms.map((o, i) => ({ organism: o, speciesId: `species-${i}` }));
+  // Find the next available species ID number to avoid collisions
+  let nextSpeciesIdNum = 0;
+  if (previousSpeciesAssignments) {
+    for (const speciesId of previousSpeciesAssignments.values()) {
+      const match = speciesId.match(/species-(\d+)/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num >= nextSpeciesIdNum) {
+          nextSpeciesIdNum = num + 1;
+        }
+      }
+    }
+  }
 
-  // Assign initial species IDs
-  for (const rep of speciesRepresentatives) {
-    speciesAssignments.set(rep.organism.id, rep.speciesId);
+  // Each organism starts as its own species
+  // Preserve species IDs from previous assignments for existing organisms
+  const speciesAssignments = new Map();
+  const speciesRepresentatives = [];
+  let newIdCounter = nextSpeciesIdNum;
+
+  for (let i = 0; i < organisms.length; i++) {
+    const o = organisms[i];
+    let speciesId;
+
+    // Use previous species assignment if available
+    if (previousSpeciesAssignments && previousSpeciesAssignments.has(o.id)) {
+      speciesId = previousSpeciesAssignments.get(o.id);
+    } else {
+      // New organism gets a new unique species ID
+      speciesId = `species-${newIdCounter++}`;
+    }
+
+    speciesAssignments.set(o.id, speciesId);
+    speciesRepresentatives.push({ organism: o, speciesId });
   }
 
   // Agglomerative clustering: merge closest species

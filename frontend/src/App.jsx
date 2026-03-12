@@ -331,6 +331,7 @@ function App() {
   const activeConfigRef = useRef(null);
   const viewportRef = useRef({ width: DEFAULT_CONFIG.worldWidth, height: DEFAULT_CONFIG.worldHeight });
   const replayContextRef = useRef(null);
+  const previousSpeciesMapRef = useRef(null);
   const { toasts, enqueueToast, dismissToast } = useToasts();
   const toastsEnabled = process.env.NODE_ENV !== 'test';
 
@@ -1406,10 +1407,18 @@ function App() {
   const derivedStats = useMemo(() => deriveSimulationStats(displayWorld), [displayWorld, tickDisplay, resolvedSeed]);
 
   // Compute species map for visual species identification (SSN-219)
+  // Pass previous species assignments to maintain stable colors as organisms die
   const speciesMap = useMemo(() => {
     if (!displayWorld?.organisms) return null;
-    return detectSpecies(displayWorld.organisms, 0.5);
+    return detectSpecies(displayWorld.organisms, 0.5, previousSpeciesMapRef.current);
   }, [displayWorld]);
+
+  // Update the ref with the new species map for the next render
+  useEffect(() => {
+    if (speciesMap) {
+      previousSpeciesMapRef.current = speciesMap;
+    }
+  }, [speciesMap]);
 
   // Get species info for selected organism (SSN-219)
   const selectedOrganismSpeciesId = useMemo(() => {
