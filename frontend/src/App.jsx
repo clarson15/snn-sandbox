@@ -319,6 +319,7 @@ function App() {
   const pausedRef = useRef(paused);
   const speedMultiplierRef = useRef(speedMultiplier);
   const canvasRef = useRef(null);
+  const canvasScaleRef = useRef(1); // devicePixelRatio for canvas
   const keyboardShortcutsTriggerRef = useRef(null);
   const keyboardShortcutsCloseButtonRef = useRef(null);
   const deleteConfirmButtonRef = useRef(null);
@@ -509,6 +510,17 @@ function App() {
       return undefined;
     }
 
+    // Scale canvas for high-DPI displays (crisp rendering)
+    const dpr = window.devicePixelRatio || 1;
+    canvasScaleRef.current = dpr;
+    const logicalWidth = viewportRef.current.width;
+    const logicalHeight = viewportRef.current.height;
+    canvas.width = logicalWidth * dpr;
+    canvas.height = logicalHeight * dpr;
+    if (ctx.scale) {
+      ctx.scale(dpr, dpr);
+    }
+
     let frameRequest = 0;
     let frameNumber = 0;
     const render = () => {
@@ -527,6 +539,36 @@ function App() {
 
     return () => cancelAnimationFrame(frameRequest);
   }, [replayWorldState, selectedOrganismId]);
+
+  // Handle canvas DPI scaling when viewport changes
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return;
+    }
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      return;
+    }
+
+    const dpr = window.devicePixelRatio || 1;
+    canvasScaleRef.current = dpr;
+    const logicalWidth = viewportRef.current.width;
+    const logicalHeight = viewportRef.current.height;
+    canvas.width = logicalWidth * dpr;
+    canvas.height = logicalHeight * dpr;
+    if (ctx.setTransform) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform before scaling
+    }
+    if (ctx.scale) {
+      ctx.scale(dpr, dpr);
+    }
+
+    // Also update canvas element attributes to match (for React reconciliation)
+    canvas.setAttribute('width', String(logicalWidth * dpr));
+    canvas.setAttribute('height', String(logicalHeight * dpr));
+  }, [formState.worldWidth, formState.worldHeight]);
 
   useEffect(() => {
     if (replayWorldState) {
@@ -1813,8 +1855,10 @@ function App() {
     }
 
     const rect = canvasRef.current.getBoundingClientRect();
-    const scaleX = canvasRef.current.width / rect.width;
-    const scaleY = canvasRef.current.height / rect.height;
+    // canvas.width is scaled by devicePixelRatio, so we divide by it to get logical coordinates
+    const dpr = canvasScaleRef.current;
+    const scaleX = (canvasRef.current.width / rect.width) / dpr;
+    const scaleY = (canvasRef.current.height / rect.height) / dpr;
     const x = (event.clientX - rect.left) * scaleX;
     const y = (event.clientY - rect.top) * scaleY;
 
