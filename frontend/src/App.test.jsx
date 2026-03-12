@@ -1154,13 +1154,18 @@ describe('App', () => {
 
     fireEvent.click(resumeButton);
 
-    expect(within(savedRegion).getByRole('button', { name: /loading…/i })).toBeDisabled();
+    // Both Resume and Spectate buttons show loading state when clicked
+    const loadingButtons = within(savedRegion).getAllByRole('button', { name: /loading…/i });
+    expect(loadingButtons.length).toBeGreaterThanOrEqual(1);
+    loadingButtons.forEach((btn) => expect(btn).toBeDisabled());
     expect(globalThis.fetch).toHaveBeenCalledWith(
       '/api/simulations/snapshots/sim-fixture',
       expect.objectContaining({ method: 'GET' })
     );
 
-    fireEvent.click(within(savedRegion).getByRole('button', { name: /loading…/i }));
+    // Click the first loading button to cancel
+    const loadingButtonsBeforeCancel = within(savedRegion).getAllByRole('button', { name: /loading…/i });
+    fireEvent.click(loadingButtonsBeforeCancel[0]);
 
     expect(globalThis.fetch).toHaveBeenCalledTimes(3);
 
