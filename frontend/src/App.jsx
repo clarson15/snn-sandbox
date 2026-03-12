@@ -3065,6 +3065,7 @@ function App() {
           </div>
           <p>Seed: {hudSeedLabel}</p>
           <p>Population: {formattedStats.population} ({formatTrendIndicator(statsTrends.population)})</p>
+          {isDetailedHudVisible ? <p>Species count: {formattedStats.speciesCount}</p> : null}
           {isDetailedHudVisible ? <p>Food count: {formattedStats.foodCount}</p> : null}
           {isDetailedHudVisible ? <p>Average generation: {formattedStats.averageGeneration}</p> : null}
           {isDetailedHudVisible ? <p>Average organism energy: {formattedStats.averageEnergy} ({formatTrendIndicator(statsTrends.averageEnergy)})</p> : null}

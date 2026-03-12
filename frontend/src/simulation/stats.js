@@ -14,6 +14,84 @@ function toNonNegativeInteger(value) {
   return Math.max(0, Math.trunc(value));
 }
 
+/**
+ * Calculate genetic distance between two organisms based on trait differences.
+ * Uses normalized Euclidean distance across all physical traits.
+ * @param {object} o1 - First organism with traits {size, speed, visionRange, turnRate, metabolism}
+ * @param {object} o2 - Second organism with traits
+ * @returns {number} Distance between 0 and 1 (1 = max different)
+ */
+function calculateGeneticDistance(o1, o2) {
+  const traits = ['size', 'speed', 'visionRange', 'turnRate', 'metabolism'];
+
+  // Get trait ranges from typical values to normalize
+  const maxValues = { size: 5, speed: 5, visionRange: 20, turnRate: 1, metabolism: 1 };
+
+  let squaredSum = 0;
+  for (const trait of traits) {
+    const v1 = o1?.traits?.[trait] ?? 0;
+    const v2 = o2?.traits?.[trait] ?? 0;
+    const maxVal = maxValues[trait] || 1;
+    const diff = (v1 - v2) / maxVal;
+    squaredSum += diff * diff;
+  }
+
+  return Math.sqrt(squaredSum);
+}
+
+/**
+ * Cluster organisms into species using single-linkage clustering.
+ * Two organisms are in the same species if their distance is below threshold.
+ * @param {WorldOrganism[]} organisms - Array of organisms
+ * @param {number} threshold - Distance threshold (default 0.3)
+ * @returns {number} Number of distinct species
+ */
+function countSpecies(organisms, threshold = 0.3) {
+  if (!organisms || organisms.length === 0) return 0;
+  if (organisms.length === 1) return 1;
+
+  // Build adjacency: pairs of organisms below threshold distance
+  const n = organisms.length;
+  const adjacency = new Map();
+
+  // Initialize all nodes first
+  for (let i = 0; i < n; i++) {
+    adjacency.set(i, new Set());
+  }
+
+  // Add edges between organisms below threshold distance
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      if (calculateGeneticDistance(organisms[i], organisms[j]) <= threshold) {
+        adjacency.get(i).add(j);
+        adjacency.get(j).add(i);
+      }
+    }
+  }
+
+  // Find connected components (species)
+  const visited = new Set();
+  let speciesCount = 0;
+
+  function dfs(node) {
+    visited.add(node);
+    for (const neighbor of adjacency.get(node) || []) {
+      if (!visited.has(neighbor)) {
+        dfs(neighbor);
+      }
+    }
+  }
+
+  for (let i = 0; i < n; i++) {
+    if (!visited.has(i)) {
+      speciesCount++;
+      dfs(i);
+    }
+  }
+
+  return speciesCount;
+}
+
 export const STATS_TREND_WINDOW_TICKS = 120;
 export const STATS_TREND_DIRECTIONS = {
   UP: 'up',
@@ -38,6 +116,7 @@ export function deriveSimulationStats(worldState) {
 
   const tickCount = toNonNegativeInteger(worldState?.tick);
   const population = organisms.length;
+  const speciesCount = countSpecies(organisms);
 
   return {
     tickCount,
@@ -45,7 +124,8 @@ export function deriveSimulationStats(worldState) {
     population,
     foodCount: food.length,
     averageGeneration: population ? totals.generation / population : 0,
-    averageEnergy: population ? totals.energy / population : 0
+    averageEnergy: population ? totals.energy / population : 0,
+    speciesCount
   };
 }
 
@@ -56,6 +136,7 @@ export function formatSimulationStats(stats) {
   const foodCount = toNonNegativeInteger(stats?.foodCount);
   const averageGeneration = toFiniteNumber(stats?.averageGeneration);
   const averageEnergy = toFiniteNumber(stats?.averageEnergy);
+  const speciesCount = toNonNegativeInteger(stats?.speciesCount);
 
   return {
     tickCount: String(tickCount),
@@ -63,7 +144,8 @@ export function formatSimulationStats(stats) {
     population: String(population),
     foodCount: String(foodCount),
     averageGeneration: averageGeneration.toFixed(1),
-    averageEnergy: averageEnergy.toFixed(1)
+    averageEnergy: averageEnergy.toFixed(1),
+    speciesCount: String(speciesCount)
   };
 }
 
