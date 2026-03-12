@@ -2068,6 +2068,66 @@ function App() {
     }
   };
 
+  const onSpectateSimulation = async (snapshotSummary) => {
+    if (loadingSnapshotById[snapshotSummary.id]) {
+      return;
+    }
+
+    if (!confirmDiscardUnsavedRunChanges() || !confirmDiscardUnsavedFormChanges()) {
+      setLoadStatus('Spectate cancelled.');
+      return;
+    }
+
+    setLoadingSnapshotById((previous) => ({
+      ...previous,
+      [snapshotSummary.id]: true
+    }));
+    setLoadStatus('Loading for spectating…');
+    setLoadRecoveryBySnapshotId((previous) => {
+      if (!previous[snapshotSummary.id]) {
+        return previous;
+      }
+
+      const next = { ...previous };
+      delete next[snapshotSummary.id];
+      return next;
+    });
+
+    try {
+      const snapshot = await getSimulationSnapshot(snapshotSummary.id);
+      applyLoadedSimulation(snapshot);
+      setActiveLoadedMetadata({
+        id: snapshot.id,
+        name: snapshot.name ?? snapshotSummary.name,
+        updatedAt: snapshot.updatedAt ?? snapshotSummary.updatedAt
+      });
+      setSpectatorMode(true);
+      // Update URL to include spectator param for sharing
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.set('snapshot', snapshot.id);
+      newUrl.searchParams.set('spectator', 'true');
+      window.history.replaceState({}, '', newUrl.toString());
+      setCopyMetadataStatus('');
+      setLoadStatus('Spectating.');
+    } catch {
+      setLoadStatus('Failed to load snapshot for spectating.');
+      setLoadRecoveryBySnapshotId((previous) => ({
+        ...previous,
+        [snapshotSummary.id]: 'Snapshot could not be spectated. Retry or select a different save.'
+      }));
+    } finally {
+      setLoadingSnapshotById((previous) => {
+        if (!previous[snapshotSummary.id]) {
+          return previous;
+        }
+
+        const next = { ...previous };
+        delete next[snapshotSummary.id];
+        return next;
+      });
+    }
+  };
+
   const onDeleteSimulation = (snapshotSummary) => {
     if (loadingSnapshotById[snapshotSummary.id]) {
       return;
@@ -3119,6 +3179,9 @@ function App() {
                   </button>{' '}
                   <button type="button" onClick={() => onLoadSimulation(snapshot)} disabled={isLoadingSnapshot || !hasValidMetadata}>
                     {isLoadingSnapshot ? 'Loading…' : 'Resume'}
+                  </button>{' '}
+                  <button type="button" onClick={() => onSpectateSimulation(snapshot)} disabled={isLoadingSnapshot || !hasValidMetadata}>
+                    {isLoadingSnapshot ? 'Loading…' : 'Spectate'}
                   </button>{' '}
                   <button type="button" onClick={() => onDeleteSimulation(snapshot)} disabled={isLoadingSnapshot}>Delete</button>
                   {loadRecoveryBySnapshotId[snapshot.id] ? (
