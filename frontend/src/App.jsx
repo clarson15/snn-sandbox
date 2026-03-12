@@ -3312,6 +3312,11 @@ function App() {
           </div>
           <p>Seed: {hudSeedLabel}</p>
           <p>Population: {formattedStats.population} ({formatTrendIndicator(statsTrends.population)})</p>
+          {formattedStats.energyDeathWarning && (
+            <p style={{color: '#ff6b6b', fontWeight: 'bold'}}>
+              ⚠️ Warning: Low energy - organisms at risk of dying
+            </p>
+          )}
           {isDetailedHudVisible ? <p>Species count: {formattedStats.speciesCount}</p> : null}
           {isDetailedHudVisible && speciesLegend.length > 0 && (
             <div className="species-legend" style={{marginTop: '8px'}}>

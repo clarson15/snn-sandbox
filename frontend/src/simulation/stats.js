@@ -102,6 +102,10 @@ export const STATS_TREND_DIRECTIONS = {
 const POPULATION_TREND_EPSILON = 0;
 const AVERAGE_ENERGY_TREND_EPSILON = 0.1;
 
+// Warning threshold for average organism energy
+// Below this level, organisms are at risk of dying from energy exhaustion
+const ENERGY_DEATH_WARNING_THRESHOLD = 5;
+
 export function deriveSimulationStats(worldState) {
   const organisms = Array.isArray(worldState?.organisms) ? worldState.organisms : [];
   const food = Array.isArray(worldState?.food) ? worldState.food : [];
@@ -117,6 +121,10 @@ export function deriveSimulationStats(worldState) {
   const tickCount = toNonNegativeInteger(worldState?.tick);
   const population = organisms.length;
   const speciesCount = countSpecies(organisms);
+  const averageEnergy = population ? totals.energy / population : 0;
+
+  // Warn when average energy is critically low - organisms at risk of dying
+  const energyDeathWarning = averageEnergy > 0 && averageEnergy < ENERGY_DEATH_WARNING_THRESHOLD;
 
   return {
     tickCount,
@@ -124,8 +132,9 @@ export function deriveSimulationStats(worldState) {
     population,
     foodCount: food.length,
     averageGeneration: population ? totals.generation / population : 0,
-    averageEnergy: population ? totals.energy / population : 0,
-    speciesCount
+    averageEnergy,
+    speciesCount,
+    energyDeathWarning
   };
 }
 
@@ -137,6 +146,7 @@ export function formatSimulationStats(stats) {
   const averageGeneration = toFiniteNumber(stats?.averageGeneration);
   const averageEnergy = toFiniteNumber(stats?.averageEnergy);
   const speciesCount = toNonNegativeInteger(stats?.speciesCount);
+  const energyDeathWarning = Boolean(stats?.energyDeathWarning);
 
   return {
     tickCount: String(tickCount),
@@ -145,7 +155,8 @@ export function formatSimulationStats(stats) {
     foodCount: String(foodCount),
     averageGeneration: averageGeneration.toFixed(1),
     averageEnergy: averageEnergy.toFixed(1),
-    speciesCount: String(speciesCount)
+    speciesCount: String(speciesCount),
+    energyDeathWarning
   };
 }
 
