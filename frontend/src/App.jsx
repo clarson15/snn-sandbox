@@ -88,6 +88,8 @@ import { deriveInspectorTraitSections, INSPECTOR_TRAIT_SECTION_SCHEMA } from './
 import { deriveInspectorTraitDeltaModel } from './inspectorTraitDelta';
 import { deriveInspectorGenomeMutationSummaryModel } from './inspectorGenomeMutationSummary';
 import { deriveInspectorSynapseTableRows } from './inspectorSynapseTable';
+import { deriveInspectorComparisonRows } from './inspectorComparison';
+import { deriveNeuronDetailPanel } from './inspectorNeuronDetail';
 
 const TICK_MS = 1000 / 30;
 const SPEED_OPTIONS = [1, 2, 5, 10];
