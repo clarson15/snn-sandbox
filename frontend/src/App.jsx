@@ -34,6 +34,11 @@ import { computeFixedStepBudget, resolveMaxCatchUpTicksPerFrame } from './simula
 import { pickOrganismAtPoint } from './simulation/selection';
 import { deriveDeterministicOrganismIds } from './inspectorSelection';
 import {
+  deriveInspectorTrendSeries,
+  formatTrendPolyline,
+  INSPECTOR_TREND_WINDOW_TICKS
+} from './inspectorTrend';
+import {
   deriveSimulationStats,
   deriveStatsTrends,
   formatSimulationStats,
@@ -223,6 +228,7 @@ function App() {
   const [inspectorPinned, setInspectorPinned] = useState(false);
   const [pinnedOrganismSnapshot, setPinnedOrganismSnapshot] = useState(null);
   const [selectedOrganismUnavailable, setSelectedOrganismUnavailable] = useState(false);
+  const [inspectorTrendState, setInspectorTrendState] = useState(() => ({ selectedOrganismId: null, samples: [] }));
   const [hoveredSynapseId, setHoveredSynapseId] = useState(null);
   const [selectedSynapseHighlight, setSelectedSynapseHighlight] = useState(null);
   const [brainGraphTransform, setBrainGraphTransform] = useState(() => ({ scale: 1, translateX: 0, translateY: 0 }));
