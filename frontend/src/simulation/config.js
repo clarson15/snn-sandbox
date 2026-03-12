@@ -224,6 +224,10 @@ export const DEFAULT_CONFIG = {
   maxFood: 120,
   mutationRate: 0.05,
   mutationStrength: 0.1,
+  // Reproduction settings
+  reproductionThreshold: 60,
+  reproductionCost: 20,
+  offspringStartEnergy: 15,
   // Environmental hazards
   enableObstacles: false,
   obstacleCount: 3,
@@ -469,6 +473,9 @@ export function toEngineStepParams(config) {
     minimumPopulation: config.minimumPopulation,
     mutationRate: config.mutationRate,
     mutationStrength: config.mutationStrength,
+    reproductionThreshold: config.reproductionThreshold,
+    reproductionCost: config.reproductionCost,
+    offspringStartEnergy: config.offspringStartEnergy,
     createFloorSpawnOrganism: (id, rng) => createRandomizedOrganism({
       id,
       rng,
