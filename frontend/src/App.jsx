@@ -94,6 +94,7 @@ import { deriveNeuronDetailPanel } from './inspectorNeuronDetail';
 
 const TICK_MS = 1000 / 30;
 const SPEED_OPTIONS = [1, 2, 5, 10];
+const REPLAY_SPEED_OPTIONS = [0.5, 1, 2, 5];
 const SIMULATION_VERSION = 'snn-sandbox-v1';
 const INSPECTOR_COMPACT_BREAKPOINT_PX = 980;
 const INSPECTOR_TREND_STRIP_WIDTH = 280;
@@ -277,6 +278,7 @@ function App() {
   const [replayPresetName, setReplayPresetName] = useState('');
   const [replayPresetStatus, setReplayPresetStatus] = useState('');
   const [replayPlaying, setReplayPlaying] = useState(false);
+  const [replaySpeedMultiplier, setReplaySpeedMultiplier] = useState(1);
   const [replayComparisonPresets, setReplayComparisonPresets] = useState(() => loadReplayComparisonPresets());
   const [selectedMismatchEventKey, setSelectedMismatchEventKey] = useState(null);
   const [mismatchEventFilters, setMismatchEventFilters] = useState({ types: [], severities: [] });
@@ -2126,12 +2128,12 @@ function App() {
         setReplayStatus('Replay reached end.');
         return;
       }
-      const nextTick = tick + 1;
+      const nextTick = tick + replaySpeedMultiplier;
       jumpReplayToTick(nextTick, '', false);
-    }, 100);
+    }, 100 / replaySpeedMultiplier);
 
     return () => clearInterval(advanceInterval);
-  }, [replayPlaying, replayWorldState?.tick, replayTimeline.latestRecordedTick]);
+  }, [replayPlaying, replayWorldState?.tick, replayTimeline.latestRecordedTick, replaySpeedMultiplier]);
 
   const onReplayPlay = () => {
     if (!replayContextRef.current) {
@@ -2144,6 +2146,10 @@ function App() {
   const onReplayPause = () => {
     setReplayPlaying(false);
     setReplayStatus('Replay paused.');
+  };
+
+  const onReplaySpeedSelect = (multiplier) => {
+    setReplaySpeedMultiplier(multiplier);
   };
 
   const onJumpToFirstMismatch = () => {
@@ -2946,6 +2952,19 @@ function App() {
               ) : (
                 <button type="button" onClick={onReplayPlay}>Play</button>
               )}
+            </div>
+            <div className="speed-presets" role="group" aria-label="replay speed presets">
+              {REPLAY_SPEED_OPTIONS.map((multiplier) => (
+                <button
+                  key={`replay-speed-${multiplier}`}
+                  type="button"
+                  onClick={() => onReplaySpeedSelect(multiplier)}
+                  className={`speed-preset-button${replaySpeedMultiplier === multiplier ? ' is-active' : ''}`}
+                  aria-pressed={replaySpeedMultiplier === multiplier}
+                >
+                  {multiplier}x
+                </button>
+              ))}
             </div>
             <label>
               Jump to tick
