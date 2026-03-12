@@ -721,3 +721,88 @@ export function runTickSchedule(initialState, rng, schedule, params = {}) {
 
   return current;
 }
+
+/**
+ * Serialize a world state to JSON for storage/replay.
+ * Creates a deep copy suitable for storage.
+ * @param {WorldState} state
+ * @returns {string} JSON string representation
+ */
+export function serializeWorldState(state) {
+  const snapshot = createWorldState(state);
+  return JSON.stringify(snapshot);
+}
+
+/**
+ * Deserialize a world state from JSON.
+ * @param {string} json
+ * @returns {WorldState}
+ */
+export function deserializeWorldState(json) {
+  return JSON.parse(json);
+}
+
+/**
+ * Create a tick snapshot for replay recording.
+ * Includes world state and metadata needed for deterministic replay.
+ * @param {WorldState} state
+ * @param {StepParams} [params] simulation parameters for replay configuration
+ * @returns {object} snapshot object
+ */
+export function createTickSnapshot(state, params = {}) {
+  return {
+    tick: state.tick,
+    organisms: state.organisms.map((o) => ({
+      id: o.id,
+      x: o.x,
+      y: o.y,
+      energy: o.energy,
+      age: o.age,
+      generation: o.generation,
+      direction: o.direction,
+      traits: { ...o.traits },
+      genome: o.genome ? { ...o.genome } : undefined,
+      brain: o.brain ? { ...o.brain } : undefined
+    })),
+    food: state.food.map((f) => ({
+      id: f.id,
+      x: f.x,
+      y: f.y,
+      energyValue: f.energyValue
+    })),
+    obstacles: state.obstacles,
+    dangerZones: state.dangerZones,
+    // Include params hash for replay verification
+    paramsHash: hashParams(params)
+  };
+}
+
+/**
+ * Simple hash of params for verification (not cryptographic).
+ * @param {StepParams} params
+ * @returns {string}
+ */
+function hashParams(params) {
+  const keys = Object.keys(params).sort();
+  const parts = keys.map((k) => `${k}:${JSON.stringify(params[k])}`);
+  return btoa(parts.join('|')).slice(0, 16);
+}
+
+/**
+ * Create a replay recording containing all snapshots from start to end.
+ * @param {WorldState[]} snapshots array of world states (one per tick)
+ * @param {StepParams} params simulation parameters used
+ * @param {string} [seed] optional seed for deterministic replay
+ * @returns {object} complete replay data
+ */
+export function createReplayRecording(snapshots, params, seed = undefined) {
+  return {
+    version: 1,
+    seed,
+    params,
+    startTick: snapshots.length > 0 ? snapshots[0].tick : 0,
+    endTick: snapshots.length > 0 ? snapshots[snapshots.length - 1].tick : 0,
+    snapshotCount: snapshots.length,
+    snapshots: snapshots.map((s) => createTickSnapshot(s, params))
+  };
+}
