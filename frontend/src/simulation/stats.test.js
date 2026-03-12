@@ -30,7 +30,8 @@ describe('simulation stats', () => {
       foodCount: 3,
       averageGeneration: 3,
       averageEnergy: 15.5555,
-      speciesCount: 1
+      speciesCount: 1,
+      energyDeathWarning: false
     });
 
     // Guard against accidental render-path mutation.
@@ -54,7 +55,8 @@ describe('simulation stats', () => {
       foodCount: '0',
       averageGeneration: '0.0',
       averageEnergy: '0.0',
-      speciesCount: '0'
+      speciesCount: '0',
+      energyDeathWarning: false
     });
   });
 
@@ -75,7 +77,8 @@ describe('simulation stats', () => {
       foodCount: 1,
       averageGeneration: 2.45,
       averageEnergy: -1.6,
-      speciesCount: 1
+      speciesCount: 1,
+      energyDeathWarning: false
     });
 
     expect(formatSimulationStats({
@@ -85,7 +88,8 @@ describe('simulation stats', () => {
       foodCount: 1.9,
       averageGeneration: Number.POSITIVE_INFINITY,
       averageEnergy: Number.NEGATIVE_INFINITY,
-      speciesCount: -1
+      speciesCount: -1,
+      energyDeathWarning: false
     })).toEqual({
       tickCount: '0',
       elapsedTime: '0.0s',
@@ -93,7 +97,8 @@ describe('simulation stats', () => {
       foodCount: '1',
       averageGeneration: '0.0',
       averageEnergy: '0.0',
-      speciesCount: '0'
+      speciesCount: '0',
+      energyDeathWarning: false
     });
   });
 
