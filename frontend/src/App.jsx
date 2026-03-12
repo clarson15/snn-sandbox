@@ -3364,6 +3364,7 @@ function App() {
         )}
       </section>
 
+      {hasSimulation && (
       <section className="simulation-stage" aria-label="simulation stage">
         <section className="simulation-stats-hud" aria-label="simulation stats hud">
           <h2>Simulation stats</h2>
@@ -3540,6 +3541,7 @@ function App() {
           </div>
         )}
       </section>
+      )}
 
     </main>
   );
