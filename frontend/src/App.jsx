@@ -86,6 +86,7 @@ import {
 import { useToasts } from './toasts';
 import { deriveInspectorTraitSections, INSPECTOR_TRAIT_SECTION_SCHEMA } from './inspectorTraitSchema';
 import { deriveInspectorTraitDeltaModel } from './inspectorTraitDelta';
+import { deriveInspectorGenomeMutationSummaryModel } from './inspectorGenomeMutationSummary';
 
 const TICK_MS = 1000 / 30;
 const SPEED_OPTIONS = [1, 2, 5, 10];
