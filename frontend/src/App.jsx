@@ -1475,6 +1475,23 @@ function App() {
     return uniqueSpecies.map(id => ({ id, color: getSpeciesColor(id) }));
   }, [speciesMap]);
 
+  // Get unique hazard types for legend (SSN-237)
+  const hazardLegend = useMemo(() => {
+    if (!displayWorld || !displayWorld.dangerZones) return [];
+    const typeMap = new Map();
+    for (const zone of displayWorld.dangerZones) {
+      if (!typeMap.has(zone.type)) {
+        const colors = {
+          lava: '#ef4444',
+          acid: '#22c55e',
+          radiation: '#eab308'
+        };
+        typeMap.set(zone.type, { type: zone.type, color: colors[zone.type] || '#ef4444' });
+      }
+    }
+    return Array.from(typeMap.values());
+  }, [displayWorld]);
+
   const formattedStats = useMemo(() => formatSimulationStats(derivedStats), [derivedStats]);
 
   useEffect(() => {
@@ -3231,6 +3248,19 @@ function App() {
                   </div>
                 ))}
                 {speciesLegend.length > 10 && <span style={{fontSize: '11px'}}>+{speciesLegend.length - 10} more</span>}
+              </div>
+            </div>
+          )}
+          {isDetailedHudVisible && hazardLegend.length > 0 && (
+            <div className="hazard-legend" style={{marginTop: '8px'}}>
+              <strong>Hazards:</strong>
+              <div style={{display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px'}}>
+                {hazardLegend.map(({ type, color }) => (
+                  <div key={type} style={{display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px'}}>
+                    <span style={{display: 'inline-block', width: '10px', height: '10px', borderRadius: '2px', backgroundColor: color}}></span>
+                    {type}
+                  </div>
+                ))}
               </div>
             </div>
           )}

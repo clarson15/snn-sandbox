@@ -339,16 +339,20 @@ export function createInitialWorldFromConfig(config) {
 
   // Generate danger zones if enabled
   const dangerZones = [];
+  const hazardTypes = ['lava', 'acid', 'radiation'];
   if (config.enableDangerZones && config.dangerZoneCount > 0) {
     for (let i = 0; i < config.dangerZoneCount; i++) {
       const x = config.dangerZoneRadius + rng.nextFloat() * (config.worldWidth - 2 * config.dangerZoneRadius);
       const y = config.dangerZoneRadius + rng.nextFloat() * (config.worldHeight - 2 * config.dangerZoneRadius);
+      // Rotate through hazard types for visual variety
+      const type = hazardTypes[i % hazardTypes.length];
       dangerZones.push({
         id: `dangerzone-${i}`,
         x,
         y,
         radius: config.dangerZoneRadius,
-        damagePerTick: config.dangerZoneDamage
+        damagePerTick: config.dangerZoneDamage,
+        type
       });
     }
   }
