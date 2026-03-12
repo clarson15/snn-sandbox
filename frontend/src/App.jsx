@@ -3345,11 +3345,15 @@ function App() {
               </div>
             </div>
           )}
-          <p>Food count: {formattedStats.foodCount}</p>
-          <p>Average generation: {formattedStats.averageGeneration}</p>
-          <p>Average organism energy: {formattedStats.averageEnergy} ({formatTrendIndicator(statsTrends.averageEnergy)})</p>
-          <p>Tick count: {formattedStats.tickCount}</p>
-          <p>Time elapsed: {formattedStats.elapsedTime}</p>
+          {isDetailedHudVisible ? (
+            <>
+              <p>Food count: {formattedStats.foodCount}</p>
+              <p>Average generation: {formattedStats.averageGeneration}</p>
+              <p>Average organism energy: {formattedStats.averageEnergy} ({formatTrendIndicator(statsTrends.averageEnergy)})</p>
+              <p>Tick count: {formattedStats.tickCount}</p>
+              <p>Time elapsed: {formattedStats.elapsedTime}</p>
+            </>
+          ) : null}
           {isDetailedHudVisible ? (
             <p>Tick budget clamp: {schedulerClampState.active ? `Active (dropped ${schedulerClampState.droppedTicks} ticks this frame)` : 'Inactive'}</p>
           ) : null}
