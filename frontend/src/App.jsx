@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import packageJson from '../package.json';
 
 import { createWorldState, stepWorld, detectSpecies, getSpeciesColor } from './simulation/engine';
 import {
@@ -271,6 +272,8 @@ function App() {
   const [copyMetadataStatus, setCopyMetadataStatus] = useState('');
   const [seedControlStatus, setSeedControlStatus] = useState('');
   const [keyboardShortcutsModalOpen, setKeyboardShortcutsModalOpen] = useState(false);
+  const [preferencesModalOpen, setPreferencesModalOpen] = useState(false);
+  const [aboutModalOpen, setAboutModalOpen] = useState(false);
   const [activeLoadedMetadata, setActiveLoadedMetadata] = useState(null);
   const [persistedRunMetadata, setPersistedRunMetadata] = useState(null);
   const [replayTickInput, setReplayTickInput] = useState('');
@@ -414,10 +417,10 @@ function App() {
   useEffect(() => {
     getStatus()
       .then((status) => {
-        setAppVersion(status.version || 'unknown');
+        setAppVersion(status.version || packageJson.version);
       })
       .catch(() => {
-        setAppVersion('unknown');
+        setAppVersion(packageJson.version);
       });
   }, []);
 
@@ -2562,7 +2565,7 @@ function App() {
       <header className="app-header">
         <h1>SNN Sandbox</h1>
         <p>Configure and run deterministic simulations</p>
-        {appVersion !== 'unknown' && <p className="app-version">Version: {appVersion}</p>}
+        <p className="app-version">Version: {appVersion}</p>
         <button type="button" className="side-nav-toggle" onClick={onToggleSideNavDrawer} aria-label="Toggle navigation menu">
           ☰ Menu
         </button>
@@ -2580,19 +2583,40 @@ function App() {
           <a href="#" className="side-nav-link is-active" onClick={onCloseSideNavDrawer}>
             🏠 Home / New
           </a>
-          <button type="button" className="side-nav-link" onClick={onCloseSideNavDrawer}>
+          <button
+            type="button"
+            className="side-nav-link"
+            onClick={() => {
+              onCloseSideNavDrawer();
+              document.getElementById('saved-simulations-section')?.scrollIntoView({ behavior: 'smooth' });
+            }}
+          >
             💾 Saved Simulations
           </button>
         </div>
         <div className="side-nav-section">
           <h3>Settings</h3>
-          <button type="button" className="side-nav-link" onClick={onCloseSideNavDrawer}>
+          <button
+            type="button"
+            className="side-nav-link"
+            onClick={() => {
+              onCloseSideNavDrawer();
+              setPreferencesModalOpen(true);
+            }}
+          >
             ⚙️ Preferences
           </button>
         </div>
         <div className="side-nav-section">
           <h3>Help</h3>
-          <button type="button" className="side-nav-link" onClick={onCloseSideNavDrawer}>
+          <button
+            type="button"
+            className="side-nav-link"
+            onClick={() => {
+              onCloseSideNavDrawer();
+              setAboutModalOpen(true);
+            }}
+          >
             ❓ About
           </button>
         </div>
@@ -2934,6 +2958,55 @@ function App() {
         </div>
       ) : null}
 
+      {preferencesModalOpen ? (
+        <div className="modal-backdrop" role="presentation">
+          <section className="modal-panel" role="dialog" aria-modal="true" aria-label="preferences">
+            <div className="modal-header-row">
+              <h2>Preferences</h2>
+              <button type="button" onClick={() => setPreferencesModalOpen(false)} aria-label="Close preferences">
+                Close
+              </button>
+            </div>
+            <p>Preferences settings will be saved locally.</p>
+            <div className="field-row" style={{ marginTop: '1rem' }}>
+              <label>
+                <input type="checkbox" checked={hudVisibilityPreset === HUD_VISIBILITY_PRESETS.MINIMAL} onChange={() => setHudVisibilityPreset(HUD_VISIBILITY_PRESETS.MINIMAL)} />
+                Minimal HUD
+              </label>
+              <label>
+                <input type="checkbox" checked={hudVisibilityPreset === HUD_VISIBILITY_PRESETS.DETAILED} onChange={() => setHudVisibilityPreset(HUD_VISIBILITY_PRESETS.DETAILED)} />
+                Detailed HUD
+              </label>
+            </div>
+            <p>Press Escape to close this dialog.</p>
+          </section>
+        </div>
+      ) : null}
+
+      {aboutModalOpen ? (
+        <div className="modal-backdrop" role="presentation">
+          <section className="modal-panel" role="dialog" aria-modal="true" aria-label="about">
+            <div className="modal-header-row">
+              <h2>About SNN Sandbox</h2>
+              <button type="button" onClick={() => setAboutModalOpen(false)} aria-label="Close about">
+                Close
+              </button>
+            </div>
+            <p><strong>SNN Sandbox</strong> - Deterministic Spiking Neural Network Simulation</p>
+            <p style={{ marginTop: '0.5rem' }}>Version: {packageJson.version}</p>
+            <p style={{ marginTop: '0.5rem', color: '#b9c4d1' }}>
+              A deterministic simulation environment for evolving spiking neural networks.
+              The simulation produces identical results regardless of when or where it runs,
+              enabling reproducible scientific experiments.
+            </p>
+            <p style={{ marginTop: '0.5rem', color: '#b9c4d1' }}>
+              Built with React, deterministic PRNG, and spatial indexing for efficient simulation.
+            </p>
+            <p>Press Escape to close this dialog.</p>
+          </section>
+        </div>
+      ) : null}
+
       {pendingDeleteSnapshot ? (
         <div className="modal-backdrop" role="presentation">
           <section className="modal-panel" role="dialog" aria-modal="true" aria-label="delete saved simulation confirmation">
@@ -3229,7 +3302,7 @@ function App() {
         </p>
       ) : null}
 
-      <section className="config-panel" aria-label="saved simulations">
+      <section id="saved-simulations-section" className="config-panel" aria-label="saved simulations">
         <h2>Saved simulations</h2>
         <div className="field-row" aria-label="saved simulation list controls">
           <label>
