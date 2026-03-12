@@ -35,6 +35,7 @@ import { pickOrganismAtPoint } from './simulation/selection';
 import { deriveDeterministicOrganismIds } from './inspectorSelection';
 import {
   deriveInspectorTrendSeries,
+  reduceInspectorTrendState,
   formatTrendPolyline,
   INSPECTOR_TREND_WINDOW_TICKS
 } from './inspectorTrend';
@@ -232,9 +233,11 @@ function App() {
   const [appVersion, setAppVersion] = useState('unknown');
   const [selectedOrganismId, setSelectedOrganismId] = useState(null);
   const [inspectorPinned, setInspectorPinned] = useState(false);
+  const [isCompactInspectorLayout, setIsCompactInspectorLayout] = useState(false);
   const [pinnedOrganismSnapshot, setPinnedOrganismSnapshot] = useState(null);
   const [selectedOrganismUnavailable, setSelectedOrganismUnavailable] = useState(false);
   const [inspectorTrendState, setInspectorTrendState] = useState(() => ({ selectedOrganismId: null, samples: [] }));
+  const [activeInspectorSectionIndex, setActiveInspectorSectionIndex] = useState(0);
   const [hoveredSynapseId, setHoveredSynapseId] = useState(null);
   const [selectedSynapseHighlight, setSelectedSynapseHighlight] = useState(null);
   const [brainGraphTransform, setBrainGraphTransform] = useState(() => ({ scale: 1, translateX: 0, translateY: 0 }));
