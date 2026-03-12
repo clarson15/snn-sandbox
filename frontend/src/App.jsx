@@ -3104,7 +3104,6 @@ function App() {
               <p><strong>Generation:</strong> {formattedInspector.generation}</p>
               <p><strong>Size:</strong> {formattedInspector.size}</p>
               <p><strong>Energy:</strong> {formattedInspector.energy}</p>
-              <p><strong>Age:</strong> {formattedInspector.age}</p>
             </div>
           </div>
         )}
