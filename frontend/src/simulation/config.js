@@ -3,6 +3,96 @@ import { createSeededPrng } from './prng.js';
 
 export const STORAGE_KEY = 'snn-sandbox.latest-simulation-config';
 export const SEED_FALLBACK_COUNTER_KEY = 'snn-sandbox.seed-fallback-counter';
+export const CUSTOM_PRESETS_KEY = 'snn-sandbox.custom-presets';
+
+/**
+ * Get all custom presets from localStorage
+ * @returns {Array} Array of custom preset objects
+ */
+export function getCustomPresets() {
+  const storage = getStorage();
+  if (!storage) {
+    return [];
+  }
+
+  try {
+    const raw = storage.getItem(CUSTOM_PRESETS_KEY);
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Save a custom preset to localStorage
+ * @param {string} name - Preset name
+ * @param {object} config - Configuration object
+ * @returns {boolean} Success status
+ */
+export function saveCustomPreset(name, config) {
+  const storage = getStorage();
+  if (!storage) {
+    return false;
+  }
+
+  const presets = getCustomPresets();
+  const now = Date.now();
+  
+  // Create preset object with required fields
+  const preset = {
+    id: `custom-${now}`,
+    name: name.trim(),
+    description: `Custom preset: ${name}`,
+    config: {
+      worldWidth: config.worldWidth,
+      worldHeight: config.worldHeight,
+      initialPopulation: config.initialPopulation,
+      minimumPopulation: config.minimumPopulation,
+      initialFoodCount: config.initialFoodCount,
+      foodSpawnChance: config.foodSpawnChance,
+      foodEnergyValue: config.foodEnergyValue,
+      maxFood: config.maxFood,
+      mutationRate: config.mutationRate,
+      mutationStrength: config.mutationStrength
+    },
+    createdAt: now
+  };
+
+  presets.push(preset);
+  
+  try {
+    storage.setItem(CUSTOM_PRESETS_KEY, JSON.stringify(presets));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Delete a custom preset by ID
+ * @param {string} presetId - ID of preset to delete
+ * @returns {boolean} Success status
+ */
+export function deleteCustomPreset(presetId) {
+  const storage = getStorage();
+  if (!storage) {
+    return false;
+  }
+
+  const presets = getCustomPresets();
+  const filtered = presets.filter(p => p.id !== presetId);
+  
+  try {
+    storage.setItem(CUSTOM_PRESETS_KEY, JSON.stringify(filtered));
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 // Simulation quick-start presets
 export const SIMULATION_PRESETS = [

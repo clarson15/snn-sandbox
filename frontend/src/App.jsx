@@ -6,10 +6,12 @@ import {
   SIMULATION_PRESETS,
   applyPreset,
   createDeterministicRunBootstrap,
+  getCustomPresets,
   getPresetById,
   loadSimulationConfig,
   normalizeSimulationConfig,
   resolveSeed,
+  saveCustomPreset,
   saveSimulationConfig,
   toEngineStepParams,
   validateAndNormalizeLoadedSnapshot,
@@ -310,7 +312,17 @@ function App() {
   const [formState, setFormState] = useState(initialFormState);
   const [formBaselineState, setFormBaselineState] = useState(initialFormState);
   const [selectedPresetId, setSelectedPresetId] = useState('');
+  const [customPresets, setCustomPresets] = useState([]);
+  const [showSavePresetInput, setShowSavePresetInput] = useState(false);
+  const [newPresetName, setNewPresetName] = useState('');
   const [spectatorMode, setSpectatorMode] = useState(false);
+
+  // Load custom presets from localStorage on mount
+  useEffect(() => {
+    const loaded = getCustomPresets();
+    setCustomPresets(loaded);
+  }, []);
+
   const [sideNavDrawerOpen, setSideNavDrawerOpen] = useState(false);
   const [shareStatus, setShareStatus] = useState('');
   const [queryPrefillStatus, setQueryPrefillStatus] = useState(initialQueryPrefill.warningMessage);
@@ -1100,7 +1112,14 @@ function App() {
       return;
     }
 
-    const preset = getPresetById(presetId);
+    // Check built-in presets first
+    let preset = getPresetById(presetId);
+    
+    // If not found, check custom presets
+    if (!preset) {
+      preset = customPresets.find(p => p.id === presetId);
+    }
+
     if (!preset) {
       return;
     }
@@ -1124,6 +1143,33 @@ function App() {
 
     setFormState(newFormState);
     setErrors({});
+  };
+
+  const onSavePreset = () => {
+    if (!newPresetName.trim()) {
+      return;
+    }
+
+    const currentConfig = {
+      worldWidth: Number(formState.worldWidth) || DEFAULT_CONFIG.worldWidth,
+      worldHeight: Number(formState.worldHeight) || DEFAULT_CONFIG.worldHeight,
+      initialPopulation: Number(formState.initialPopulation) || DEFAULT_CONFIG.initialPopulation,
+      minimumPopulation: Number(formState.minimumPopulation) || DEFAULT_CONFIG.minimumPopulation,
+      initialFoodCount: Number(formState.initialFoodCount) || DEFAULT_CONFIG.initialFoodCount,
+      foodSpawnChance: Number(formState.foodSpawnChance) || DEFAULT_CONFIG.foodSpawnChance,
+      foodEnergyValue: Number(formState.foodEnergyValue) || DEFAULT_CONFIG.foodEnergyValue,
+      maxFood: Number(formState.maxFood) || DEFAULT_CONFIG.maxFood,
+      mutationRate: Number(formState.mutationRate) || DEFAULT_CONFIG.mutationRate,
+      mutationStrength: Number(formState.mutationStrength) || DEFAULT_CONFIG.mutationStrength
+    };
+
+    const success = saveCustomPreset(newPresetName, currentConfig);
+    if (success) {
+      const updatedPresets = getCustomPresets();
+      setCustomPresets(updatedPresets);
+      setNewPresetName('');
+      setShowSavePresetInput(false);
+    }
   };
 
   const deriveToastVariant = (message) => {
@@ -2581,12 +2627,42 @@ function App() {
                 {preset.name}
               </option>
             ))}
+            {customPresets.length > 0 && (
+              <optgroup label="Custom Presets">
+                {customPresets.map((preset) => (
+                  <option key={preset.id} value={preset.id}>
+                    {preset.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </label>
         {selectedPresetId && (
           <p className="field-hint">
-            {getPresetById(selectedPresetId)?.description}
+            {getPresetById(selectedPresetId)?.description || customPresets.find(p => p.id === selectedPresetId)?.description}
           </p>
+        )}
+
+        {!showSavePresetInput ? (
+          <button type="button" onClick={() => setShowSavePresetInput(true)}>
+            Save current as preset
+          </button>
+        ) : (
+          <div className="field-row">
+            <input
+              value={newPresetName}
+              onChange={(e) => setNewPresetName(e.target.value)}
+              placeholder="Preset name"
+              onKeyDown={(e) => e.key === 'Enter' && onSavePreset()}
+            />
+            <button type="button" onClick={onSavePreset}>
+              Save
+            </button>
+            <button type="button" onClick={() => { setShowSavePresetInput(false); setNewPresetName(''); }}>
+              Cancel
+            </button>
+          </div>
         )}
 
         <label>
