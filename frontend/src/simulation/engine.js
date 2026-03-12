@@ -782,13 +782,9 @@ export function stepWorld(state, rng, params = {}) {
     food: nextFood
   };
 
-  // Only include hazards if they have content (backward compatibility)
-  if (obstacles && obstacles.length > 0) {
-    returnState.obstacles = obstacles;
-  }
-  if (dangerZones && dangerZones.length > 0) {
-    returnState.dangerZones = dangerZones;
-  }
+  // Always include hazards for deterministic replay parity
+  returnState.obstacles = obstacles || [];
+  returnState.dangerZones = dangerZones || [];
 
   return returnState;
 }
