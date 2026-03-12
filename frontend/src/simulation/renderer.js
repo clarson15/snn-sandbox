@@ -99,6 +99,58 @@ export function drawWorldSnapshot(ctx, snapshot, viewport, renderOptions = {}) {
   ctx.fillStyle = '#020617';
   ctx.fillRect(0, 0, width, height);
 
+  // Draw danger zones (under everything)
+  if (snapshot.dangerZones) {
+    for (const zone of snapshot.dangerZones) {
+      // Draw danger zone with pulsing effect using tick-based animation
+      const pulseAlpha = 0.15 + 0.1 * Math.sin((snapshot.tick ?? 0) * 0.1);
+      const gradient = ctx.createRadialGradient(zone.x, zone.y, 0, zone.x, zone.y, zone.radius);
+      gradient.addColorStop(0, `rgba(239, 68, 68, ${pulseAlpha})`);
+      gradient.addColorStop(0.7, `rgba(239, 68, 68, ${pulseAlpha * 0.5})`);
+      gradient.addColorStop(1, 'rgba(239, 68, 68, 0)');
+
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(zone.x, zone.y, zone.radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Draw border
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.6)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(zone.x, zone.y, zone.radius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  // Draw obstacles
+  if (snapshot.obstacles) {
+    for (const obstacle of snapshot.obstacles) {
+      ctx.fillStyle = '#475569';
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 2;
+
+      // Draw rectangle with rounded appearance
+      const x = Math.max(0, obstacle.x);
+      const y = Math.max(0, obstacle.y);
+      const w = obstacle.width;
+      const h = obstacle.height;
+
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeRect(x, y, w, h);
+
+      // Add diagonal stripe pattern for visual distinction
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1;
+      for (let i = -h; i < w; i += 10) {
+        ctx.beginPath();
+        ctx.moveTo(x + i, y);
+        ctx.lineTo(x + i + h, y + h);
+        ctx.stroke();
+      }
+    }
+  }
+
   // Food first (under organisms)
   ctx.fillStyle = '#22c55e';
   for (const food of snapshot.food) {

@@ -29,10 +29,30 @@
  */
 
 /**
+ * @typedef {object} WorldObstacle
+ * @property {string} id
+ * @property {number} x
+ * @property {number} y
+ * @property {number} width
+ * @property {number} height
+ */
+
+/**
+ * @typedef {object} WorldDangerZone
+ * @property {string} id
+ * @property {number} x
+ * @property {number} y
+ * @property {number} radius
+ * @property {number} damagePerTick
+ */
+
+/**
  * @typedef {object} WorldState
  * @property {number} tick
  * @property {WorldOrganism[]} organisms
  * @property {WorldFood[]} food
+ * @property {WorldObstacle[]} [obstacles]
+ * @property {WorldDangerZone[]} [dangerZones]
  */
 
 /**
@@ -66,6 +86,8 @@
  * @property {number} [brainMutationMagnitude=0.2] max absolute change to synapse weights
  * @property {number} [brainAddSynapseChance=0.05] probability of adding a new synapse (0-1)
  * @property {number} [brainRemoveSynapseChance=0.05] probability of removing a synapse (0-1)
+ * @property {WorldObstacle[]} [obstacles] obstacles in the world
+ * @property {WorldDangerZone[]} [dangerZones] danger zones in the world
  */
 
 /**
@@ -76,7 +98,9 @@ export function createWorldState(initial = {}) {
   return {
     tick: initial.tick ?? 0,
     organisms: initial.organisms ? initial.organisms.map((o) => ({ ...o })) : [],
-    food: initial.food ? initial.food.map((f) => ({ ...f })) : []
+    food: initial.food ? initial.food.map((f) => ({ ...f })) : [],
+    obstacles: initial.obstacles ? initial.obstacles.map((o) => ({ ...o })) : [],
+    dangerZones: initial.dangerZones ? initial.dangerZones.map((d) => ({ ...d })) : []
   };
 }
 
@@ -172,6 +196,115 @@ function moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMul
     direction,
     energy: Math.max(0, organism.energy - energySpent)
   };
+}
+
+/**
+ * Check if an organism collides with an obstacle (axis-aligned bounding box)
+ * @param {WorldOrganism} organism
+ * @param {WorldObstacle} obstacle
+ * @returns {boolean}
+ */
+function isCollidingWithObstacle(organism, obstacle) {
+  const organismRadius = (organism.traits?.size ?? 1) * 3; // Approximate radius
+  // Check if organism's bounding circle overlaps with obstacle rectangle
+  const closestX = Math.max(obstacle.x, Math.min(organism.x, obstacle.x + obstacle.width));
+  const closestY = Math.max(obstacle.y, Math.min(organism.y, obstacle.y + obstacle.height));
+  const dx = organism.x - closestX;
+  const dy = organism.y - closestY;
+  return (dx * dx + dy * dy) < (organismRadius * organismRadius);
+}
+
+/**
+ * Check if an organism is inside a danger zone
+ * @param {WorldOrganism} organism
+ * @param {WorldDangerZone} dangerZone
+ * @returns {boolean}
+ */
+function isInDangerZone(organism, dangerZone) {
+  const dx = organism.x - dangerZone.x;
+  const dy = organism.y - dangerZone.y;
+  return (dx * dx + dy * dy) < (dangerZone.radius * dangerZone.radius);
+}
+
+/**
+ * Apply danger zone damage to organisms
+ * @param {WorldOrganism[]} organisms
+ * @param {WorldDangerZone[]} dangerZones
+ * @returns {WorldOrganism[]}
+ */
+function applyDangerZoneDamage(organisms, dangerZones) {
+  if (!dangerZones || dangerZones.length === 0) {
+    return organisms;
+  }
+
+  return organisms.map((organism) => {
+    let totalDamage = 0;
+    for (const zone of dangerZones) {
+      if (isInDangerZone(organism, zone)) {
+        totalDamage += zone.damagePerTick;
+      }
+    }
+
+    if (totalDamage > 0) {
+      return {
+        ...organism,
+        energy: Math.max(0, organism.energy - totalDamage)
+      };
+    }
+    return organism;
+  });
+}
+
+/**
+ * Handle obstacle collisions - push organisms out of obstacles
+ * @param {WorldOrganism[]} organisms
+ * @param {WorldObstacle[]} obstacles
+ * @param {number} worldWidth
+ * @param {number} worldHeight
+ * @returns {WorldOrganism[]}
+ */
+function handleObstacleCollisions(organisms, obstacles, worldWidth, worldHeight) {
+  if (!obstacles || obstacles.length === 0) {
+    return organisms;
+  }
+
+  return organisms.map((organism) => {
+    const organismRadius = (organism.traits?.size ?? 1) * 3;
+    let newX = organism.x;
+    let newY = organism.y;
+    let collided = false;
+
+    for (const obstacle of obstacles) {
+      if (isCollidingWithObstacle({ ...organism, x: newX, y: newY }, obstacle)) {
+        collided = true;
+        // Push organism out of obstacle - find closest edge
+        const centerX = obstacle.x + obstacle.width / 2;
+        const centerY = obstacle.y + obstacle.height / 2;
+        const dx = newX - centerX;
+        const dy = newY - centerY;
+
+        // Normalize and push to nearest edge
+        const dist = Math.hypot(dx, dy);
+        if (dist > 0) {
+          const pushDist = organismRadius + 1;
+          newX = centerX + (dx / dist) * (obstacle.width / 2 + pushDist);
+          newY = centerY + (dy / dist) * (obstacle.height / 2 + pushDist);
+        } else {
+          // Center is inside - push up by default
+          newY = obstacle.y - organismRadius - 1;
+        }
+
+        // Clamp to world bounds
+        newX = Math.max(organismRadius, Math.min(worldWidth - organismRadius, newX));
+        newY = Math.max(organismRadius, Math.min(worldHeight - organismRadius, newY));
+      }
+    }
+
+    if (collided) {
+      return { ...organism, x: newX, y: newY };
+    }
+    return organism;
+  });
 }
 
 /**
@@ -631,11 +764,33 @@ export function stepWorld(state, rng, params = {}) {
     });
   }
 
-  return {
+  // Apply hazard effects
+  const hazards = params;
+  const obstacles = hazards.obstacles ?? state.obstacles ?? [];
+  const dangerZones = hazards.dangerZones ?? state.dangerZones ?? [];
+
+  // Apply danger zone damage
+  let finalOrganisms = applyDangerZoneDamage(organisms, dangerZones);
+
+  // Handle obstacle collisions
+  finalOrganisms = handleObstacleCollisions(finalOrganisms, obstacles, worldWidth, worldHeight);
+
+  // Build return state - only include hazards if they exist
+  const returnState = {
     tick: state.tick + 1,
-    organisms,
+    organisms: finalOrganisms,
     food: nextFood
   };
+
+  // Only include hazards if they have content (backward compatibility)
+  if (obstacles && obstacles.length > 0) {
+    returnState.obstacles = obstacles;
+  }
+  if (dangerZones && dangerZones.length > 0) {
+    returnState.dangerZones = dangerZones;
+  }
+
+  return returnState;
 }
 
 /**
