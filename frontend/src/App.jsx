@@ -232,6 +232,7 @@ function App() {
   const [resolvedSeed, setResolvedSeed] = useState('');
   const [appVersion, setAppVersion] = useState('unknown');
   const [selectedOrganismId, setSelectedOrganismId] = useState(null);
+  const [hudOverlayVisible, setHudOverlayVisible] = useState(false);
   const [inspectorPinned, setInspectorPinned] = useState(false);
   const [isCompactInspectorLayout, setIsCompactInspectorLayout] = useState(false);
   const [pinnedOrganismSnapshot, setPinnedOrganismSnapshot] = useState(null);
@@ -1743,6 +1744,14 @@ function App() {
       if (speed) {
         event.preventDefault();
         onSpeedSelect(speed);
+        return;
+      }
+
+      if (event.key === 'Escape' && hudOverlayVisible) {
+        event.preventDefault();
+        setHudOverlayVisible(false);
+        clearSelection();
+        return;
       }
     };
 
@@ -1753,13 +1762,15 @@ function App() {
     pendingDeleteSnapshot,
     inspectorOrganism,
     activeInspectorSectionIndex,
+    hudOverlayVisible,
     onAdjustSpeedByStep,
     onSelectNextOrganism,
     onSelectPreviousOrganism,
     onStepTick,
     onToggleInspectorPin,
     onTogglePausePlay,
-    onSpeedSelect
+    onSpeedSelect,
+    clearSelection
   ]);
 
   const onCanvasClick = (event) => {
@@ -1781,12 +1792,14 @@ function App() {
     if (!selected) {
       if (!inspectorPinned) {
         clearSelection();
+        setHudOverlayVisible(false);
       }
       return;
     }
 
     setSelectedOrganismId(selected.id);
     setSelectedOrganismUnavailable(false);
+    setHudOverlayVisible(true);
   };
 
   const onSaveSimulation = async (options = {}) => {
@@ -3069,6 +3082,32 @@ function App() {
           aria-label="simulation world"
           onClick={onCanvasClick}
         />
+
+        {/* HUD overlay for organism selection - shown near canvas when organism is selected */}
+        {hudOverlayVisible && selectedOrganism && (
+          <div className="organism-hud-overlay" role="region" aria-label="organism info">
+            <div className="organism-hud-header">
+              <span className="organism-hud-id">Organism {selectedOrganism.id.slice(0, 8)}</span>
+              <button
+                type="button"
+                className="organism-hud-close"
+                onClick={() => {
+                  setHudOverlayVisible(false);
+                  clearSelection();
+                }}
+                aria-label="Close organism info"
+              >
+                ×
+              </button>
+            </div>
+            <div className="organism-hud-stats">
+              <p><strong>Generation:</strong> {formattedInspector.generation}</p>
+              <p><strong>Size:</strong> {formattedInspector.size}</p>
+              <p><strong>Energy:</strong> {formattedInspector.energy}</p>
+              <p><strong>Age:</strong> {formattedInspector.age}</p>
+            </div>
+          </div>
+        )}
       </section>
 
     </main>
