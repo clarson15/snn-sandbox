@@ -175,7 +175,9 @@ function stepWorldWithLegacyFoodLookup(state, rng, params = {}) {
   return {
     tick: state.tick + 1,
     organisms,
-    food: nextFood
+    food: nextFood,
+    obstacles: state.obstacles || [],
+    dangerZones: state.dangerZones || []
   };
 }
 
