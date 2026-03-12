@@ -38,6 +38,7 @@ import {
   formatTrendPolyline,
   INSPECTOR_TREND_WINDOW_TICKS
 } from './inspectorTrend';
+import { INSPECTOR_PLACEHOLDER, formatInspectorSnapshot } from './inspectorFormatting';
 import {
   deriveSimulationStats,
   deriveStatsTrends,
