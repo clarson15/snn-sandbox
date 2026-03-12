@@ -257,14 +257,16 @@ function calculateDangerZoneDamage(organism, dangerZones) {
     return 0;
   }
 
+  // Optimized: use simple loop (fast path for typical 1-2 danger zones)
   let totalDamage = 0;
-  for (const zone of dangerZones) {
-    const dx = organism.x - zone.x;
-    const dy = organism.y - zone.y;
-    const distanceSquared = dx * dx + dy * dy;
-    const radiusSquared = zone.radius * zone.radius;
+  const orgX = organism.x;
+  const orgY = organism.y;
 
-    if (distanceSquared <= radiusSquared) {
+  for (const zone of dangerZones) {
+    const dx = orgX - zone.x;
+    const dy = orgY - zone.y;
+    // Inline squared distance check (avoids Math.hypot call)
+    if (dx * dx + dy * dy <= zone.radius * zone.radius) {
       totalDamage += zone.damagePerTick;
     }
   }
@@ -476,11 +478,18 @@ export function stepWorld(state, rng, params = {}) {
 
   // Stable iteration ordering for deterministic food consumption.
   // Organisms consume in lexical id order; each organism can consume at most one food per tick.
+  // Optimization: skip sort if already sorted (common case with incrementing IDs)
   const foodById = new Map(state.food.map((item) => [item.id, { ...item }]));
   const baseConsumeRadius = params.consumeRadius ?? 2;
   const consumedEnergyByOrganismId = new Map();
 
-  const organismsByStableOrder = [...organismsWithHazardDamage].sort((a, b) => a.id.localeCompare(b.id));
+  let organismsByStableOrder = organismsWithHazardDamage;
+  // Quick check if sorting needed: only sort if array is not already in ID order
+  const needsSort = organismsWithHazardDamage.length > 1 &&
+    organismsWithHazardDamage.some((org, i) => i > 0 && org.id.localeCompare(organismsWithHazardDamage[i - 1].id) < 0);
+  if (needsSort) {
+    organismsByStableOrder = [...organismsWithHazardDamage].sort((a, b) => a.id.localeCompare(b.id));
+  }
 
   // Pre-compute effective consume radii for all organisms and find max for spatial index.
   // Food collection radius scales with organism's visible size (traits.size).
@@ -611,11 +620,17 @@ export function stepWorld(state, rng, params = {}) {
 
   // Deterministic reproduction: organisms with energy >= threshold reproduce
   // Organisms are processed in stable id order for reproducibility
+  // Optimization: skip sort if already sorted
   const reproducingOrganisms = [];
   const offspringOrganisms = [];
   let nextOrganismNumericId = deriveNextOrganismNumericId(organisms);
 
-  const organismsForReproduction = [...organisms].sort((a, b) => a.id.localeCompare(b.id));
+  let organismsForReproduction = organisms;
+  const needsReproSort = organisms.length > 1 &&
+    organisms.some((org, i) => i > 0 && org.id.localeCompare(organisms[i - 1].id) < 0);
+  if (needsReproSort) {
+    organismsForReproduction = [...organisms].sort((a, b) => a.id.localeCompare(b.id));
+  }
 
   for (const organism of organismsForReproduction) {
     if (organism.energy >= reproductionThreshold) {

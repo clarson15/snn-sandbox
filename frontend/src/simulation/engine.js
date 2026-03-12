@@ -238,10 +238,17 @@ function applyDangerZoneDamage(organisms, dangerZones) {
     return organisms;
   }
 
+  // Optimized: inline distance check to avoid function call overhead
   return organisms.map((organism) => {
     let totalDamage = 0;
+    const orgX = organism.x;
+    const orgY = organism.y;
+
     for (const zone of dangerZones) {
-      if (isInDangerZone(organism, zone)) {
+      const dx = orgX - zone.x;
+      const dy = orgY - zone.y;
+      // Inline squared distance check (avoids function call to isInDangerZone)
+      if (dx * dx + dy * dy < zone.radius * zone.radius) {
         totalDamage += zone.damagePerTick;
       }
     }
@@ -562,11 +569,17 @@ export function stepWorld(state, rng, params = {}) {
 
   // Stable iteration ordering for deterministic food consumption.
   // Organisms consume in lexical id order; each organism can consume at most one food per tick.
+  // Optimization: skip sort if already sorted (common case with incrementing IDs)
   const foodById = new Map(state.food.map((item) => [item.id, { ...item }]));
   const baseConsumeRadius = params.consumeRadius ?? 2;
   const consumedEnergyByOrganismId = new Map();
 
-  const organismsByStableOrder = [...movedOrganisms].sort((a, b) => a.id.localeCompare(b.id));
+  let organismsByStableOrder = movedOrganisms;
+  const needsSort = movedOrganisms.length > 1 &&
+    movedOrganisms.some((org, i) => i > 0 && org.id.localeCompare(movedOrganisms[i - 1].id) < 0);
+  if (needsSort) {
+    organismsByStableOrder = [...movedOrganisms].sort((a, b) => a.id.localeCompare(b.id));
+  }
 
   // Pre-compute effective consume radii for all organisms and find max for spatial index.
   // Food collection radius scales with organism's visible size (traits.size).
@@ -698,10 +711,16 @@ export function stepWorld(state, rng, params = {}) {
 
   // Deterministic reproduction: organisms with energy >= threshold reproduce
   // Organisms are processed in stable id order for reproducibility
+  // Optimization: skip sort if already sorted
   const offspringOrganisms = [];
   let nextOrganismNumericId = deriveNextOrganismNumericId(organisms);
 
-  const organismsForReproduction = [...organisms].sort((a, b) => a.id.localeCompare(b.id));
+  let organismsForReproduction = organisms;
+  const needsReproSort = organisms.length > 1 &&
+    organisms.some((org, i) => i > 0 && org.id.localeCompare(organisms[i - 1].id) < 0);
+  if (needsReproSort) {
+    organismsForReproduction = [...organisms].sort((a, b) => a.id.localeCompare(b.id));
+  }
 
   for (const organism of organismsForReproduction) {
     if (organism.energy >= reproductionThreshold) {
