@@ -125,8 +125,8 @@ export function drawWorldSnapshot(ctx, snapshot, viewport, renderOptions = {}) {
     const headingY = organism.y + Math.sin(direction) * (radius + DIRECTION_INDICATOR_LENGTH);
 
     const speciesId = speciesMap.get(organism.id);
-    // Use generation-based color tint (section 10.1 of design doc)
-    const organismColor = getGenerationColor(organism.generation ?? 0);
+    // Use species-based color for visual distinction (SSN-219)
+    const organismColor = getSpeciesColor(speciesId);
 
     ctx.fillStyle = organismColor;
     ctx.beginPath();

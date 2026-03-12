@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { createWorldState, stepWorld } from './simulation/engine';
+import { createWorldState, stepWorld, detectSpecies, getSpeciesColor } from './simulation/engine';
 import {
   DEFAULT_CONFIG,
   SIMULATION_PRESETS,
@@ -1402,6 +1402,25 @@ function App() {
   );
 
   const derivedStats = useMemo(() => deriveSimulationStats(displayWorld), [displayWorld, tickDisplay, resolvedSeed]);
+
+  // Compute species map for visual species identification (SSN-219)
+  const speciesMap = useMemo(() => {
+    if (!displayWorld?.organisms) return null;
+    return detectSpecies(displayWorld.organisms, 0.5);
+  }, [displayWorld]);
+
+  // Get species info for selected organism (SSN-219)
+  const selectedOrganismSpeciesId = useMemo(() => {
+    if (!selectedOrganism || !speciesMap) return null;
+    return speciesMap.get(selectedOrganism.id);
+  }, [selectedOrganism, speciesMap]);
+
+  // Get unique species for legend (SSN-219)
+  const speciesLegend = useMemo(() => {
+    if (!speciesMap) return [];
+    const uniqueSpecies = [...new Set(speciesMap.values())];
+    return uniqueSpecies.map(id => ({ id, color: getSpeciesColor(id) }));
+  }, [speciesMap]);
 
   const formattedStats = useMemo(() => formatSimulationStats(derivedStats), [derivedStats]);
 
@@ -3066,6 +3085,20 @@ function App() {
           <p>Seed: {hudSeedLabel}</p>
           <p>Population: {formattedStats.population} ({formatTrendIndicator(statsTrends.population)})</p>
           {isDetailedHudVisible ? <p>Species count: {formattedStats.speciesCount}</p> : null}
+          {isDetailedHudVisible && speciesLegend.length > 0 && (
+            <div className="species-legend" style={{marginTop: '8px'}}>
+              <strong>Species:</strong>
+              <div style={{display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px'}}>
+                {speciesLegend.slice(0, 10).map(({ id, color }) => (
+                  <div key={id} style={{display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px'}}>
+                    <span style={{display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: color}}></span>
+                    {id}
+                  </div>
+                ))}
+                {speciesLegend.length > 10 && <span style={{fontSize: '11px'}}>+{speciesLegend.length - 10} more</span>}
+              </div>
+            </div>
+          )}
           {isDetailedHudVisible ? <p>Food count: {formattedStats.foodCount}</p> : null}
           {isDetailedHudVisible ? <p>Average generation: {formattedStats.averageGeneration}</p> : null}
           {isDetailedHudVisible ? <p>Average organism energy: {formattedStats.averageEnergy} ({formatTrendIndicator(statsTrends.averageEnergy)})</p> : null}
@@ -3105,6 +3138,9 @@ function App() {
               <p><strong>Generation:</strong> {formattedInspector.generation}</p>
               <p><strong>Size:</strong> {formattedInspector.size}</p>
               <p><strong>Energy:</strong> {formattedInspector.energy}</p>
+              {selectedOrganismSpeciesId && (
+                <p><strong>Species:</strong> <span style={{color: getSpeciesColor(selectedOrganismSpeciesId)}}>{selectedOrganismSpeciesId}</span></p>
+              )}
             </div>
           </div>
         )}
