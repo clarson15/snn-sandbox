@@ -220,6 +220,8 @@ function App() {
   const [resolvedSeed, setResolvedSeed] = useState('');
   const [appVersion, setAppVersion] = useState('unknown');
   const [selectedOrganismId, setSelectedOrganismId] = useState(null);
+  const [inspectorPinned, setInspectorPinned] = useState(false);
+  const [pinnedOrganismSnapshot, setPinnedOrganismSnapshot] = useState(null);
   const [hoveredSynapseId, setHoveredSynapseId] = useState(null);
   const [selectedSynapseHighlight, setSelectedSynapseHighlight] = useState(null);
   const [brainGraphTransform, setBrainGraphTransform] = useState(() => ({ scale: 1, translateX: 0, translateY: 0 }));
