@@ -393,6 +393,7 @@ export function stepWorld(state, rng, params = {}) {
   const metabolismPerTick = params.metabolismPerTick ?? 0.1;
   const movementCostMultiplier = params.movementCostMultiplier ?? 0.05;
   const consumeRadius = params.consumeRadius ?? 2;
+  const foodRadius = params.foodRadius ?? 3;
   const foodSpawnChance = params.foodSpawnChance ?? 0.05;
   const foodEnergyValue = params.foodEnergyValue ?? 5;
   const worldWidth = params.worldWidth ?? 100;
@@ -436,13 +437,14 @@ export function stepWorld(state, rng, params = {}) {
   // Pre-compute effective consume radii for all organisms and find max for spatial index.
   // Food collection radius scales with organism's visible size (traits.size).
   // Uses visible size (not total size) - larger organisms can reach food from further away.
-  // Formula: effectiveRadius = max(baseConsumeRadius, organism.traits.size)
+  // Formula: effectiveRadius = max(baseConsumeRadius, organism.traits.size + foodRadius)
   // This ensures minimum reachability while scaling proportionally with size.
+  // Adding foodRadius ensures that when organisms visually overlap food, they collect it.
   const organismConsumeRadii = new Map();
   let maxConsumeRadius = baseConsumeRadius;
   for (const organism of organismsByStableOrder) {
     const organismSize = organism.traits?.size ?? 1;
-    const effectiveRadius = Math.max(baseConsumeRadius, organismSize);
+    const effectiveRadius = Math.max(baseConsumeRadius, organismSize + foodRadius);
     organismConsumeRadii.set(organism.id, effectiveRadius);
     if (effectiveRadius > maxConsumeRadius) {
       maxConsumeRadius = effectiveRadius;
