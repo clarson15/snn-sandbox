@@ -49,7 +49,7 @@ describe('simulation stats', () => {
     );
 
     expect(formatted).toEqual({
-      tickCount: '0',
+      tickCount: '\u00A0\u00A0\u00A0\u00A0\u00A0\u00A00',
       elapsedTime: '0.0s',
       population: '0',
       foodCount: '0',
@@ -91,7 +91,7 @@ describe('simulation stats', () => {
       speciesCount: -1,
       energyDeathWarning: false
     })).toEqual({
-      tickCount: '0',
+      tickCount: '\u00A0\u00A0\u00A0\u00A0\u00A0\u00A00',
       elapsedTime: '0.0s',
       population: '0',
       foodCount: '1',
