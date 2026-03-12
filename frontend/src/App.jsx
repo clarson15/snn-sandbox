@@ -3392,6 +3392,78 @@ function App() {
                 <p><strong>Species:</strong> <span style={{color: getSpeciesColor(selectedOrganismSpeciesId)}}>{selectedOrganismSpeciesId}</span></p>
               )}
             </div>
+            {brainGraphModel && brainGraphModel.nodes.length > 0 && (
+              <div className="organism-hud-brain">
+                <div className="brain-graph-controls">
+                  <button type="button" onClick={onResetBrainGraphViewport} aria-label="Reset brain view">Reset</button>
+                  <button type="button" onClick={onFitSelectionBrainGraphViewport} aria-label="Fit selection">Fit</button>
+                  <button type="button" onClick={() => onZoomBrainGraphViewport(1)} aria-label="Zoom in">+</button>
+                  <button type="button" onClick={() => onZoomBrainGraphViewport(-1)} aria-label="Zoom out">−</button>
+                </div>
+                <svg
+                  className="brain-graph"
+                  viewBox={`0 0 ${BRAIN_GRAPH_VIEWBOX.width} ${BRAIN_GRAPH_VIEWBOX.height}`}
+                  aria-label="Brain neural network visualization"
+                >
+                  <g transform={`translate(${brainGraphTransform.translateX}, ${brainGraphTransform.translateY}) scale(${brainGraphTransform.scale})`}>
+                    {brainGraphModel.edges.map((edge) => (
+                      <line
+                        key={edge.id}
+                        className="brain-graph-synapse-edge"
+                        x1={brainGraphNodeById.get(edge.sourceId)?.x ?? 0}
+                        y1={brainGraphNodeById.get(edge.sourceId)?.y ?? 0}
+                        x2={brainGraphNodeById.get(edge.targetId)?.x ?? 0}
+                        y2={brainGraphNodeById.get(edge.targetId)?.y ?? 0}
+                        stroke={edge.color}
+                        strokeWidth={edge.strokeWidth}
+                        opacity={edge.emphasisOpacity}
+                      />
+                    ))}
+                    {brainGraphModel.nodes.map((node) => (
+                      <circle
+                        key={node.id}
+                        cx={node.x}
+                        cy={node.y}
+                        r={8}
+                        fill={node.fillColor}
+                        stroke={node.id === pinnedBrainNeuronId ? '#38bdf8' : node.id === selectedBrainNeuronId ? '#f59e0b' : '#1e293b'}
+                        strokeWidth={node.id === pinnedBrainNeuronId || node.id === selectedBrainNeuronId ? 3 : 1}
+                        opacity={node.emphasisOpacity}
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => setPinnedBrainNeuronId(node.id === pinnedBrainNeuronId ? null : node.id)}
+                        aria-label={`Neuron ${node.id}, type: ${node.type}`}
+                      />
+                    ))}
+                  </g>
+                </svg>
+                {brainGraphLegend && brainGraphLegend.neuronTypes.length > 0 && (
+                  <div className="brain-graph-legend" role="region" aria-label="Brain graph legend">
+                    <div className="brain-graph-legend-section">
+                      <strong>Neuron Types</strong>
+                      <div className="brain-graph-legend-items">
+                        {brainGraphLegend.neuronTypes.map((nt) => (
+                          <span key={nt.type} className="brain-graph-legend-item">
+                            <span className="brain-graph-legend-swatch" style={{ backgroundColor: nt.color.cssColor }} />
+                            {nt.label}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="brain-graph-legend-section">
+                      <strong>Synapses</strong>
+                      <div className="brain-graph-legend-items">
+                        {brainGraphLegend.synapseCues.map((sc) => (
+                          <span key={sc.polarity} className="brain-graph-legend-item">
+                            <span className="brain-graph-legend-swatch" style={{ backgroundColor: sc.color }} />
+                            {sc.polarity}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </section>
