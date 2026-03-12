@@ -15,7 +15,7 @@ jobs:
   build-push-deploy:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
 
     steps:
       - name: Checkout code
@@ -27,16 +27,26 @@ jobs:
         id: app_version
         run: |
           short_sha="${GITHUB_SHA::7}"
-          tag="$(git tag --points-at HEAD | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$' | head -n1 || true)"
-
-          if [ -n "$tag" ]; then
-            echo "Using release tag as APP_VERSION: $tag"
-            echo "value=${tag#v}" >> "$GITHUB_OUTPUT"
-            echo "sha_tag=${tag#v}" >> "$GITHUB_OUTPUT"
+          
+          # Find the latest semver tag across all branches
+          latest_tag=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1 || true)
+          
+          if [ -n "$latest_tag" ]; then
+            # Extract version number and increment patch
+            version_num="${latest_tag#v}"
+            major=$(echo "$version_num" | cut -d. -f1)
+            minor=$(echo "$version_num" | cut -d. -f2)
+            patch=$(echo "$version_num" | cut -d. -f3)
+            patch=$((patch + 1))
+            new_version="${major}.${minor}.${patch}"
+            echo "Latest tag: $latest_tag, incrementing to: $new_version"
+            echo "value=${new_version}" >> "$GITHUB_OUTPUT"
+            echo "sha_tag=${new_version}" >> "$GITHUB_OUTPUT"
           else
-            echo "No semver tag on HEAD; using commit-derived APP_VERSION"
-            echo "value=0.0.0+sha.${short_sha}" >> "$GITHUB_OUTPUT"
-            echo "sha_tag=${short_sha}" >> "$GITHUB_OUTPUT"
+            # No tags found, start at v0.0.1
+            echo "No semver tags found, starting at v0.0.1"
+            echo "value=0.0.1" >> "$GITHUB_OUTPUT"
+            echo "sha_tag=0.0.1" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Set up Docker Buildx
@@ -70,3 +80,10 @@ jobs:
           curl --fail --show-error --silent \
             -X POST \
             "$DEPLOY_WEBHOOK_URL"
+
+      - name: Tag git commit with version
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a v${{ steps.app_version.outputs.value }} -m "Release v${{ steps.app_version.outputs.value }}"
+          git push origin v${{ steps.app_version.outputs.value }}
