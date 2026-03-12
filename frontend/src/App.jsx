@@ -32,6 +32,7 @@ import { drawWorldSnapshot } from './simulation/renderer';
 import { resolveRenderFrameInterval, shouldRenderFrame } from './simulation/renderCadence';
 import { computeFixedStepBudget, resolveMaxCatchUpTicksPerFrame } from './simulation/fixedStepScheduler';
 import { pickOrganismAtPoint } from './simulation/selection';
+import { deriveDeterministicOrganismIds } from './inspectorSelection';
 import {
   deriveSimulationStats,
   deriveStatsTrends,
