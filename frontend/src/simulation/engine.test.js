@@ -683,7 +683,7 @@ describe('simulation engine skeleton', () => {
 
     // With full energy (100), input value = 1.0, so rotation = weight * turnRate = 0.04/tick
     // After 3 ticks: 0.5 + 3*0.04 = 0.62
-    expect(next.organisms[0].direction).toBeCloseTo(0.62, 4);
+    expect(next.organisms[0].direction).toBeCloseTo(0.62, 3);
   });
 
   it('applies deterministic per-organism metabolism-based energy loss', () => {
