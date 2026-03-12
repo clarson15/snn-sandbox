@@ -16,6 +16,9 @@ const HEALTH_DECAY_TICKS = 1000;
 const DEFAULT_VIEWPORT_CULL_PADDING = 12;
 const FOOD_RADIUS = 3;
 
+// Store previous species assignments to preserve stable colors for living organisms
+let previousSpeciesAssignments = null;
+
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
@@ -163,8 +166,10 @@ export function drawWorldSnapshot(ctx, snapshot, viewport, renderOptions = {}) {
     ctx.fill();
   }
 
-  // Detect species once for all organisms
-  const speciesMap = detectSpecies(snapshot.organisms, 0.5);
+  // Detect species once for all organisms, preserving previous assignments for stable colors
+  const speciesMap = detectSpecies(snapshot.organisms, 0.5, previousSpeciesAssignments);
+  // Store for next frame to maintain stable species IDs for living organisms
+  previousSpeciesAssignments = speciesMap;
 
   for (const organism of snapshot.organisms) {
     const radius = deriveOrganismRadius(organism);
