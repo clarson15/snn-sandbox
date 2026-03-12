@@ -119,7 +119,81 @@ function normalizeAngle(angle) {
   return normalized < 0 ? normalized + fullTurn : normalized;
 }
 
-function deriveRotationDelta(organism) {
+/**
+ * Compute input neuron values based on organism state and environment.
+ * @param {WorldOrganism} organism
+ * @param {WorldFood[]} food - all food items in the world
+ * @param {number} worldWidth
+ * @param {number} worldHeight
+ * @returns {Map<string, number>} Map of input neuron ID -> value (typically 0-1 range)
+ */
+function computeInputNeuronValues(organism, food, worldWidth, worldHeight) {
+  const inputs = new Map();
+
+  // Energy: normalized to reasonable range (0-1 where 1 = 100 energy)
+  inputs.set('in-energy', Math.min(1, (organism.energy ?? 0) / 100));
+
+  // Age: normalized (treating 500 as "old")
+  inputs.set('in-age', Math.min(1, (organism.age ?? 0) / 500));
+
+  // Position: normalized to world bounds
+  inputs.set('in-x', (organism.x ?? 0) / worldWidth);
+  inputs.set('in-y', (organism.y ?? 0) / worldHeight);
+
+  // Direction: encode as sin/cos for smooth transitions
+  const direction = organism.direction ?? 0;
+  inputs.set('in-direction', Math.sin(direction)); // -1 to 1
+  inputs.set('in-direction-cos', Math.cos(direction)); // -1 to 1
+
+  // Traits: normalized
+  inputs.set('in-size', Math.min(1, (organism.traits?.size ?? 1) / 5));
+  inputs.set('in-speed', Math.min(1, (organism.traits?.speed ?? 1) / 5));
+  inputs.set('in-vision-range', Math.min(1, (organism.traits?.visionRange ?? 25) / 100));
+
+  // Food sensors: find nearest food within vision range
+  const visionRange = organism.traits?.visionRange ?? 25;
+  const visionRangeSquared = visionRange * visionRange;
+
+  let nearestFoodDist = Infinity;
+  let nearestFoodDx = 0;
+  let nearestFoodDy = 0;
+
+  for (const f of food) {
+    const dx = f.x - organism.x;
+    const dy = f.y - organism.y;
+    const distSquared = dx * dx + dy * dy;
+
+    if (distSquared < visionRangeSquared && distSquared < nearestFoodDist) {
+      nearestFoodDist = distSquared;
+      nearestFoodDx = dx;
+      nearestFoodDy = dy;
+    }
+  }
+
+  if (nearestFoodDist === Infinity) {
+    // No food in vision range
+    inputs.set('in-food-distance', 1); // "far away" = 1
+    inputs.set('in-food-direction', 0);
+    inputs.set('in-food-detected', 0);
+  } else {
+    const dist = Math.sqrt(nearestFoodDist);
+    // Distance: normalized (0 = directly on top, 1 = at vision edge)
+    inputs.set('in-food-distance', dist / visionRange);
+
+    // Direction to food relative to current heading
+    const foodAngle = Math.atan2(nearestFoodDy, nearestFoodDx);
+    const relativeAngle = normalizeAngle(foodAngle - direction);
+    // Convert to -1 to 1 range: 0 = ahead, PI = behind, negative = left, positive = right
+    // Actually let's make it clearer: -1 = left 180, 0 = ahead, 1 = right 180
+    inputs.set('in-food-direction', (relativeAngle - Math.PI) / Math.PI);
+
+    inputs.set('in-food-detected', 1);
+  }
+
+  return inputs;
+}
+
+function deriveRotationDelta(organism, inputValues = null) {
   const turnRate = Number(organism?.traits?.turnRate ?? 0);
   if (!Number.isFinite(turnRate) || turnRate === 0) {
     return 0;
@@ -138,17 +212,26 @@ function deriveRotationDelta(organism) {
       continue;
     }
 
+    // Get input value: use precomputed inputValues if available,
+    // otherwise fall back to legacy behavior (weight only, for backward compatibility)
+    let inputValue = 1;
+    if (inputValues && synapse.sourceId) {
+      inputValue = inputValues.get(synapse.sourceId) ?? 1;
+    }
+
+    const weightedInput = inputValue * synapse.weight;
+
     if (synapse.targetId === 'out-turn-left') {
-      leftSignal += synapse.weight;
+      leftSignal += weightedInput;
     } else if (synapse.targetId === 'out-turn-right') {
-      rightSignal += synapse.weight;
+      rightSignal += weightedInput;
     }
   }
 
   return (rightSignal - leftSignal) * turnRate;
 }
 
-function deriveForwardDelta(organism) {
+function deriveForwardDelta(organism, inputValues = null) {
   const speed = Number(organism?.traits?.speed ?? 1);
   if (!Number.isFinite(speed) || speed === 0) {
     return 0;
@@ -166,19 +249,26 @@ function deriveForwardDelta(organism) {
       continue;
     }
 
+    // Get input value: use precomputed inputValues if available,
+    // otherwise fall back to legacy behavior (weight only, for backward compatibility)
+    let inputValue = 1;
+    if (inputValues && synapse.sourceId) {
+      inputValue = inputValues.get(synapse.sourceId) ?? 1;
+    }
+
     if (
       synapse.targetId === 'out-forward' ||
       synapse.targetId === 'out-move-forward' ||
       synapse.targetId === 'out-move'
     ) {
-      forwardSignal += synapse.weight;
+      forwardSignal += inputValue * synapse.weight;
     }
   }
 
   return Math.max(-1, Math.min(1, forwardSignal)) * speed;
 }
 
-function moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMultiplier) {
+function moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMultiplier, inputValues = null) {
   // Use organism's metabolism trait for deterministic energy loss, fallback to param for backward compatibility
   const organismMetabolism = Number.isFinite(organism?.traits?.metabolism)
     ? organism.traits.metabolism
@@ -186,7 +276,7 @@ function moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMul
   const movementDistance = Math.hypot(dx, dy);
   const energySpent = organismMetabolism + movementDistance * movementCostMultiplier;
   const baseDirection = organism.direction ?? 0;
-  const rotationDelta = deriveRotationDelta(organism);
+  const rotationDelta = deriveRotationDelta(organism, inputValues);
   const direction = normalizeAngle(baseDirection + rotationDelta);
 
   return {
@@ -556,15 +646,18 @@ export function stepWorld(state, rng, params = {}) {
   const brainRemoveSynapseChance = params.brainRemoveSynapseChance ?? 0.05;
 
   const movedOrganisms = state.organisms.map((organism) => {
+    // Compute input neuron values based on organism state and environment
+    const inputValues = computeInputNeuronValues(organism, state.food, worldWidth, worldHeight);
+
     const baseDirection = organism.direction ?? 0;
-    const rotationDelta = deriveRotationDelta(organism);
+    const rotationDelta = deriveRotationDelta(organism, inputValues);
     const direction = normalizeAngle(baseDirection + rotationDelta);
-    const forwardDelta = deriveForwardDelta(organism);
+    const forwardDelta = deriveForwardDelta(organism, inputValues);
     const boundedForwardDelta = Math.max(-movementDelta, Math.min(movementDelta, forwardDelta));
     const dx = Math.cos(direction) * boundedForwardDelta;
     const dy = Math.sin(direction) * boundedForwardDelta;
 
-    return moveAndSpendEnergy({ ...organism, direction: baseDirection }, dx, dy, metabolismPerTick, movementCostMultiplier);
+    return moveAndSpendEnergy({ ...organism, direction: baseDirection }, dx, dy, metabolismPerTick, movementCostMultiplier, inputValues);
   });
 
   // Stable iteration ordering for deterministic food consumption.

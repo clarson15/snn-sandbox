@@ -660,7 +660,7 @@ describe('simulation engine skeleton', () => {
           id: 'org-rotate-right',
           x: 10,
           y: 10,
-          energy: 20,
+          energy: 100, // Full energy = input value of 1.0
           age: 0,
           generation: 1,
           direction: 0.5,
@@ -681,6 +681,8 @@ describe('simulation engine skeleton', () => {
       foodSpawnChance: 0
     });
 
+    // With full energy (100), input value = 1.0, so rotation = weight * turnRate = 0.04/tick
+    // After 3 ticks: 0.5 + 3*0.04 = 0.62
     expect(next.organisms[0].direction).toBeCloseTo(0.62, 10);
   });
 
