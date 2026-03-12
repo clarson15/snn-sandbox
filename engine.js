@@ -58,6 +58,7 @@
  * @property {number} y
  * @property {number} radius
  * @property {number} damagePerTick
+ * @property {string} [type] hazard type: 'water' | 'fire' | 'radiation' | 'acid'
  */
 
 /**

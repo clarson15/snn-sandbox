@@ -728,3 +728,87 @@ describe('simulation engine skeleton', () => {
     expect(result.organisms[0].energy).toBeCloseTo(48.5, 1); // 50 - (0.15 * 10) = 48.5
   });
 });
+
+describe('hazard entity model', () => {
+  it('supports danger zone with type field', () => {
+    const state = createWorldState({
+      tick: 0,
+      organisms: [
+        { id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1 }
+      ],
+      food: [],
+      dangerZones: [
+        { id: 'fire-1', x: 50, y: 50, radius: 10, damagePerTick: 1, type: 'fire' },
+        { id: 'water-1', x: 20, y: 20, radius: 15, damagePerTick: 0.5, type: 'water' },
+        { id: 'radiation-1', x: 80, y: 80, radius: 20, damagePerTick: 2, type: 'radiation' },
+        { id: 'acid-1', x: 30, y: 70, radius: 8, damagePerTick: 3, type: 'acid' }
+      ]
+    });
+
+    const params = {
+      movementDelta: 0,
+      metabolismPerTick: 0,
+      movementCostMultiplier: 0,
+      foodSpawnChance: 0
+    };
+
+    const rng = createSeededPrng('hazard-type-test');
+    const result = runTicks(state, rng, 1, params);
+
+    // Organism at 50,50 is inside fire zone radius 10
+    expect(result.organisms[0].energy).toBe(99); // 100 - 1 damage
+  });
+
+  it('handles danger zones without type field (backwards compatible)', () => {
+    const state = createWorldState({
+      tick: 0,
+      organisms: [
+        { id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1 }
+      ],
+      food: [],
+      // No type field - should still work
+      dangerZones: [
+        { id: 'zone-1', x: 50, y: 50, radius: 10, damagePerTick: 2 }
+      ]
+    });
+
+    const params = {
+      movementDelta: 0,
+      metabolismPerTick: 0,
+      movementCostMultiplier: 0,
+      foodSpawnChance: 0
+    };
+
+    const rng = createSeededPrng('hazard-legacy-test');
+    const result = runTicks(state, rng, 1, params);
+
+    expect(result.organisms[0].energy).toBe(98); // 100 - 2 damage
+  });
+
+  it('applies different damage from multiple hazard types', () => {
+    const state = createWorldState({
+      tick: 0,
+      organisms: [
+        { id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1 }
+      ],
+      food: [],
+      dangerZones: [
+        { id: 'fire', x: 50, y: 50, radius: 10, damagePerTick: 1, type: 'fire' },
+        { id: 'radiation', x: 50, y: 50, radius: 10, damagePerTick: 2, type: 'radiation' }
+      ]
+    });
+
+    const params = {
+      movementDelta: 0,
+      metabolismPerTick: 0,
+      movementCostMultiplier: 0,
+      foodSpawnChance: 0
+    };
+
+    const rng = createSeededPrng('multi-hazard-test');
+    const result = runTicks(state, rng, 1, params);
+
+    // Fire (1) + Radiation (2) = 3 total damage
+    expect(result.organisms[0].energy).toBe(97);
+  });
+});
