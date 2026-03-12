@@ -29,7 +29,7 @@ body {
   padding: 0.75rem;
   gap: 0.75rem;
   box-sizing: border-box;
-  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 /* Main content area with side drawer */
@@ -37,13 +37,15 @@ body {
   display: flex;
   flex: 1;
   gap: 0.75rem;
-  overflow: hidden;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .app-main-content > .config-panel,
 .app-main-content > .simulation-stage {
   flex: 1;
   min-width: 0;
+  overflow: auto;
 }
 
 .app-header {
@@ -634,8 +636,10 @@ button:disabled {
 
 .simulation-stage {
   position: relative;
-  min-height: 400px;
+  min-height: 300px;
   flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .simulation-stats-hud {
