@@ -460,11 +460,11 @@ describe('simulation config helpers', () => {
       const world = createInitialWorldFromConfig(config);
 
       expect(world.organisms).toHaveLength(5);
-      // All organisms should have initial energy of 20
+      // All organisms should have initial energy of 40
       world.organisms.forEach((organism) => {
         expect(organism).toHaveProperty('energy');
         expect(typeof organism.energy).toBe('number');
-        expect(organism.energy).toBe(20);
+        expect(organism.energy).toBe(40);
       });
       // Energy should be deterministic across multiple world creations
       const world2 = createInitialWorldFromConfig(config);
