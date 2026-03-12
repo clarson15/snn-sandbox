@@ -607,14 +607,6 @@ function App() {
   }, [displayWorld, selectedOrganismId, tickDisplay]);
 
   useEffect(() => {
-    if (!selectedOrganism?.id) {
-      return;
-    }
-
-    inspectorSelectionHeadingRef.current?.focus();
-  }, [selectedOrganism?.id]);
-
-  useEffect(() => {
     setInspectorTrendState((previous) => reduceInspectorTrendState(previous, {
       selectedOrganismId,
       selectedOrganism,
@@ -1726,30 +1718,6 @@ function App() {
       if (event.key.toLowerCase() === 'p') {
         event.preventDefault();
         onToggleInspectorPin();
-        return;
-      }
-
-      if (inspectorOrganism && (event.key === '[' || event.key === ']')) {
-        event.preventDefault();
-        const offset = event.key === '[' ? -1 : 1;
-        const nextIndex = (activeInspectorSectionIndex + offset + INSPECTOR_SECTION_ORDER.length) % INSPECTOR_SECTION_ORDER.length;
-        setActiveInspectorSectionIndex(nextIndex);
-        const nextSectionKey = INSPECTOR_SECTION_ORDER[nextIndex];
-        inspectorSectionButtonRefs.current.get(nextSectionKey)?.focus();
-        return;
-      }
-
-      if (inspectorOrganism && event.key === 'Enter') {
-        const activeElement = document.activeElement;
-        const activeSectionEntry = [...inspectorSectionButtonRefs.current.entries()].find(([, button]) => button === activeElement);
-        const sectionKey = activeSectionEntry?.[0] ?? INSPECTOR_SECTION_ORDER[activeInspectorSectionIndex];
-        if (sectionKey) {
-          event.preventDefault();
-          setInspectorSectionExpanded((previous) => ({
-            ...previous,
-            [sectionKey]: !previous[sectionKey]
-          }));
-        }
         return;
       }
 
