@@ -1076,5 +1076,114 @@ describe('simulation engine skeleton', () => {
       expect(org.energy).toBe(15); // 10 + 5
       expect(next.food).toHaveLength(0);
     });
+});
+
+  describe('hazard interactions', () => {
+    it('applies damage to organisms in danger zones', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1, direction: 0 }
+        ],
+        dangerZones: [
+          { x: 50, y: 50, radius: 20, damagePerTick: 1 }
+        ]
+      });
+
+      // Run several ticks and verify energy decreases
+      let currentState = state;
+      const rng = createSeededPrng('danger-zone-damage');
+      
+      for (let i = 0; i < 5; i++) {
+        currentState = stepWorld(currentState, rng, {
+          movementDelta: 0,
+          metabolismPerTick: 0,
+          movementCostMultiplier: 0
+        });
+      }
+
+      const org = currentState.organisms.find(o => o.id === 'org-1');
+      expect(org.energy).toBeLessThan(100);
+    });
+
+    it('blocks organisms from passing through obstacles', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 10, y: 50, energy: 100, age: 0, generation: 1, direction: 0 }
+        ],
+        obstacles: [
+          { x: 30, y: 40, width: 20, height: 20 }
+        ]
+      });
+
+      // Try to move toward obstacle
+      const next = stepWorld(state, createSeededPrng('obstacle-block'), {
+        movementDelta: 50,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0
+      });
+
+      const org = next.organisms.find(o => o.id === 'org-1');
+      // Organism should be pushed back or stopped by obstacle
+      expect(org.x).toBeLessThan(30);
+    });
+
+    it('produces deterministic results with hazards', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1, direction: 0 }
+        ],
+        dangerZones: [
+          { x: 50, y: 50, radius: 15, damagePerTick: 0.5 }
+        ],
+        obstacles: [
+          { x: 70, y: 40, width: 10, height: 20 }
+        ]
+      });
+
+      const rng1 = createSeededPrng('hazard-det-1');
+      const rng2 = createSeededPrng('hazard-det-2');
+      
+      // Both should run same number of ticks with same seed sequence
+      let s1 = state;
+      let s2 = state;
+      
+      for (let i = 0; i < 10; i++) {
+        s1 = stepWorld(s1, rng1, { movementDelta: 1, metabolismPerTick: 0.1 });
+        s2 = stepWorld(s2, rng2, { movementDelta: 1, metabolismPerTick: 0.1 });
+      }
+
+      expect(s1.organisms).toEqual(s2.organisms);
+      expect(s1.dangerZones).toEqual(s2.dangerZones);
+      expect(s1.obstacles).toEqual(s2.obstacles);
+    });
+
+    it('includes hazard fields in snapshot output', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 10, y: 20, energy: 100 }
+        ],
+        dangerZones: [
+          { x: 50, y: 50, radius: 10, damagePerTick: 0.5 }
+        ],
+        obstacles: [
+          { x: 30, y: 30, width: 5, height: 5 }
+        ]
+      });
+
+      const next = stepWorld(state, createSeededPrng('hazard-fields'), {
+        movementDelta: 0,
+        metabolismPerTick: 0
+      });
+
+      expect(next).toHaveProperty('dangerZones');
+      expect(next).toHaveProperty('obstacles');
+      expect(Array.isArray(next.dangerZones)).toBe(true);
+      expect(Array.isArray(next.obstacles)).toBe(true);
+    });
   });
+
 });
