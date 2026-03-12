@@ -655,6 +655,14 @@ button:disabled {
   font-size: 0.88rem;
 }
 
+/* Prevent tick counter jitter by using monospace and fixed width */
+.simulation-stats-hud p[data.tick-counter] {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  min-width: 6ch;
+  text-align: right;
+  display: inline-block;
+}
+
 canvas {
   width: 100%;
   height: 100%;

@@ -2813,7 +2813,7 @@ function App() {
           New run with same seed
         </ControlButtonWithHint>
         {seedControlStatus ? <p aria-live="polite">{seedControlStatus}</p> : null}
-        <p role="status" aria-live="polite">
+        <p role="status" aria-live="polite" data-tick-counter>
           Tick: {tickDisplay} | {replayActive ? 'Replay active' : paused ? 'runtime state: paused' : `runtime state: running at ${speedMultiplier}x`}
         </p>
         {hasSimulation ? (
