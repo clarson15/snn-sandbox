@@ -772,6 +772,9 @@ export function stepWorld(state, rng, params = {}) {
   // Apply danger zone damage
   let finalOrganisms = applyDangerZoneDamage(organisms, dangerZones);
 
+  // Filter out organisms that died from hazard damage
+  finalOrganisms = finalOrganisms.filter((organism) => organism.energy > 0);
+
   // Handle obstacle collisions
   finalOrganisms = handleObstacleCollisions(finalOrganisms, obstacles, worldWidth, worldHeight);
 
