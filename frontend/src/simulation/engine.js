@@ -44,6 +44,7 @@
  * @property {number} y
  * @property {number} radius
  * @property {number} damagePerTick
+ * @property {'lava' | 'acid' | 'radiation'} [type] - hazard type for visual differentiation
  */
 
 /**

@@ -16,6 +16,25 @@ const HEALTH_DECAY_TICKS = 1000;
 const DEFAULT_VIEWPORT_CULL_PADDING = 12;
 const FOOD_RADIUS = 3;
 
+// Hazard type visual configurations
+const HAZARD_STYLES = {
+  lava: {
+    innerColor: [239, 68, 68],    // Red
+    outerColor: [220, 38, 38],    // Darker red
+    accentColor: 'rgba(249, 115, 22, 0.8)'  // Orange accent
+  },
+  acid: {
+    innerColor: [34, 197, 94],    // Green
+    outerColor: [22, 163, 74],    // Darker green
+    accentColor: 'rgba(132, 204, 22, 0.8)'  // Lime accent
+  },
+  radiation: {
+    innerColor: [234, 179, 8],    // Yellow
+    outerColor: [202, 138, 4],    // Darker yellow
+    accentColor: 'rgba(168, 85, 247, 0.8)'  // Purple accent
+  }
+};
+
 // Store previous species assignments to preserve stable colors for living organisms
 let previousSpeciesAssignments = null;
 
@@ -49,6 +68,44 @@ function drawBar(ctx, x, y, width, height, ratio, fillStyle) {
   ctx.strokeStyle = '#94a3b8';
   ctx.lineWidth = 1;
   ctx.strokeRect(x, y, width, height);
+}
+
+/**
+ * Draw a hazard zone with type-specific visual styling
+ */
+function drawHazardZone(ctx, zone, tick) {
+  const style = HAZARD_STYLES[zone.type] || HAZARD_STYLES.lava;
+  const [innerR, innerG, innerB] = style.innerColor;
+  const [outerR, outerG, outerB] = style.outerColor;
+  
+  // Pulsing effect based on tick
+  const pulseAlpha = 0.15 + 0.1 * Math.sin(tick * 0.1);
+  
+  // Create radial gradient for the hazard
+  const gradient = ctx.createRadialGradient(zone.x, zone.y, 0, zone.x, zone.y, zone.radius);
+  gradient.addColorStop(0, `rgba(${innerR}, ${innerG}, ${innerB}, ${pulseAlpha + 0.1})`);
+  gradient.addColorStop(0.5, `rgba(${innerR}, ${innerG}, ${innerB}, ${pulseAlpha})`);
+  gradient.addColorStop(0.8, `rgba(${outerR}, ${outerG}, ${outerB}, ${pulseAlpha * 0.5})`);
+  gradient.addColorStop(1, `rgba(${outerR}, ${outerG}, ${outerB}, 0)`);
+
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(zone.x, zone.y, zone.radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Draw border with accent color
+  ctx.strokeStyle = style.accentColor;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(zone.x, zone.y, zone.radius, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Draw inner circle for additional visual depth
+  ctx.strokeStyle = `rgba(${innerR}, ${innerG}, ${innerB}, 0.4)`;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(zone.x, zone.y, zone.radius * 0.6, 0, Math.PI * 2);
+  ctx.stroke();
 }
 
 function drawSelectedOrganismOverlays(ctx, organism, radius) {
@@ -105,24 +162,7 @@ export function drawWorldSnapshot(ctx, snapshot, viewport, renderOptions = {}) {
   // Draw danger zones (under everything)
   if (snapshot.dangerZones) {
     for (const zone of snapshot.dangerZones) {
-      // Draw danger zone with pulsing effect using tick-based animation
-      const pulseAlpha = 0.15 + 0.1 * Math.sin((snapshot.tick ?? 0) * 0.1);
-      const gradient = ctx.createRadialGradient(zone.x, zone.y, 0, zone.x, zone.y, zone.radius);
-      gradient.addColorStop(0, `rgba(239, 68, 68, ${pulseAlpha})`);
-      gradient.addColorStop(0.7, `rgba(239, 68, 68, ${pulseAlpha * 0.5})`);
-      gradient.addColorStop(1, 'rgba(239, 68, 68, 0)');
-
-      ctx.fillStyle = gradient;
-      ctx.beginPath();
-      ctx.arc(zone.x, zone.y, zone.radius, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Draw border
-      ctx.strokeStyle = 'rgba(239, 68, 68, 0.6)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(zone.x, zone.y, zone.radius, 0, Math.PI * 2);
-      ctx.stroke();
+      drawHazardZone(ctx, zone, snapshot.tick ?? 0);
     }
   }
 
