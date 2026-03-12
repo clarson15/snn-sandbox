@@ -29,7 +29,8 @@ describe('simulation stats', () => {
       population: 2,
       foodCount: 3,
       averageGeneration: 3,
-      averageEnergy: 15.5555
+      averageEnergy: 15.5555,
+      speciesCount: 1
     });
 
     // Guard against accidental render-path mutation.
@@ -52,7 +53,8 @@ describe('simulation stats', () => {
       population: '0',
       foodCount: '0',
       averageGeneration: '0.0',
-      averageEnergy: '0.0'
+      averageEnergy: '0.0',
+      speciesCount: '0'
     });
   });
 
@@ -72,7 +74,8 @@ describe('simulation stats', () => {
       population: 2,
       foodCount: 1,
       averageGeneration: 2.45,
-      averageEnergy: -1.6
+      averageEnergy: -1.6,
+      speciesCount: 1
     });
 
     expect(formatSimulationStats({
@@ -81,14 +84,16 @@ describe('simulation stats', () => {
       population: -2,
       foodCount: 1.9,
       averageGeneration: Number.POSITIVE_INFINITY,
-      averageEnergy: Number.NEGATIVE_INFINITY
+      averageEnergy: Number.NEGATIVE_INFINITY,
+      speciesCount: -1
     })).toEqual({
       tickCount: '0',
       elapsedTime: '0.0s',
       population: '0',
       foodCount: '1',
       averageGeneration: '0.0',
-      averageEnergy: '0.0'
+      averageEnergy: '0.0',
+      speciesCount: '0'
     });
   });
 
@@ -148,5 +153,47 @@ describe('simulation stats', () => {
     expect(formatTrendIndicator(STATS_TREND_DIRECTIONS.UP)).toBe('↑ Up');
     expect(formatTrendIndicator(STATS_TREND_DIRECTIONS.DOWN)).toBe('↓ Down');
     expect(formatTrendIndicator(STATS_TREND_DIRECTIONS.FLAT)).toBe('→ Flat');
+  });
+
+  it('clusters organisms into species based on genetic distance', () => {
+    // Two organisms with identical traits = 1 species
+    const identicalOrganisms = {
+      tick: 10,
+      organisms: [
+        { id: 'o-1', traits: { size: 1, speed: 1, visionRange: 5, turnRate: 0.5, metabolism: 0.1 } },
+        { id: 'o-2', traits: { size: 1, speed: 1, visionRange: 5, turnRate: 0.5, metabolism: 0.1 } }
+      ],
+      food: []
+    };
+    expect(deriveSimulationStats(identicalOrganisms).speciesCount).toBe(1);
+
+    // Two organisms with very different traits = 2 species
+    const differentOrganisms = {
+      tick: 10,
+      organisms: [
+        { id: 'o-1', traits: { size: 1, speed: 1, visionRange: 5, turnRate: 0.5, metabolism: 0.1 } },
+        { id: 'o-2', traits: { size: 5, speed: 5, visionRange: 20, turnRate: 1, metabolism: 1 } }
+      ],
+      food: []
+    };
+    expect(deriveSimulationStats(differentOrganisms).speciesCount).toBe(2);
+
+    // Chain of similar organisms = 1 species (connected components)
+    const chainOrganisms = {
+      tick: 10,
+      organisms: [
+        { id: 'o-1', traits: { size: 1, speed: 1, visionRange: 5, turnRate: 0.5, metabolism: 0.1 } },
+        { id: 'o-2', traits: { size: 1.1, speed: 1.1, visionRange: 5.1, turnRate: 0.51, metabolism: 0.11 } },
+        { id: 'o-3', traits: { size: 1.2, speed: 1.2, visionRange: 5.2, turnRate: 0.52, metabolism: 0.12 } }
+      ],
+      food: []
+    };
+    expect(deriveSimulationStats(chainOrganisms).speciesCount).toBe(1);
+
+    // Empty population
+    expect(deriveSimulationStats({ tick: 0, organisms: [], food: [] }).speciesCount).toBe(0);
+
+    // Single organism
+    expect(deriveSimulationStats({ tick: 0, organisms: [{ id: 'o-1' }], food: [] }).speciesCount).toBe(1);
   });
 });
