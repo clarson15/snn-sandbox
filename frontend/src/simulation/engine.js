@@ -19,7 +19,9 @@
  * @property {string} [parentId] id of parent organism (set on reproduction)
  * @property {number} [lastReproductionTick] most recent tick when organism reproduced
  * @property {number} [direction] heading in radians
- * @property {{size:number,speed:number,visionRange:number,turnRate:number,metabolism:number,adolescenceAge?:number}} traits
+ * @property {'egg'} [lifeStage]
+ * @property {number} [incubationAge]
+ * @property {{size:number,speed:number,visionRange:number,turnRate:number,metabolism:number,adolescenceAge?:number,eggHatchTime?:number}} traits
  */
 
 /**
@@ -128,6 +130,23 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+function isEggStage(organism) {
+  return organism?.lifeStage === 'egg';
+}
+
+function resolveEggHatchTime(traits) {
+  const rawHatchTime = Number(traits?.eggHatchTime ?? 0);
+  if (!Number.isFinite(rawHatchTime)) {
+    return 0;
+  }
+
+  return Math.max(0, rawHatchTime);
+}
+
+function calculateEggLayCost(hatchTime) {
+  return resolveEggHatchTime({ eggHatchTime: hatchTime }) * 0.5;
+}
+
 function resolveGrowthProgress(organism) {
   const adolescenceAge = Number(organism?.traits?.adolescenceAge ?? 0);
   if (!Number.isFinite(adolescenceAge) || adolescenceAge <= 0) {
@@ -148,6 +167,17 @@ function interpolateByGrowth(progress, juvenileValue, adultValue) {
 
 export function resolveExpressedTraits(organism) {
   const traits = organism?.traits ?? {};
+  if (isEggStage(organism)) {
+    return {
+      ...traits,
+      size: (Number.isFinite(traits.size) ? traits.size : 1) * 0.45,
+      speed: 0,
+      metabolism: 0,
+      movementCostScale: 0,
+      adulthoodProgress: 0
+    };
+  }
+
   const progress = resolveGrowthProgress(organism);
   const adultSize = Number.isFinite(traits.size) ? traits.size : 1;
   const adultSpeed = Number.isFinite(traits.speed) ? traits.speed : 1;
@@ -697,8 +727,19 @@ export function stepWorld(state, rng, params = {}) {
   const brainMutationMagnitude = params.brainMutationMagnitude ?? 0.2;
   const brainAddSynapseChance = params.brainAddSynapseChance ?? 0.05;
   const brainRemoveSynapseChance = params.brainRemoveSynapseChance ?? 0.05;
+  const currentTick = state.tick + 1;
 
-  const movedOrganisms = state.organisms.map((organism) => {
+  const eggs = [];
+  const activeOrganisms = [];
+  for (const organism of state.organisms) {
+    if (isEggStage(organism)) {
+      eggs.push(organism);
+    } else {
+      activeOrganisms.push(organism);
+    }
+  }
+
+  const movedOrganisms = activeOrganisms.map((organism) => {
     // Compute input neuron values based on organism state and environment
     const inputValues = computeInputNeuronValues(organism, state.food, worldWidth, worldHeight);
 
@@ -859,7 +900,7 @@ export function stepWorld(state, rng, params = {}) {
   // Organisms are processed in stable id order for reproducibility
   // Optimization: skip sort if already sorted
   const offspringOrganisms = [];
-  let nextOrganismNumericId = deriveNextOrganismNumericId(organisms);
+  let nextOrganismNumericId = deriveNextOrganismNumericId(state.organisms);
 
   let organismsForReproduction = organisms;
   const needsReproSort = organisms.length > 1 &&
@@ -868,7 +909,6 @@ export function stepWorld(state, rng, params = {}) {
     organismsForReproduction = [...organisms].sort((a, b) => a.id.localeCompare(b.id));
   }
 
-  const currentTick = state.tick + 1;
   for (const organism of organismsForReproduction) {
     const lastReproductionTick = Number.isFinite(organism.lastReproductionTick)
       ? organism.lastReproductionTick
@@ -879,7 +919,9 @@ export function stepWorld(state, rng, params = {}) {
       && (currentTick - lastReproductionTick) >= reproductionRefractoryPeriod;
 
     if (canReproduce) {
-      // Create offspring
+      const eggHatchTime = resolveEggHatchTime(organism.traits);
+      const eggLayCost = calculateEggLayCost(eggHatchTime);
+
       const offspringId = `org-${nextOrganismNumericId}`;
       nextOrganismNumericId += 1;
 
@@ -892,7 +934,7 @@ export function stepWorld(state, rng, params = {}) {
       const mutatedTraits = mutateTraits(organism.traits, rng, traitMutationRate, traitMutationMagnitude);
       const mutatedBrain = mutateBrain(organism.brain, rng, brainMutationRate, brainMutationMagnitude, brainAddSynapseChance, brainRemoveSynapseChance);
 
-      offspringOrganisms.push({
+      const offspringBase = {
         id: offspringId,
         x: Math.max(0, Math.min(worldWidth, offspringX)),
         y: Math.max(0, Math.min(worldHeight, offspringY)),
@@ -905,17 +947,46 @@ export function stepWorld(state, rng, params = {}) {
         direction: organism.direction,
         traits: mutatedTraits,
         brain: mutatedBrain
-      });
+      };
+
+      offspringOrganisms.push(eggHatchTime > 0
+        ? {
+          ...offspringBase,
+          lifeStage: 'egg',
+          incubationAge: 0
+        }
+        : offspringBase);
 
       // Deduct energy from parent
-      organism.energy -= reproductionCost;
+      organism.energy -= reproductionCost + eggLayCost;
       organism.lastReproductionTick = currentTick;
     }
   }
 
-  // Add offspring to organisms array
-  if (offspringOrganisms.length > 0) {
-    organisms = organisms.concat(offspringOrganisms);
+  const incubatingEggs = [];
+  const hatchedOrganisms = [];
+  for (const egg of eggs) {
+    const nextIncubationAge = Number(egg.incubationAge ?? 0) + 1;
+    const hatchTime = resolveEggHatchTime(egg.traits);
+
+    if (nextIncubationAge >= hatchTime && hatchTime > 0) {
+      hatchedOrganisms.push({
+        ...egg,
+        age: 0,
+        lifeStage: undefined,
+        incubationAge: undefined
+      });
+      continue;
+    }
+
+    incubatingEggs.push({
+      ...egg,
+      incubationAge: nextIncubationAge
+    });
+  }
+
+  if (offspringOrganisms.length > 0 || incubatingEggs.length > 0 || hatchedOrganisms.length > 0) {
+    organisms = organisms.concat(incubatingEggs, hatchedOrganisms, offspringOrganisms);
   }
 
   if (minimumPopulation > 0 && organisms.length < minimumPopulation && typeof createFloorSpawnOrganism === 'function') {
@@ -1023,14 +1094,14 @@ export function runTickSchedule(initialState, rng, schedule, params = {}) {
  */
 function calculateGeneticDistance(a, b) {
   // Trait distance (normalized)
-  const traitNames = ['size', 'speed', 'visionRange', 'turnRate', 'metabolism', 'adolescenceAge'];
+  const traitNames = ['size', 'speed', 'visionRange', 'turnRate', 'metabolism', 'adolescenceAge', 'eggHatchTime'];
   let traitDistance = 0;
 
   for (const trait of traitNames) {
     const aVal = Number(a?.traits?.[trait] ?? 0);
     const bVal = Number(b?.traits?.[trait] ?? 0);
     // Normalize by typical range for each trait
-    const maxVals = { size: 5, speed: 5, visionRange: 50, turnRate: 1, metabolism: 1, adolescenceAge: 500 };
+    const maxVals = { size: 5, speed: 5, visionRange: 50, turnRate: 1, metabolism: 1, adolescenceAge: 500, eggHatchTime: 10 };
     const normalizedDiff = (aVal - bVal) / (maxVals[trait] || 1);
     traitDistance += normalizedDiff * normalizedDiff;
   }
@@ -1272,6 +1343,8 @@ export function createTickSnapshot(state, params = {}) {
       parentId: o.parentId,
       lastReproductionTick: o.lastReproductionTick,
       direction: o.direction,
+      lifeStage: o.lifeStage,
+      incubationAge: o.incubationAge,
       traits: { ...o.traits },
       genome: o.genome ? { ...o.genome } : undefined,
       brain: o.brain ? { ...o.brain } : undefined

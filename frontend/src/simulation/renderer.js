@@ -44,6 +44,10 @@ function deriveOrganismRadius(organism) {
   return clamp(ORGANISM_BASE_RADIUS * sizeTrait, 3, 18);
 }
 
+function isEggStage(organism) {
+  return organism?.lifeStage === 'egg';
+}
+
 function isCircleWithinViewport(x, y, radius, width, height, padding) {
   return !(
     x + radius < -padding ||
@@ -209,23 +213,34 @@ export function drawWorldSnapshot(ctx, snapshot, viewport, renderOptions = {}) {
       continue;
     }
 
-    const direction = Number.isFinite(organism.direction) ? organism.direction : 0;
-    const headingX = organism.x + Math.cos(direction) * (radius + DIRECTION_INDICATOR_LENGTH);
-    const headingY = organism.y + Math.sin(direction) * (radius + DIRECTION_INDICATOR_LENGTH);
-
     const organismColor = organism.color ?? '#38bdf8';
 
-    ctx.fillStyle = organismColor;
-    ctx.beginPath();
-    ctx.arc(organism.x, organism.y, radius, 0, Math.PI * 2);
-    ctx.fill();
+    if (isEggStage(organism)) {
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath();
+      ctx.ellipse(organism.x, organism.y, radius * 0.8, radius, 0, 0, Math.PI * 2);
+      ctx.fill();
 
-    ctx.beginPath();
-    ctx.strokeStyle = '#e2e8f0';
-    ctx.lineWidth = 1.5;
-    ctx.moveTo(organism.x, organism.y);
-    ctx.lineTo(headingX, headingY);
-    ctx.stroke();
+      ctx.strokeStyle = organismColor;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    } else {
+      const direction = Number.isFinite(organism.direction) ? organism.direction : 0;
+      const headingX = organism.x + Math.cos(direction) * (radius + DIRECTION_INDICATOR_LENGTH);
+      const headingY = organism.y + Math.sin(direction) * (radius + DIRECTION_INDICATOR_LENGTH);
+
+      ctx.fillStyle = organismColor;
+      ctx.beginPath();
+      ctx.arc(organism.x, organism.y, radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 1.5;
+      ctx.moveTo(organism.x, organism.y);
+      ctx.lineTo(headingX, headingY);
+      ctx.stroke();
+    }
 
     if (selectedOrganismId && organism.id === selectedOrganismId) {
       drawSelectedOrganismOverlays(ctx, organism, radius);

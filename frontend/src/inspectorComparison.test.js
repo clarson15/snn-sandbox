@@ -12,6 +12,7 @@ describe('deriveInspectorComparisonRows', () => {
         size: 1.2,
         speed: 2.4,
         adolescenceAge: 60,
+        eggHatchTime: 5,
         visionRange: 55,
         turnRate: 0.5,
         metabolism: 1.1
@@ -25,6 +26,7 @@ describe('deriveInspectorComparisonRows', () => {
         size: 1.1,
         speed: 2.6,
         adolescenceAge: 45,
+        eggHatchTime: 2,
         visionRange: 50,
         turnRate: 0.5,
         metabolism: 1.2
@@ -41,6 +43,7 @@ describe('deriveInspectorComparisonRows', () => {
       'size',
       'speed',
       'adolescenceAge',
+      'eggHatchTime',
       'turnRate',
       'visionRange',
       'metabolism'
@@ -58,6 +61,7 @@ describe('deriveInspectorComparisonRows', () => {
         size: 1,
         speed: undefined,
         adolescenceAge: undefined,
+        eggHatchTime: undefined,
         visionRange: 3,
         turnRate: 0.2
       }
@@ -70,6 +74,7 @@ describe('deriveInspectorComparisonRows', () => {
         size: 1,
         speed: 2,
         adolescenceAge: 30,
+        eggHatchTime: 4,
         visionRange: 3,
         turnRate: 0.2,
         metabolism: 0.7

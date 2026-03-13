@@ -166,7 +166,7 @@ describe('simulation stats', () => {
       tick: 10,
       organisms: [
         { id: 'o-1', traits: { size: 1, speed: 1, adolescenceAge: 40, visionRange: 5, turnRate: 0.5, metabolism: 0.1 } },
-        { id: 'o-2', traits: { size: 1, speed: 1, adolescenceAge: 40, visionRange: 5, turnRate: 0.5, metabolism: 0.1 } }
+        { id: 'o-2', traits: { size: 1, speed: 1, adolescenceAge: 40, eggHatchTime: 0, visionRange: 5, turnRate: 0.5, metabolism: 0.1 } }
       ],
       food: []
     };
@@ -176,8 +176,8 @@ describe('simulation stats', () => {
     const differentOrganisms = {
       tick: 10,
       organisms: [
-        { id: 'o-1', traits: { size: 1, speed: 1, adolescenceAge: 20, visionRange: 5, turnRate: 0.5, metabolism: 0.1 } },
-        { id: 'o-2', traits: { size: 5, speed: 5, adolescenceAge: 400, visionRange: 20, turnRate: 1, metabolism: 1 } }
+        { id: 'o-1', traits: { size: 1, speed: 1, adolescenceAge: 20, eggHatchTime: 0, visionRange: 5, turnRate: 0.5, metabolism: 0.1 } },
+        { id: 'o-2', traits: { size: 5, speed: 5, adolescenceAge: 400, eggHatchTime: 9, visionRange: 20, turnRate: 1, metabolism: 1 } }
       ],
       food: []
     };
@@ -187,9 +187,9 @@ describe('simulation stats', () => {
     const chainOrganisms = {
       tick: 10,
       organisms: [
-        { id: 'o-1', traits: { size: 1, speed: 1, adolescenceAge: 40, visionRange: 5, turnRate: 0.5, metabolism: 0.1 } },
-        { id: 'o-2', traits: { size: 1.1, speed: 1.1, adolescenceAge: 42, visionRange: 5.1, turnRate: 0.51, metabolism: 0.11 } },
-        { id: 'o-3', traits: { size: 1.2, speed: 1.2, adolescenceAge: 44, visionRange: 5.2, turnRate: 0.52, metabolism: 0.12 } }
+        { id: 'o-1', traits: { size: 1, speed: 1, adolescenceAge: 40, eggHatchTime: 2, visionRange: 5, turnRate: 0.5, metabolism: 0.1 } },
+        { id: 'o-2', traits: { size: 1.1, speed: 1.1, adolescenceAge: 42, eggHatchTime: 2.2, visionRange: 5.1, turnRate: 0.51, metabolism: 0.11 } },
+        { id: 'o-3', traits: { size: 1.2, speed: 1.2, adolescenceAge: 44, eggHatchTime: 2.4, visionRange: 5.2, turnRate: 0.52, metabolism: 0.12 } }
       ],
       food: []
     };

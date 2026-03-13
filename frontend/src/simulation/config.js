@@ -507,7 +507,10 @@ function createRandomizedOrganism({ id, rng, worldWidth, worldHeight, color }) {
       visionRange: Number((25 + rng.nextFloat() * 90).toFixed(3)),
       turnRate: Number((0.03 + rng.nextFloat() * 0.09).toFixed(3)),
       metabolism: Number((0.02 + rng.nextFloat() * 0.1).toFixed(3)),
-      adolescenceAge: Number((20 + rng.nextFloat() * 180).toFixed(3))
+      adolescenceAge: Number((20 + rng.nextFloat() * 180).toFixed(3)),
+      eggHatchTime: rng.nextFloat() < 0.25
+        ? 0
+        : Number((1 + rng.nextFloat() * 7).toFixed(3))
     },
     brain: createInitialBrain(rng)
   };
