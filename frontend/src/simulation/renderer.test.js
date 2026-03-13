@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { drawWorldSnapshot } from './renderer';
 
 function createMockContext() {
+  let currentFillStyle = null;
   return {
     arcCalls: [],
     fillRectCalls: [],
+    fillCalls: [],
     strokeRectCalls: [],
     moveToCalls: [],
     lineToCalls: [],
@@ -20,7 +22,9 @@ function createMockContext() {
     arc(x, y, radius, startAngle, endAngle) {
       this.arcCalls.push({ x, y, radius, startAngle, endAngle });
     },
-    fill() {},
+    fill() {
+      this.fillCalls.push({ fillStyle: currentFillStyle });
+    },
     stroke() {},
     moveTo(x, y) {
       this.moveToCalls.push({ x, y });
@@ -28,7 +32,9 @@ function createMockContext() {
     lineTo(x, y) {
       this.lineToCalls.push({ x, y });
     },
-    set fillStyle(_value) {},
+    set fillStyle(value) {
+      currentFillStyle = value;
+    },
     set strokeStyle(_value) {},
     set lineWidth(_value) {}
   };
@@ -102,5 +108,22 @@ describe('drawWorldSnapshot viewport culling', () => {
 
     expect(JSON.stringify(enabledSnapshot)).toBe(enabledBefore);
     expect(JSON.stringify(disabledSnapshot)).toBe(disabledBefore);
+  });
+
+  it('renders organisms using their explicit organism color', () => {
+    const ctx = createMockContext();
+    const snapshot = {
+      tick: 1,
+      food: [],
+      organisms: [
+        { id: 'a', x: 20, y: 20, direction: 0, color: '#123456', traits: { size: 1, visionRange: 0 } },
+        { id: 'b', x: 40, y: 20, direction: 0, color: '#abcdef', traits: { size: 1, visionRange: 0 } }
+      ]
+    };
+
+    drawWorldSnapshot(ctx, snapshot, { width: 100, height: 100 }, { cullPadding: 0 });
+
+    expect(ctx.fillCalls.some(({ fillStyle }) => fillStyle === '#123456')).toBe(true);
+    expect(ctx.fillCalls.some(({ fillStyle }) => fillStyle === '#abcdef')).toBe(true);
   });
 });

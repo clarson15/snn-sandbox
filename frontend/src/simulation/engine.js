@@ -12,6 +12,7 @@
  * @property {string} id
  * @property {number} x
  * @property {number} y
+ * @property {string} [color]
  * @property {number} energy
  * @property {number} age
  * @property {number} generation
@@ -834,6 +835,7 @@ export function stepWorld(state, rng, params = {}) {
         id: offspringId,
         x: Math.max(0, Math.min(worldWidth, offspringX)),
         y: Math.max(0, Math.min(worldHeight, offspringY)),
+        color: organism.color,
         energy: offspringStartEnergy,
         age: 0,
         generation: organism.generation + 1,

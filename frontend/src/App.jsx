@@ -115,7 +115,10 @@ const FORM_FIELDS = [
   'foodEnergyValue',
   'maxFood',
   'mutationRate',
-  'mutationStrength'
+  'mutationStrength',
+  'reproductionThreshold',
+  'reproductionCost',
+  'offspringStartEnergy'
 ];
 
 function stableStringify(value) {
@@ -176,7 +179,10 @@ function createFormStateFromConfig(config) {
     foodEnergyValue: String(config.foodEnergyValue),
     maxFood: String(config.maxFood),
     mutationRate: String(config.mutationRate ?? DEFAULT_CONFIG.mutationRate),
-    mutationStrength: String(config.mutationStrength ?? DEFAULT_CONFIG.mutationStrength)
+    mutationStrength: String(config.mutationStrength ?? DEFAULT_CONFIG.mutationStrength),
+    reproductionThreshold: String(config.reproductionThreshold ?? DEFAULT_CONFIG.reproductionThreshold),
+    reproductionCost: String(config.reproductionCost ?? DEFAULT_CONFIG.reproductionCost),
+    offspringStartEnergy: String(config.offspringStartEnergy ?? DEFAULT_CONFIG.offspringStartEnergy)
   };
 }
 
@@ -1141,7 +1147,10 @@ function App() {
       foodEnergyValue: String(preset.config.foodEnergyValue),
       maxFood: String(preset.config.maxFood),
       mutationRate: String(preset.config.mutationRate),
-      mutationStrength: String(preset.config.mutationStrength)
+      mutationStrength: String(preset.config.mutationStrength),
+      reproductionThreshold: String(preset.config.reproductionThreshold ?? DEFAULT_CONFIG.reproductionThreshold),
+      reproductionCost: String(preset.config.reproductionCost ?? DEFAULT_CONFIG.reproductionCost),
+      offspringStartEnergy: String(preset.config.offspringStartEnergy ?? DEFAULT_CONFIG.offspringStartEnergy)
     };
 
     setFormState(newFormState);
@@ -1163,7 +1172,10 @@ function App() {
       foodEnergyValue: Number(formState.foodEnergyValue) || DEFAULT_CONFIG.foodEnergyValue,
       maxFood: Number(formState.maxFood) || DEFAULT_CONFIG.maxFood,
       mutationRate: Number(formState.mutationRate) || DEFAULT_CONFIG.mutationRate,
-      mutationStrength: Number(formState.mutationStrength) || DEFAULT_CONFIG.mutationStrength
+      mutationStrength: Number(formState.mutationStrength) || DEFAULT_CONFIG.mutationStrength,
+      reproductionThreshold: Number(formState.reproductionThreshold) || DEFAULT_CONFIG.reproductionThreshold,
+      reproductionCost: Number(formState.reproductionCost) || DEFAULT_CONFIG.reproductionCost,
+      offspringStartEnergy: Number(formState.offspringStartEnergy) || DEFAULT_CONFIG.offspringStartEnergy
     };
 
     const success = saveCustomPreset(newPresetName, currentConfig);
@@ -3140,6 +3152,26 @@ function App() {
                   Mutation strength
                   <input type="number" step="0.01" value={formState.mutationStrength} onChange={onFieldChange('mutationStrength')} />
                   {errors.mutationStrength ? <span className="error-text">{errors.mutationStrength}</span> : null}
+                </label>
+              </div>
+
+              <h3>Reproduction settings</h3>
+              <p className="field-hint">Threshold/cost/start energy: 1-200, 0-200, 0-200.</p>
+              <div className="field-row">
+                <label>
+                  Reproduction threshold
+                  <input type="number" value={formState.reproductionThreshold} onChange={onFieldChange('reproductionThreshold')} />
+                  {errors.reproductionThreshold ? <span className="error-text">{errors.reproductionThreshold}</span> : null}
+                </label>
+                <label>
+                  Reproduction cost
+                  <input type="number" value={formState.reproductionCost} onChange={onFieldChange('reproductionCost')} />
+                  {errors.reproductionCost ? <span className="error-text">{errors.reproductionCost}</span> : null}
+                </label>
+                <label>
+                  Offspring start energy
+                  <input type="number" value={formState.offspringStartEnergy} onChange={onFieldChange('offspringStartEnergy')} />
+                  {errors.offspringStartEnergy ? <span className="error-text">{errors.offspringStartEnergy}</span> : null}
                 </label>
               </div>
 

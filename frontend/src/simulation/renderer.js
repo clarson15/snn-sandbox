@@ -3,8 +3,6 @@
  * Read-only: never mutates simulation state.
  */
 
-import { detectSpecies, getSpeciesColor, getGenerationColor } from './engine';
-
 /**
  * @typedef {import('./engine').WorldState} WorldState
  */
@@ -34,9 +32,6 @@ const HAZARD_STYLES = {
     accentColor: 'rgba(168, 85, 247, 0.8)'  // Purple accent
   }
 };
-
-// Store previous species assignments to preserve stable colors for living organisms
-let previousSpeciesAssignments = null;
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -206,11 +201,6 @@ export function drawWorldSnapshot(ctx, snapshot, viewport, renderOptions = {}) {
     ctx.fill();
   }
 
-  // Detect species once for all organisms, preserving previous assignments for stable colors
-  const speciesMap = detectSpecies(snapshot.organisms, 0.5, previousSpeciesAssignments);
-  // Store for next frame to maintain stable species IDs for living organisms
-  previousSpeciesAssignments = speciesMap;
-
   for (const organism of snapshot.organisms) {
     const radius = deriveOrganismRadius(organism);
     if (viewportCullingEnabled && !isCircleWithinViewport(organism.x, organism.y, radius, width, height, cullPadding)) {
@@ -221,9 +211,7 @@ export function drawWorldSnapshot(ctx, snapshot, viewport, renderOptions = {}) {
     const headingX = organism.x + Math.cos(direction) * (radius + DIRECTION_INDICATOR_LENGTH);
     const headingY = organism.y + Math.sin(direction) * (radius + DIRECTION_INDICATOR_LENGTH);
 
-    const speciesId = speciesMap.get(organism.id);
-    // Use species-based color for visual distinction (SSN-219)
-    const organismColor = getSpeciesColor(speciesId);
+    const organismColor = organism.color ?? '#38bdf8';
 
     ctx.fillStyle = organismColor;
     ctx.beginPath();

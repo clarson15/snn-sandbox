@@ -901,7 +901,7 @@ describe('simulation engine skeleton', () => {
         tick: 0,
         organisms: [
           { 
-            id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1, direction: 0, 
+            id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1, direction: 0, color: '#3366cc',
             traits: { size: 2, speed: 3, visionRange: 15, turnRate: 0.1, metabolism: 0.2 }, 
             brain: { synapses: [{ sourceId: 'in-energy', targetId: 'out-turn-left', weight: 0.5 }] } 
           }
@@ -927,6 +927,7 @@ describe('simulation engine skeleton', () => {
       // Traits should be inherited
       expect(offspring.traits.size).toBe(2);
       expect(offspring.traits.speed).toBe(3);
+      expect(offspring.color).toBe('#3366cc');
       
       // Brain should be inherited
       expect(offspring.brain.synapses).toHaveLength(1);

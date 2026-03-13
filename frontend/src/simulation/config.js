@@ -214,18 +214,18 @@ export function applyPreset(presetId, baseConfig = {}) {
 export const DEFAULT_CONFIG = {
   name: 'New Simulation',
   seed: '',
-  worldWidth: 800,
-  worldHeight: 480,
-  initialPopulation: 12,
-  minimumPopulation: 12,
+  worldWidth: 1920,
+  worldHeight: 1080,
+  initialPopulation: 20,
+  minimumPopulation: 20,
   initialFoodCount: 30,
-  foodSpawnChance: 0.04,
-  foodEnergyValue: 5,
-  maxFood: 120,
+  foodSpawnChance: 0.1,
+  foodEnergyValue: 10,
+  maxFood: 450,
   mutationRate: 0.05,
   mutationStrength: 0.1,
   // Reproduction settings
-  reproductionThreshold: 60,
+  reproductionThreshold: 42,
   reproductionCost: 20,
   offspringStartEnergy: 15,
   // Environmental hazards
@@ -280,6 +280,9 @@ export function validateSimulationConfig(input) {
     ['maxFood', 1, 2000, 'Max food must be between 1 and 2000.'],
     ['mutationRate', 0, 1, 'Mutation rate must be between 0 and 1.'],
     ['mutationStrength', 0, 1, 'Mutation strength must be between 0 and 1.'],
+    ['reproductionThreshold', 1, 200, 'Reproduction threshold must be between 1 and 200.'],
+    ['reproductionCost', 0, 200, 'Reproduction cost must be between 0 and 200.'],
+    ['offspringStartEnergy', 0, 200, 'Offspring start energy must be between 0 and 200.'],
     // Hazard validation
     ['obstacleCount', 0, 20, 'Obstacle count must be between 0 and 20.'],
     ['obstacleMinSize', 10, 200, 'Obstacle min size must be between 10 and 200.'],
@@ -322,6 +325,9 @@ export function normalizeSimulationConfig(input, resolvedSeed) {
     maxFood: Number(input.maxFood ?? DEFAULT_CONFIG.maxFood),
     mutationRate: Number(input.mutationRate ?? DEFAULT_CONFIG.mutationRate),
     mutationStrength: Number(input.mutationStrength ?? DEFAULT_CONFIG.mutationStrength),
+    reproductionThreshold: Number(input.reproductionThreshold ?? DEFAULT_CONFIG.reproductionThreshold),
+    reproductionCost: Number(input.reproductionCost ?? DEFAULT_CONFIG.reproductionCost),
+    offspringStartEnergy: Number(input.offspringStartEnergy ?? DEFAULT_CONFIG.offspringStartEnergy),
     // Environmental hazards
     enableObstacles: Boolean(input.enableObstacles ?? DEFAULT_CONFIG.enableObstacles),
     obstacleCount: Number(input.obstacleCount ?? DEFAULT_CONFIG.obstacleCount),
@@ -376,11 +382,106 @@ function createInitialBrain(rng) {
   };
 }
 
-function createRandomizedOrganism({ id, rng, worldWidth, worldHeight }) {
+function colorToRgb(color) {
+  const normalized = String(color ?? '').trim();
+  const match = /^#?([0-9a-f]{6})$/i.exec(normalized);
+  if (!match) {
+    return null;
+  }
+
+  const hex = match[1];
+  return {
+    r: Number.parseInt(hex.slice(0, 2), 16),
+    g: Number.parseInt(hex.slice(2, 4), 16),
+    b: Number.parseInt(hex.slice(4, 6), 16)
+  };
+}
+
+function rgbDistance(colorA, colorB) {
+  const rgbA = colorToRgb(colorA);
+  const rgbB = colorToRgb(colorB);
+  if (!rgbA || !rgbB) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  const dr = rgbA.r - rgbB.r;
+  const dg = rgbA.g - rgbB.g;
+  const db = rgbA.b - rgbB.b;
+  return Math.sqrt((dr * dr) + (dg * dg) + (db * db));
+}
+
+function hslToHex(hue, saturation, lightness) {
+  const normalizedHue = ((hue % 360) + 360) % 360;
+  const s = Math.max(0, Math.min(1, saturation));
+  const l = Math.max(0, Math.min(1, lightness));
+  const chroma = (1 - Math.abs((2 * l) - 1)) * s;
+  const segment = normalizedHue / 60;
+  const x = chroma * (1 - Math.abs((segment % 2) - 1));
+
+  let r1 = 0;
+  let g1 = 0;
+  let b1 = 0;
+
+  if (segment >= 0 && segment < 1) {
+    r1 = chroma;
+    g1 = x;
+  } else if (segment < 2) {
+    r1 = x;
+    g1 = chroma;
+  } else if (segment < 3) {
+    g1 = chroma;
+    b1 = x;
+  } else if (segment < 4) {
+    g1 = x;
+    b1 = chroma;
+  } else if (segment < 5) {
+    r1 = x;
+    b1 = chroma;
+  } else {
+    r1 = chroma;
+    b1 = x;
+  }
+
+  const matchLightness = l - (chroma / 2);
+  const toHexChannel = (value) => Math.round((value + matchLightness) * 255).toString(16).padStart(2, '0');
+  return `#${toHexChannel(r1)}${toHexChannel(g1)}${toHexChannel(b1)}`;
+}
+
+function createDistinctColorGenerator(seedOffset = 0, initialColors = []) {
+  const assignedColors = [...initialColors];
+  let sequenceIndex = 0;
+  const goldenAngle = 137.50776405003785;
+  const minDistance = 90;
+
+  return () => {
+    for (let attempt = 0; attempt < 256; attempt += 1) {
+      const hue = (seedOffset + ((sequenceIndex + attempt) * goldenAngle)) % 360;
+      const saturation = 0.68 + (((sequenceIndex + attempt) % 4) * 0.06);
+      const lightness = 0.48 + (((sequenceIndex + attempt) % 3) * 0.08);
+      const candidate = hslToHex(hue, Math.min(saturation, 0.9), Math.min(lightness, 0.72));
+      const isDistinct = assignedColors.every((existingColor) => rgbDistance(existingColor, candidate) >= minDistance);
+      if (!isDistinct) {
+        continue;
+      }
+
+      sequenceIndex += attempt + 1;
+      assignedColors.push(candidate);
+      return candidate;
+    }
+
+    const fallback = hslToHex((seedOffset + (sequenceIndex * goldenAngle)) % 360, 0.75, 0.58);
+    sequenceIndex += 1;
+    assignedColors.push(fallback);
+    return fallback;
+  };
+}
+
+function createRandomizedOrganism({ id, rng, worldWidth, worldHeight, color }) {
   return {
     id,
     x: rng.nextFloat() * worldWidth,
     y: rng.nextFloat() * worldHeight,
+    color,
     energy: 40,
     age: 0,
     generation: 1,
@@ -398,12 +499,15 @@ function createRandomizedOrganism({ id, rng, worldWidth, worldHeight }) {
 
 export function createInitialWorldFromConfig(config) {
   const rng = createSeededPrng(`${config.resolvedSeed}:initial-world`);
+  const founderColorOffset = rng.nextFloat() * 360;
+  const nextFounderColor = createDistinctColorGenerator(founderColorOffset);
 
   const organisms = Array.from({ length: config.initialPopulation }, (_, index) => createRandomizedOrganism({
     id: `org-${index + 1}`,
     rng,
     worldWidth: config.worldWidth,
-    worldHeight: config.worldHeight
+    worldHeight: config.worldHeight,
+    color: nextFounderColor()
   }));
 
   const food = Array.from({ length: config.initialFoodCount }, (_, index) => ({
@@ -461,7 +565,14 @@ export function createInitialWorldFromConfig(config) {
   });
 }
 
-export function toEngineStepParams(config) {
+export function toEngineStepParams(config, options = {}) {
+  const initialColors = Array.isArray(options.initialColors) ? options.initialColors : [];
+  const floorSpawnSeed = createSeededPrng(`${config.resolvedSeed}:floor-spawn-colors`);
+  const nextFloorSpawnColor = createDistinctColorGenerator(
+    floorSpawnSeed.nextFloat() * 360,
+    initialColors
+  );
+
   return {
     movementDelta: 1.5,
     metabolismPerTick: 0.05,
@@ -480,16 +591,20 @@ export function toEngineStepParams(config) {
       id,
       rng,
       worldWidth: config.worldWidth,
-      worldHeight: config.worldHeight
+      worldHeight: config.worldHeight,
+      color: nextFloorSpawnColor()
     })
   };
 }
 
 export function createDeterministicRunBootstrap(config) {
+  const initialWorld = createInitialWorldFromConfig(config);
   return {
-    initialWorld: createInitialWorldFromConfig(config),
+    initialWorld,
     rng: createSeededPrng(config.resolvedSeed),
-    stepParams: toEngineStepParams(config)
+    stepParams: toEngineStepParams(config, {
+      initialColors: initialWorld.organisms.map((organism) => organism.color).filter(Boolean)
+    })
   };
 }
 
@@ -527,7 +642,10 @@ function sanitizeLoadedConfigDraft(parsed) {
     foodEnergyValue: [1, 100],
     maxFood: [1, 2000],
     mutationRate: [0, 1],
-    mutationStrength: [0, 1]
+    mutationStrength: [0, 1],
+    reproductionThreshold: [1, 200],
+    reproductionCost: [0, 200],
+    offspringStartEnergy: [0, 200]
   };
 
   const resolvedSeed = typeof source.resolvedSeed === 'string' ? source.resolvedSeed.trim() : '';

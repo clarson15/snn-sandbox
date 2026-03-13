@@ -85,7 +85,10 @@ describe('simulation config helpers', () => {
         foodEnergyValue: '4',
         maxFood: '100',
         mutationRate: '0.2',
-        mutationStrength: '0.3'
+        mutationStrength: '0.3',
+        reproductionThreshold: '55',
+        reproductionCost: '18',
+        offspringStartEnergy: '12'
       },
       'abc123'
     );
@@ -113,7 +116,10 @@ describe('simulation config helpers', () => {
         foodEnergyValue: '5',
         maxFood: '140',
         mutationRate: '0.1',
-        mutationStrength: '0.2'
+        mutationStrength: '0.2',
+        reproductionThreshold: '44',
+        reproductionCost: '16',
+        offspringStartEnergy: '10'
       },
       'restart-seed'
     );
@@ -129,6 +135,35 @@ describe('simulation config helpers', () => {
     expect(firstTicksA).toEqual(firstTicksB);
   });
 
+  it('assigns deterministic distinct colors to initially generated organisms', () => {
+    const config = normalizeSimulationConfig(
+      {
+        name: 'Founder colors',
+        seed: 'founder-colors',
+        worldWidth: '640',
+        worldHeight: '360',
+        initialPopulation: '20',
+        minimumPopulation: '20',
+        initialFoodCount: '10',
+        foodSpawnChance: '0.1',
+        foodEnergyValue: '5',
+        maxFood: '100',
+        mutationRate: '0.1',
+        mutationStrength: '0.2'
+      },
+      'founder-colors'
+    );
+
+    const worldA = createInitialWorldFromConfig(config);
+    const worldB = createInitialWorldFromConfig(config);
+    const colorsA = worldA.organisms.map((organism) => organism.color);
+    const colorsB = worldB.organisms.map((organism) => organism.color);
+
+    expect(colorsA).toEqual(colorsB);
+    expect(new Set(colorsA).size).toBe(colorsA.length);
+    expect(colorsA.every((color) => /^#[0-9a-f]{6}$/i.test(color))).toBe(true);
+  });
+
   it('validates invalid numeric ranges', () => {
     const errors = validateSimulationConfig({
       name: '',
@@ -141,7 +176,10 @@ describe('simulation config helpers', () => {
       foodEnergyValue: 0,
       maxFood: 0,
       mutationRate: 2,
-      mutationStrength: -1
+      mutationStrength: -1,
+      reproductionThreshold: 0,
+      reproductionCost: -1,
+      offspringStartEnergy: 201
     });
 
     expect(errors).toMatchObject({
@@ -155,7 +193,10 @@ describe('simulation config helpers', () => {
       foodEnergyValue: expect.any(String),
       maxFood: expect.any(String),
       mutationRate: expect.any(String),
-      mutationStrength: expect.any(String)
+      mutationStrength: expect.any(String),
+      reproductionThreshold: expect.any(String),
+      reproductionCost: expect.any(String),
+      offspringStartEnergy: expect.any(String)
     });
   });
 
@@ -172,6 +213,9 @@ describe('simulation config helpers', () => {
       maxFood: 2000,
       mutationRate: 0.05,
       mutationStrength: 0.1,
+      reproductionThreshold: 42,
+      reproductionCost: 20,
+      offspringStartEnergy: 15,
       obstacleCount: 0,
       obstacleMinSize: 30,
       obstacleMaxSize: 80,
@@ -212,6 +256,36 @@ describe('simulation config helpers', () => {
 
     expect(normalized.mutationRate).toBe(0.05);
     expect(normalized.mutationStrength).toBe(0.1);
+    expect(normalized.reproductionThreshold).toBe(42);
+    expect(normalized.reproductionCost).toBe(20);
+    expect(normalized.offspringStartEnergy).toBe(15);
+  });
+
+  it('preserves explicit reproduction settings during normalization', () => {
+    const normalized = normalizeSimulationConfig(
+      {
+        name: 'Reproduction settings',
+        seed: 'repro-seed',
+        worldWidth: '640',
+        worldHeight: '360',
+        initialPopulation: '10',
+        minimumPopulation: '9',
+        initialFoodCount: '10',
+        foodSpawnChance: '0.1',
+        foodEnergyValue: '5',
+        maxFood: '100',
+        mutationRate: '0.1',
+        mutationStrength: '0.2',
+        reproductionThreshold: '48',
+        reproductionCost: '14',
+        offspringStartEnergy: '9'
+      },
+      'repro-seed'
+    );
+
+    expect(normalized.reproductionThreshold).toBe(48);
+    expect(normalized.reproductionCost).toBe(14);
+    expect(normalized.offspringStartEnergy).toBe(9);
   });
 
   it('loads schema-safe draft values and ignores unknown fields', () => {
@@ -228,6 +302,9 @@ describe('simulation config helpers', () => {
       maxFood: 180,
       mutationRate: 0.3,
       mutationStrength: 0.4,
+      reproductionThreshold: 47,
+      reproductionCost: 17,
+      offspringStartEnergy: 11,
       unknownField: 'ignored'
     }));
 
@@ -245,9 +322,9 @@ describe('simulation config helpers', () => {
       mutationRate: 0.3,
       mutationStrength: 0.4,
       resolvedSeed: undefined,
-      reproductionThreshold: 60,
-      reproductionCost: 20,
-      offspringStartEnergy: 15,
+      reproductionThreshold: 47,
+      reproductionCost: 17,
+      offspringStartEnergy: 11,
       enableObstacles: false,
       obstacleCount: 3,
       obstacleMinSize: 30,
@@ -272,24 +349,27 @@ describe('simulation config helpers', () => {
       foodEnergyValue: -1,
       maxFood: 10,
       mutationRate: -0.5,
-      mutationStrength: 2
+      mutationStrength: 2,
+      reproductionThreshold: 'invalid-threshold',
+      reproductionCost: -3,
+      offspringStartEnergy: 999
     }));
 
     expect(loadSimulationConfig()).toEqual({
       name: 'New Simulation',
       seed: '',
-      worldWidth: 800,
-      worldHeight: 480,
-      initialPopulation: 12,
-      minimumPopulation: 12,
+      worldWidth: 1920,
+      worldHeight: 1080,
+      initialPopulation: 20,
+      minimumPopulation: 20,
       initialFoodCount: 30,
-      foodSpawnChance: 0.04,
-      foodEnergyValue: 5,
-      maxFood: 120,
+      foodSpawnChance: 0.1,
+      foodEnergyValue: 10,
+      maxFood: 450,
       mutationRate: 0.05,
       mutationStrength: 0.1,
       resolvedSeed: undefined,
-      reproductionThreshold: 60,
+      reproductionThreshold: 42,
       reproductionCost: 20,
       offspringStartEnergy: 15,
       enableObstacles: false,
@@ -362,8 +442,8 @@ describe('simulation config helpers', () => {
       expect(result.errors).toHaveLength(0);
       expect(result.warnings).toContain('Parameters missing; using defaults');
       expect(result.warnings).toContain('RNG state missing; deriving from seed');
-      expect(result.config.worldWidth).toBe(800); // DEFAULT
-      expect(result.config.initialPopulation).toBe(12); // DEFAULT
+      expect(result.config.worldWidth).toBe(1920); // DEFAULT
+      expect(result.config.initialPopulation).toBe(20); // DEFAULT
     });
 
     it('applies deterministic fallbacks for malformed world state (scenario 2)', () => {

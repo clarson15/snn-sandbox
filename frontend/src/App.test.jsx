@@ -228,7 +228,7 @@ describe('App', () => {
     render(<App />);
 
     expect(screen.getByText(/some shared link values were missing or invalid/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/world width/i)).toHaveValue(800);
+    expect(screen.getByLabelText(/world width/i)).toHaveValue(1920);
 
     fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '900' } });
     expect(screen.queryByText(/some shared link values were missing or invalid/i)).not.toBeInTheDocument();
@@ -278,7 +278,7 @@ describe('App', () => {
 
     expect(screen.getByLabelText(/simulation name/i)).toHaveValue('New Simulation');
     expect(screen.getByLabelText(/^seed \(optional\)$/i)).toHaveValue('');
-    expect(screen.getByLabelText(/world width/i)).toHaveValue(800);
+    expect(screen.getByLabelText(/world width/i)).toHaveValue(1920);
     expect(screen.getByLabelText(/mutation rate/i)).toHaveValue(0.05);
   });
 
@@ -318,7 +318,7 @@ describe('App', () => {
     fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '900' } });
     expect(screen.getByText(/unsaved setup changes in: worldWidth\./i)).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '800' } });
+    fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '1920' } });
     expect(screen.queryByText(/unsaved setup changes in:/i)).not.toBeInTheDocument();
   });
 
@@ -727,7 +727,7 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: /copy share link/i }));
     await waitFor(() => {
       expect(clipboardWriteText).toHaveBeenCalledWith(
-        expect.stringContaining('?seed=1b207&worldWidth=800&worldHeight=480&initialPopulation=12&minimumPopulation=12&initialFoodCount=30&foodSpawnChance=0.04&foodEnergyValue=5&maxFood=120&mutationRate=0.05&mutationStrength=0.1')
+        expect.stringContaining('?seed=1b207&worldWidth=1920&worldHeight=1080&initialPopulation=20&minimumPopulation=20&initialFoodCount=30&foodSpawnChance=0.1&foodEnergyValue=10&maxFood=450&mutationRate=0.05&mutationStrength=0.1')
       );
     });
 
