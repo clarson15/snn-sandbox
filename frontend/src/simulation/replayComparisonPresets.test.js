@@ -18,7 +18,13 @@ describe('replayComparisonPresets', () => {
       initialFoodCount: 40,
       foodSpawnChance: 0.04,
       foodEnergyValue: 18,
-      maxFood: 120
+      maxFood: 120,
+      reproductionThreshold: 42,
+      reproductionCost: 20,
+      offspringStartEnergy: 15,
+      reproductionMinimumAge: 25,
+      reproductionRefractoryPeriod: 120,
+      maximumOrganismAge: 1000
     }
   };
 
@@ -40,7 +46,7 @@ describe('replayComparisonPresets', () => {
 
     expect(storage.setItem).toHaveBeenCalledTimes(1);
     expect(storage.value).toBe(
-      '[{"name":"Regression seed A","seed":"1234","parameters":{"worldWidth":320,"worldHeight":180,"initialPopulation":20,"minimumPopulation":15,"initialFoodCount":40,"foodSpawnChance":0.04,"foodEnergyValue":18,"maxFood":120}}]'
+      '[{"name":"Regression seed A","seed":"1234","parameters":{"worldWidth":320,"worldHeight":180,"initialPopulation":20,"minimumPopulation":15,"initialFoodCount":40,"foodSpawnChance":0.04,"foodEnergyValue":18,"maxFood":120,"reproductionThreshold":42,"reproductionCost":20,"offspringStartEnergy":15,"reproductionMinimumAge":25,"reproductionRefractoryPeriod":120,"maximumOrganismAge":1000}}]'
     );
   });
 

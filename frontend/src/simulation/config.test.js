@@ -88,7 +88,10 @@ describe('simulation config helpers', () => {
         mutationStrength: '0.3',
         reproductionThreshold: '55',
         reproductionCost: '18',
-        offspringStartEnergy: '12'
+        offspringStartEnergy: '12',
+        reproductionMinimumAge: '21',
+        reproductionRefractoryPeriod: '33',
+        maximumOrganismAge: '777'
       },
       'abc123'
     );
@@ -119,7 +122,10 @@ describe('simulation config helpers', () => {
         mutationStrength: '0.2',
         reproductionThreshold: '44',
         reproductionCost: '16',
-        offspringStartEnergy: '10'
+        offspringStartEnergy: '10',
+        reproductionMinimumAge: '14',
+        reproductionRefractoryPeriod: '40',
+        maximumOrganismAge: '600'
       },
       'restart-seed'
     );
@@ -179,7 +185,10 @@ describe('simulation config helpers', () => {
       mutationStrength: -1,
       reproductionThreshold: 0,
       reproductionCost: -1,
-      offspringStartEnergy: 201
+      offspringStartEnergy: 201,
+      reproductionMinimumAge: -1,
+      reproductionRefractoryPeriod: -1,
+      maximumOrganismAge: 0
     });
 
     expect(errors).toMatchObject({
@@ -196,7 +205,10 @@ describe('simulation config helpers', () => {
       mutationStrength: expect.any(String),
       reproductionThreshold: expect.any(String),
       reproductionCost: expect.any(String),
-      offspringStartEnergy: expect.any(String)
+      offspringStartEnergy: expect.any(String),
+      reproductionMinimumAge: expect.any(String),
+      reproductionRefractoryPeriod: expect.any(String),
+      maximumOrganismAge: expect.any(String)
     });
   });
 
@@ -216,6 +228,9 @@ describe('simulation config helpers', () => {
       reproductionThreshold: 42,
       reproductionCost: 20,
       offspringStartEnergy: 15,
+      reproductionMinimumAge: 25,
+      reproductionRefractoryPeriod: 120,
+      maximumOrganismAge: 1000,
       obstacleCount: 0,
       obstacleMinSize: 30,
       obstacleMaxSize: 80,
@@ -259,6 +274,9 @@ describe('simulation config helpers', () => {
     expect(normalized.reproductionThreshold).toBe(42);
     expect(normalized.reproductionCost).toBe(20);
     expect(normalized.offspringStartEnergy).toBe(15);
+    expect(normalized.reproductionMinimumAge).toBe(25);
+    expect(normalized.reproductionRefractoryPeriod).toBe(120);
+    expect(normalized.maximumOrganismAge).toBe(1000);
   });
 
   it('preserves explicit reproduction settings during normalization', () => {
@@ -278,7 +296,10 @@ describe('simulation config helpers', () => {
         mutationStrength: '0.2',
         reproductionThreshold: '48',
         reproductionCost: '14',
-        offspringStartEnergy: '9'
+        offspringStartEnergy: '9',
+        reproductionMinimumAge: '18',
+        reproductionRefractoryPeriod: '27',
+        maximumOrganismAge: '850'
       },
       'repro-seed'
     );
@@ -286,6 +307,9 @@ describe('simulation config helpers', () => {
     expect(normalized.reproductionThreshold).toBe(48);
     expect(normalized.reproductionCost).toBe(14);
     expect(normalized.offspringStartEnergy).toBe(9);
+    expect(normalized.reproductionMinimumAge).toBe(18);
+    expect(normalized.reproductionRefractoryPeriod).toBe(27);
+    expect(normalized.maximumOrganismAge).toBe(850);
   });
 
   it('loads schema-safe draft values and ignores unknown fields', () => {
@@ -305,6 +329,9 @@ describe('simulation config helpers', () => {
       reproductionThreshold: 47,
       reproductionCost: 17,
       offspringStartEnergy: 11,
+      reproductionMinimumAge: 19,
+      reproductionRefractoryPeriod: 31,
+      maximumOrganismAge: 880,
       unknownField: 'ignored'
     }));
 
@@ -325,6 +352,9 @@ describe('simulation config helpers', () => {
       reproductionThreshold: 47,
       reproductionCost: 17,
       offspringStartEnergy: 11,
+      reproductionMinimumAge: 19,
+      reproductionRefractoryPeriod: 31,
+      maximumOrganismAge: 880,
       enableObstacles: false,
       obstacleCount: 3,
       obstacleMinSize: 30,
@@ -352,7 +382,10 @@ describe('simulation config helpers', () => {
       mutationStrength: 2,
       reproductionThreshold: 'invalid-threshold',
       reproductionCost: -3,
-      offspringStartEnergy: 999
+      offspringStartEnergy: 999,
+      reproductionMinimumAge: 'bad-age',
+      reproductionRefractoryPeriod: -10,
+      maximumOrganismAge: 'bad-max-age'
     }));
 
     expect(loadSimulationConfig()).toEqual({
@@ -372,6 +405,9 @@ describe('simulation config helpers', () => {
       reproductionThreshold: 42,
       reproductionCost: 20,
       offspringStartEnergy: 15,
+      reproductionMinimumAge: 25,
+      reproductionRefractoryPeriod: 120,
+      maximumOrganismAge: 1000,
       enableObstacles: false,
       obstacleCount: 3,
       obstacleMinSize: 30,
@@ -444,6 +480,7 @@ describe('simulation config helpers', () => {
       expect(result.warnings).toContain('RNG state missing; deriving from seed');
       expect(result.config.worldWidth).toBe(1920); // DEFAULT
       expect(result.config.initialPopulation).toBe(20); // DEFAULT
+      expect(result.config.reproductionMinimumAge).toBe(25);
     });
 
     it('applies deterministic fallbacks for malformed world state (scenario 2)', () => {

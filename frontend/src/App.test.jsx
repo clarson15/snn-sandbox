@@ -727,7 +727,7 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: /copy share link/i }));
     await waitFor(() => {
       expect(clipboardWriteText).toHaveBeenCalledWith(
-        expect.stringContaining('?seed=1b207&worldWidth=1920&worldHeight=1080&initialPopulation=20&minimumPopulation=20&initialFoodCount=30&foodSpawnChance=0.1&foodEnergyValue=10&maxFood=450&mutationRate=0.05&mutationStrength=0.1')
+        expect.stringContaining('?seed=1b207&worldWidth=1920&worldHeight=1080&initialPopulation=20&minimumPopulation=20&initialFoodCount=30&foodSpawnChance=0.1&foodEnergyValue=10&maxFood=450&mutationRate=0.05&mutationStrength=0.1&reproductionThreshold=42&reproductionCost=20&offspringStartEnergy=15&reproductionMinimumAge=25&reproductionRefractoryPeriod=120&maximumOrganismAge=1000')
       );
     });
 

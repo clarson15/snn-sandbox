@@ -228,6 +228,9 @@ export const DEFAULT_CONFIG = {
   reproductionThreshold: 42,
   reproductionCost: 20,
   offspringStartEnergy: 15,
+  reproductionMinimumAge: 25,
+  reproductionRefractoryPeriod: 120,
+  maximumOrganismAge: 1000,
   // Environmental hazards
   enableObstacles: false,
   obstacleCount: 3,
@@ -283,6 +286,9 @@ export function validateSimulationConfig(input) {
     ['reproductionThreshold', 1, 200, 'Reproduction threshold must be between 1 and 200.'],
     ['reproductionCost', 0, 200, 'Reproduction cost must be between 0 and 200.'],
     ['offspringStartEnergy', 0, 200, 'Offspring start energy must be between 0 and 200.'],
+    ['reproductionMinimumAge', 0, 5000, 'Reproduction age must be between 0 and 5000.'],
+    ['reproductionRefractoryPeriod', 0, 5000, 'Reproduction refractory period must be between 0 and 5000.'],
+    ['maximumOrganismAge', 1, 10000, 'Maximum organism age must be between 1 and 10000.'],
     // Hazard validation
     ['obstacleCount', 0, 20, 'Obstacle count must be between 0 and 20.'],
     ['obstacleMinSize', 10, 200, 'Obstacle min size must be between 10 and 200.'],
@@ -328,6 +334,9 @@ export function normalizeSimulationConfig(input, resolvedSeed) {
     reproductionThreshold: Number(input.reproductionThreshold ?? DEFAULT_CONFIG.reproductionThreshold),
     reproductionCost: Number(input.reproductionCost ?? DEFAULT_CONFIG.reproductionCost),
     offspringStartEnergy: Number(input.offspringStartEnergy ?? DEFAULT_CONFIG.offspringStartEnergy),
+    reproductionMinimumAge: Number(input.reproductionMinimumAge ?? DEFAULT_CONFIG.reproductionMinimumAge),
+    reproductionRefractoryPeriod: Number(input.reproductionRefractoryPeriod ?? DEFAULT_CONFIG.reproductionRefractoryPeriod),
+    maximumOrganismAge: Number(input.maximumOrganismAge ?? DEFAULT_CONFIG.maximumOrganismAge),
     // Environmental hazards
     enableObstacles: Boolean(input.enableObstacles ?? DEFAULT_CONFIG.enableObstacles),
     obstacleCount: Number(input.obstacleCount ?? DEFAULT_CONFIG.obstacleCount),
@@ -587,6 +596,9 @@ export function toEngineStepParams(config, options = {}) {
     reproductionThreshold: config.reproductionThreshold,
     reproductionCost: config.reproductionCost,
     offspringStartEnergy: config.offspringStartEnergy,
+    reproductionMinimumAge: config.reproductionMinimumAge,
+    reproductionRefractoryPeriod: config.reproductionRefractoryPeriod,
+    maximumOrganismAge: config.maximumOrganismAge,
     createFloorSpawnOrganism: (id, rng) => createRandomizedOrganism({
       id,
       rng,
@@ -645,7 +657,10 @@ function sanitizeLoadedConfigDraft(parsed) {
     mutationStrength: [0, 1],
     reproductionThreshold: [1, 200],
     reproductionCost: [0, 200],
-    offspringStartEnergy: [0, 200]
+    offspringStartEnergy: [0, 200],
+    reproductionMinimumAge: [0, 5000],
+    reproductionRefractoryPeriod: [0, 5000],
+    maximumOrganismAge: [1, 10000]
   };
 
   const resolvedSeed = typeof source.resolvedSeed === 'string' ? source.resolvedSeed.trim() : '';

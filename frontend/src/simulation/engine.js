@@ -17,6 +17,7 @@
  * @property {number} age
  * @property {number} generation
  * @property {string} [parentId] id of parent organism (set on reproduction)
+ * @property {number} [lastReproductionTick] most recent tick when organism reproduced
  * @property {number} [direction] heading in radians
  * @property {{size:number,speed:number,visionRange:number,turnRate:number,metabolism:number}} traits
  */
@@ -82,6 +83,9 @@
  * @property {number} [reproductionThreshold=Infinity] minimum energy required for organism to reproduce
  * @property {number} [reproductionCost=0] energy deducted from parent on reproduction
  * @property {number} [offspringStartEnergy=0] energy given to offspring on creation
+ * @property {number} [reproductionMinimumAge=0] minimum organism age required before reproduction
+ * @property {number} [reproductionRefractoryPeriod=0] minimum ticks between reproduction events
+ * @property {number} [maximumOrganismAge=Infinity] organisms older than this age die before reproduction
  * @property {number} [traitMutationRate=0.1] probability of mutating each trait (0-1)
  * @property {number} [traitMutationMagnitude=0.2] max absolute change to trait values
  * @property {number} [brainMutationRate=0.1] probability of mutating each synapse weight (0-1)
@@ -284,7 +288,7 @@ function moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMul
     ...organism,
     x: organism.x + dx,
     y: organism.y + dy,
-    age: organism.age + 1,
+    age: (organism.age ?? 0) + 1,
     direction,
     energy: Math.max(0, organism.energy - energySpent)
   };
@@ -639,6 +643,9 @@ export function stepWorld(state, rng, params = {}) {
   const reproductionThreshold = params.reproductionThreshold ?? Number.POSITIVE_INFINITY;
   const reproductionCost = params.reproductionCost ?? 0;
   const offspringStartEnergy = params.offspringStartEnergy ?? 0;
+  const reproductionMinimumAge = params.reproductionMinimumAge ?? 0;
+  const reproductionRefractoryPeriod = params.reproductionRefractoryPeriod ?? 0;
+  const maximumOrganismAge = params.maximumOrganismAge ?? Number.POSITIVE_INFINITY;
   const traitMutationRate = params.traitMutationRate ?? 0.1;
   const traitMutationMagnitude = params.traitMutationMagnitude ?? 0.2;
   const brainMutationRate = params.brainMutationRate ?? 0.1;
@@ -801,7 +808,7 @@ export function stepWorld(state, rng, params = {}) {
         energy: Math.max(0, organism.energy - interactionCost)
       };
     })
-    .filter((organism) => organism.energy > 0);
+    .filter((organism) => organism.energy > 0 && (organism.age ?? 0) <= maximumOrganismAge);
 
   // Deterministic reproduction: organisms with energy >= threshold reproduce
   // Organisms are processed in stable id order for reproducibility
@@ -816,8 +823,17 @@ export function stepWorld(state, rng, params = {}) {
     organismsForReproduction = [...organisms].sort((a, b) => a.id.localeCompare(b.id));
   }
 
+  const currentTick = state.tick + 1;
   for (const organism of organismsForReproduction) {
-    if (organism.energy >= reproductionThreshold) {
+    const lastReproductionTick = Number.isFinite(organism.lastReproductionTick)
+      ? organism.lastReproductionTick
+      : Number.NEGATIVE_INFINITY;
+    const organismAge = organism.age ?? 0;
+    const canReproduce = organism.energy >= reproductionThreshold
+      && organismAge >= reproductionMinimumAge
+      && (currentTick - lastReproductionTick) >= reproductionRefractoryPeriod;
+
+    if (canReproduce) {
       // Create offspring
       const offspringId = `org-${nextOrganismNumericId}`;
       nextOrganismNumericId += 1;
@@ -840,6 +856,7 @@ export function stepWorld(state, rng, params = {}) {
         age: 0,
         generation: organism.generation + 1,
         parentId: organism.id,
+        lastReproductionTick: undefined,
         direction: organism.direction,
         traits: mutatedTraits,
         brain: mutatedBrain
@@ -847,6 +864,7 @@ export function stepWorld(state, rng, params = {}) {
 
       // Deduct energy from parent
       organism.energy -= reproductionCost;
+      organism.lastReproductionTick = currentTick;
     }
   }
 
@@ -1202,9 +1220,12 @@ export function createTickSnapshot(state, params = {}) {
       id: o.id,
       x: o.x,
       y: o.y,
+      color: o.color,
       energy: o.energy,
       age: o.age,
       generation: o.generation,
+      parentId: o.parentId,
+      lastReproductionTick: o.lastReproductionTick,
       direction: o.direction,
       traits: { ...o.traits },
       genome: o.genome ? { ...o.genome } : undefined,

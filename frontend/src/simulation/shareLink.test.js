@@ -18,11 +18,17 @@ describe('shareLink helpers', () => {
         foodEnergyValue: 9,
         maxFood: 300,
         mutationRate: 0.2,
-        mutationStrength: 0.15
+        mutationStrength: 0.15,
+        reproductionThreshold: 60,
+        reproductionCost: 20,
+        offspringStartEnergy: 12,
+        reproductionMinimumAge: 25,
+        reproductionRefractoryPeriod: 80,
+        maximumOrganismAge: 900
       }
     });
 
-    expect(url).toBe('https://sandbox.example/run?seed=seed-42&worldWidth=1200&worldHeight=720&initialPopulation=40&minimumPopulation=20&initialFoodCount=50&foodSpawnChance=0.05&foodEnergyValue=9&maxFood=300&mutationRate=0.2&mutationStrength=0.15');
+    expect(url).toBe('https://sandbox.example/run?seed=seed-42&worldWidth=1200&worldHeight=720&initialPopulation=40&minimumPopulation=20&initialFoodCount=50&foodSpawnChance=0.05&foodEnergyValue=9&maxFood=300&mutationRate=0.2&mutationStrength=0.15&reproductionThreshold=60&reproductionCost=20&offspringStartEnergy=12&reproductionMinimumAge=25&reproductionRefractoryPeriod=80&maximumOrganismAge=900');
   });
 
   it('parses query prefill and falls back to defaults with warning on invalid fields', () => {
@@ -35,7 +41,9 @@ describe('shareLink helpers', () => {
     expect(prefill.worldHeight).toBe('1000');
     expect(prefill.initialPopulation).toBe('50');
     expect(prefill.maxFood).toBe('450');
+    expect(prefill.reproductionMinimumAge).toBe('25');
     expect(warningMessage).toContain('worldWidth');
     expect(warningMessage).toContain('minimumPopulation');
+    expect(warningMessage).toContain('reproductionThreshold');
   });
 });

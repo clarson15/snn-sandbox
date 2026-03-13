@@ -116,7 +116,7 @@ function stepWorldWithLegacyFoodLookup(state, rng, params = {}) {
       ...organism,
       x: organism.x + dx,
       y: organism.y + dy,
-      age: organism.age + 1,
+      age: (organism.age ?? 0) + 1,
       direction,
       energy: Math.max(0, organism.energy - energySpent)
     };
@@ -865,6 +865,108 @@ describe('simulation engine skeleton', () => {
       // Should still have only 1 organism
       expect(result.organisms).toHaveLength(1);
       expect(result.organisms[0].energy).toBe(50);
+    });
+
+    it('does not reproduce before the minimum reproduction age', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 50, y: 50, energy: 100, age: 4, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05 }, brain: { synapses: [] } }
+        ],
+        food: []
+      });
+
+      const params = {
+        reproductionThreshold: 80,
+        reproductionCost: 30,
+        offspringStartEnergy: 20,
+        reproductionMinimumAge: 10,
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        foodSpawnChance: 0
+      };
+
+      const result = runTicks(state, createSeededPrng('repro-age-gate'), 1, params);
+
+      expect(result.organisms).toHaveLength(1);
+      expect(result.organisms[0].age).toBe(5);
+    });
+
+    it('enforces a refractory period between reproduction events', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          {
+            id: 'org-1',
+            x: 50,
+            y: 50,
+            energy: 100,
+            age: 30,
+            generation: 1,
+            direction: 0,
+            lastReproductionTick: 0,
+            traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, metabolism: 0 },
+            brain: { synapses: [] }
+          }
+        ],
+        food: []
+      });
+
+      const params = {
+        reproductionThreshold: 80,
+        reproductionCost: 0,
+        offspringStartEnergy: 20,
+        reproductionMinimumAge: 10,
+        reproductionRefractoryPeriod: 3,
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        foodSpawnChance: 0
+      };
+
+      const result = runTicks(state, createSeededPrng('repro-refractory'), 2, params);
+
+      expect(result.organisms).toHaveLength(1);
+
+      const afterCooldown = runTicks(result, createSeededPrng('repro-refractory-2'), 1, params);
+      expect(afterCooldown.organisms).toHaveLength(2);
+      expect(afterCooldown.organisms.find((organism) => organism.id === 'org-1').lastReproductionTick).toBe(3);
+    });
+
+    it('removes organisms that exceed the maximum age before reproduction', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          {
+            id: 'org-1',
+            x: 50,
+            y: 50,
+            energy: 100,
+            age: 4,
+            generation: 1,
+            direction: 0,
+            traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, metabolism: 0 },
+            brain: { synapses: [] }
+          }
+        ],
+        food: []
+      });
+
+      const params = {
+        reproductionThreshold: 80,
+        reproductionCost: 0,
+        offspringStartEnergy: 20,
+        maximumOrganismAge: 4,
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        foodSpawnChance: 0
+      };
+
+      const result = runTicks(state, createSeededPrng('max-age-death'), 1, params);
+
+      expect(result.organisms).toHaveLength(0);
     });
 
     it('produces deterministic reproduction with same seed', () => {

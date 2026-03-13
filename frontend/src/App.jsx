@@ -118,7 +118,10 @@ const FORM_FIELDS = [
   'mutationStrength',
   'reproductionThreshold',
   'reproductionCost',
-  'offspringStartEnergy'
+  'offspringStartEnergy',
+  'reproductionMinimumAge',
+  'reproductionRefractoryPeriod',
+  'maximumOrganismAge'
 ];
 
 function stableStringify(value) {
@@ -182,8 +185,16 @@ function createFormStateFromConfig(config) {
     mutationStrength: String(config.mutationStrength ?? DEFAULT_CONFIG.mutationStrength),
     reproductionThreshold: String(config.reproductionThreshold ?? DEFAULT_CONFIG.reproductionThreshold),
     reproductionCost: String(config.reproductionCost ?? DEFAULT_CONFIG.reproductionCost),
-    offspringStartEnergy: String(config.offspringStartEnergy ?? DEFAULT_CONFIG.offspringStartEnergy)
+    offspringStartEnergy: String(config.offspringStartEnergy ?? DEFAULT_CONFIG.offspringStartEnergy),
+    reproductionMinimumAge: String(config.reproductionMinimumAge ?? DEFAULT_CONFIG.reproductionMinimumAge),
+    reproductionRefractoryPeriod: String(config.reproductionRefractoryPeriod ?? DEFAULT_CONFIG.reproductionRefractoryPeriod),
+    maximumOrganismAge: String(config.maximumOrganismAge ?? DEFAULT_CONFIG.maximumOrganismAge)
   };
+}
+
+function toFiniteNumberOrDefault(value, fallback) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
 }
 
 
@@ -1150,7 +1161,10 @@ function App() {
       mutationStrength: String(preset.config.mutationStrength),
       reproductionThreshold: String(preset.config.reproductionThreshold ?? DEFAULT_CONFIG.reproductionThreshold),
       reproductionCost: String(preset.config.reproductionCost ?? DEFAULT_CONFIG.reproductionCost),
-      offspringStartEnergy: String(preset.config.offspringStartEnergy ?? DEFAULT_CONFIG.offspringStartEnergy)
+      offspringStartEnergy: String(preset.config.offspringStartEnergy ?? DEFAULT_CONFIG.offspringStartEnergy),
+      reproductionMinimumAge: String(preset.config.reproductionMinimumAge ?? DEFAULT_CONFIG.reproductionMinimumAge),
+      reproductionRefractoryPeriod: String(preset.config.reproductionRefractoryPeriod ?? DEFAULT_CONFIG.reproductionRefractoryPeriod),
+      maximumOrganismAge: String(preset.config.maximumOrganismAge ?? DEFAULT_CONFIG.maximumOrganismAge)
     };
 
     setFormState(newFormState);
@@ -1163,19 +1177,22 @@ function App() {
     }
 
     const currentConfig = {
-      worldWidth: Number(formState.worldWidth) || DEFAULT_CONFIG.worldWidth,
-      worldHeight: Number(formState.worldHeight) || DEFAULT_CONFIG.worldHeight,
-      initialPopulation: Number(formState.initialPopulation) || DEFAULT_CONFIG.initialPopulation,
-      minimumPopulation: Number(formState.minimumPopulation) || DEFAULT_CONFIG.minimumPopulation,
-      initialFoodCount: Number(formState.initialFoodCount) || DEFAULT_CONFIG.initialFoodCount,
-      foodSpawnChance: Number(formState.foodSpawnChance) || DEFAULT_CONFIG.foodSpawnChance,
-      foodEnergyValue: Number(formState.foodEnergyValue) || DEFAULT_CONFIG.foodEnergyValue,
-      maxFood: Number(formState.maxFood) || DEFAULT_CONFIG.maxFood,
-      mutationRate: Number(formState.mutationRate) || DEFAULT_CONFIG.mutationRate,
-      mutationStrength: Number(formState.mutationStrength) || DEFAULT_CONFIG.mutationStrength,
-      reproductionThreshold: Number(formState.reproductionThreshold) || DEFAULT_CONFIG.reproductionThreshold,
-      reproductionCost: Number(formState.reproductionCost) || DEFAULT_CONFIG.reproductionCost,
-      offspringStartEnergy: Number(formState.offspringStartEnergy) || DEFAULT_CONFIG.offspringStartEnergy
+      worldWidth: toFiniteNumberOrDefault(formState.worldWidth, DEFAULT_CONFIG.worldWidth),
+      worldHeight: toFiniteNumberOrDefault(formState.worldHeight, DEFAULT_CONFIG.worldHeight),
+      initialPopulation: toFiniteNumberOrDefault(formState.initialPopulation, DEFAULT_CONFIG.initialPopulation),
+      minimumPopulation: toFiniteNumberOrDefault(formState.minimumPopulation, DEFAULT_CONFIG.minimumPopulation),
+      initialFoodCount: toFiniteNumberOrDefault(formState.initialFoodCount, DEFAULT_CONFIG.initialFoodCount),
+      foodSpawnChance: toFiniteNumberOrDefault(formState.foodSpawnChance, DEFAULT_CONFIG.foodSpawnChance),
+      foodEnergyValue: toFiniteNumberOrDefault(formState.foodEnergyValue, DEFAULT_CONFIG.foodEnergyValue),
+      maxFood: toFiniteNumberOrDefault(formState.maxFood, DEFAULT_CONFIG.maxFood),
+      mutationRate: toFiniteNumberOrDefault(formState.mutationRate, DEFAULT_CONFIG.mutationRate),
+      mutationStrength: toFiniteNumberOrDefault(formState.mutationStrength, DEFAULT_CONFIG.mutationStrength),
+      reproductionThreshold: toFiniteNumberOrDefault(formState.reproductionThreshold, DEFAULT_CONFIG.reproductionThreshold),
+      reproductionCost: toFiniteNumberOrDefault(formState.reproductionCost, DEFAULT_CONFIG.reproductionCost),
+      offspringStartEnergy: toFiniteNumberOrDefault(formState.offspringStartEnergy, DEFAULT_CONFIG.offspringStartEnergy),
+      reproductionMinimumAge: toFiniteNumberOrDefault(formState.reproductionMinimumAge, DEFAULT_CONFIG.reproductionMinimumAge),
+      reproductionRefractoryPeriod: toFiniteNumberOrDefault(formState.reproductionRefractoryPeriod, DEFAULT_CONFIG.reproductionRefractoryPeriod),
+      maximumOrganismAge: toFiniteNumberOrDefault(formState.maximumOrganismAge, DEFAULT_CONFIG.maximumOrganismAge)
     };
 
     const success = saveCustomPreset(newPresetName, currentConfig);
@@ -3156,7 +3173,7 @@ function App() {
               </div>
 
               <h3>Reproduction settings</h3>
-              <p className="field-hint">Threshold/cost/start energy: 1-200, 0-200, 0-200.</p>
+              <p className="field-hint">Threshold/cost/start energy: 1-200, 0-200, 0-200. Reproduction age and refractory period gate breeding cadence. Maximum age hard-caps lifespan.</p>
               <div className="field-row">
                 <label>
                   Reproduction threshold
@@ -3172,6 +3189,23 @@ function App() {
                   Offspring start energy
                   <input type="number" value={formState.offspringStartEnergy} onChange={onFieldChange('offspringStartEnergy')} />
                   {errors.offspringStartEnergy ? <span className="error-text">{errors.offspringStartEnergy}</span> : null}
+                </label>
+              </div>
+              <div className="field-row">
+                <label>
+                  Reproduction age
+                  <input type="number" value={formState.reproductionMinimumAge} onChange={onFieldChange('reproductionMinimumAge')} />
+                  {errors.reproductionMinimumAge ? <span className="error-text">{errors.reproductionMinimumAge}</span> : null}
+                </label>
+                <label>
+                  Refractory period
+                  <input type="number" value={formState.reproductionRefractoryPeriod} onChange={onFieldChange('reproductionRefractoryPeriod')} />
+                  {errors.reproductionRefractoryPeriod ? <span className="error-text">{errors.reproductionRefractoryPeriod}</span> : null}
+                </label>
+                <label>
+                  Maximum age
+                  <input type="number" value={formState.maximumOrganismAge} onChange={onFieldChange('maximumOrganismAge')} />
+                  {errors.maximumOrganismAge ? <span className="error-text">{errors.maximumOrganismAge}</span> : null}
                 </label>
               </div>
 
