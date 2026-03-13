@@ -15,6 +15,7 @@
  * @property {number} energy
  * @property {number} age
  * @property {number} generation
+ * @property {string} [type] organism type: 'herbivore' | 'predator'
  * @property {number} [direction] heading in radians
  * @property {{size:number,speed:number,visionRange:number,turnRate:number,metabolism:number}} traits
  */
@@ -83,6 +84,8 @@
  * @property {number} [reproductionThreshold=Infinity] minimum energy required for organism to reproduce
  * @property {number} [reproductionCost=0] energy deducted from parent on reproduction
  * @property {number} [offspringStartEnergy=0] energy given to offspring on creation
+ * @property {number} [predatorEnergyGain=30] energy gained when predator eats prey
+ * @property {number} [predatorHuntRadius=50] max distance for predator to hunt prey
  */
 
 /**
@@ -579,14 +582,113 @@ export function stepWorld(state, rng, params = {}) {
     }
   }
 
+  // Predator hunting: predators can eat herbivores within hunt radius
+  const predatorEnergyGain = params.predatorEnergyGain ?? 30;
+  const predatorHuntRadius = params.predatorHuntRadius ?? 50;
+  const predatorHuntRadiusSquared = predatorHuntRadius * predatorHuntRadius;
+
+  // Build spatial index for prey lookup
+  const preyOrganisms = organismsWithHazardDamage.filter(o => o.type !== 'predator');
+  const predatorOrganisms = organismsWithHazardDamage.filter(o => o.type === 'predator');
+  const preyById = new Map(preyOrganisms.map(p => [p.id, p]));
+  const preyCellSize = Math.max(predatorHuntRadius, 1);
+  const preyCellsByKey = buildFoodSpatialIndex(preyOrganisms, preyCellSize);
+
+  // Track which prey have been consumed
+  const consumedPreyIds = new Set();
+  const predatorEnergyGains = new Map();
+
+  // Process predators in stable order for determinism
+  const predatorsByStableOrder = [...predatorOrganisms].sort((a, b) => a.id.localeCompare(b.id));
+
+  for (const predator of predatorsByStableOrder) {
+    if (preyById.size === 0 || consumedPreyIds.size === preyById.size) {
+      break;
+    }
+
+    const huntRadius = predatorHuntRadius;
+    const huntRadiusSquared = predatorHuntRadiusSquared;
+
+    let chosenPreyId = null;
+    let chosenDistance = Number.POSITIVE_INFINITY;
+
+    const minCellX = toCellIndex(predator.x - huntRadius, preyCellSize);
+    const maxCellX = toCellIndex(predator.x + huntRadius, preyCellSize);
+    const minCellY = toCellIndex(predator.y - huntRadius, preyCellSize);
+    const maxCellY = toCellIndex(predator.y + huntRadius, preyCellSize);
+
+    for (let cellX = minCellX; cellX <= maxCellX; cellX += 1) {
+      for (let cellY = minCellY; cellY <= maxCellY; cellY += 1) {
+        const cellPreyIds = preyCellsByKey.get(toCellKey(cellX, cellY));
+        if (!cellPreyIds || cellPreyIds.size === 0) {
+          continue;
+        }
+
+        for (const preyId of cellPreyIds) {
+          if (consumedPreyIds.has(preyId)) {
+            continue;
+          }
+
+          const prey = preyById.get(preyId);
+          if (!prey) {
+            continue;
+          }
+
+          const distance = squaredDistance(predator, prey);
+
+          if (distance > huntRadiusSquared) {
+            continue;
+          }
+
+          // Choose closest prey, or by id for deterministic tie-breaking
+          if (
+            distance < chosenDistance ||
+            (distance === chosenDistance && (chosenPreyId === null || preyId < chosenPreyId))
+          ) {
+            chosenDistance = distance;
+            chosenPreyId = preyId;
+          }
+        }
+      }
+    }
+
+    if (chosenPreyId !== null) {
+      // Predator consumes the prey
+      consumedPreyIds.add(chosenPreyId);
+      predatorEnergyGains.set(
+        predator.id,
+        (predatorEnergyGains.get(predator.id) ?? 0) + predatorEnergyGain
+      );
+    }
+  }
+
+  // Apply predator energy gains and mark consumed prey for removal
+  let organismsAfterPredation = organismsWithHazardDamage
+    .map((organism) => {
+      if (organism.type !== 'predator') {
+        return organism;
+      }
+      return {
+        ...organism,
+        energy: organism.energy + (predatorEnergyGains.get(organism.id) ?? 0)
+      };
+    })
+    .filter((organism) => {
+      // Remove consumed prey
+      if (consumedPreyIds.has(organism.id)) {
+        return false;
+      }
+      return organism.energy > 0;
+    });
+
   const shouldApplyInteractionCost = interactionRadius > 0 && interactionCostPerNeighbor > 0;
   const interactionRadiusSquared = interactionRadius * interactionRadius;
   const interactionCellSize = Math.max(interactionRadius, 1);
   const organismInteractionCells = shouldApplyInteractionCost && interactionLookupMode === 'spatial'
-    ? buildOrganismSpatialIndex(organismsWithHazardDamage, interactionCellSize)
+    ? buildOrganismSpatialIndex(organismsAfterPredation, interactionCellSize)
     : null;
 
-  let organisms = organismsWithHazardDamage
+  let organisms = organismsAfterPredation
     .map((organism) => ({
       ...organism,
       energy: organism.energy + (consumedEnergyByOrganismId.get(organism.id) ?? 0)

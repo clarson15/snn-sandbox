@@ -289,9 +289,9 @@ function buildIncomingSynapseMap(synapses) {
   return incoming;
 }
 
-function evaluateBrain(organism, food, worldWidth, worldHeight) {
+function evaluateBrain(organism, food, worldWidth, worldHeight, organisms = []) {
   const normalizedBrain = normalizeBrain(organism?.brain);
-  const inputValues = computeInputNeuronValues(organism, food, worldWidth, worldHeight);
+  const inputValues = computeInputNeuronValues(organism, food, worldWidth, worldHeight, organisms);
   const incomingSynapses = buildIncomingSynapseMap(normalizedBrain.synapses);
   const dynamicNeurons = normalizedBrain.neurons.filter((neuron) => neuron.type !== 'input');
   const nextNeuronById = new Map();
@@ -484,9 +484,10 @@ export function resolveExpressedTraits(organism) {
  * @param {WorldFood[]} food - all food items in the world
  * @param {number} worldWidth
  * @param {number} worldHeight
+ * @param {WorldOrganism[]} [organisms] - all organisms in the world (for predator prey detection)
  * @returns {Map<string, number>} Map of input neuron ID -> value (typically 0-1 range)
  */
-function computeInputNeuronValues(organism, food, worldWidth, worldHeight) {
+function computeInputNeuronValues(organism, food, worldWidth, worldHeight, organisms = []) {
   const inputs = new Map();
   const expressedTraits = resolveExpressedTraits(organism);
 
@@ -548,6 +549,57 @@ function computeInputNeuronValues(organism, food, worldWidth, worldHeight) {
     inputs.set('in-food-direction', (relativeAngle - Math.PI) / Math.PI);
 
     inputs.set('in-food-detected', 1);
+  }
+
+  // Predator-specific prey sensors
+  if (organism.type === 'predator' && organisms.length > 0) {
+    const visionRange = organism.traits?.visionRange ?? 25;
+    const visionRangeSquared = visionRange * visionRange;
+
+    // Find nearest prey (herbivores) within vision range
+    let nearestPreyDist = Infinity;
+    let nearestPreyDx = 0;
+    let nearestPreyDy = 0;
+
+    for (const prey of organisms) {
+      // Skip self and other predators
+      if (prey.id === organism.id || prey.type === 'predator') {
+        continue;
+      }
+
+      const dx = prey.x - organism.x;
+      const dy = prey.y - organism.y;
+      const distSquared = dx * dx + dy * dy;
+
+      if (distSquared < visionRangeSquared && distSquared < nearestPreyDist) {
+        nearestPreyDist = distSquared;
+        nearestPreyDx = dx;
+        nearestPreyDy = dy;
+      }
+    }
+
+    if (nearestPreyDist === Infinity) {
+      // No prey in vision range
+      inputs.set('in-prey-distance', 1);
+      inputs.set('in-prey-direction', 0);
+      inputs.set('in-prey-detected', 0);
+    } else {
+      const dist = Math.sqrt(nearestPreyDist);
+      // Distance: normalized (0 = directly on top, 1 = at vision edge)
+      inputs.set('in-prey-distance', dist / visionRange);
+
+      // Direction to prey relative to current heading
+      const preyAngle = Math.atan2(nearestPreyDy, nearestPreyDx);
+      const relativeAngle = normalizeAngle(preyAngle - direction);
+      inputs.set('in-prey-direction', (relativeAngle - Math.PI) / Math.PI);
+
+      inputs.set('in-prey-detected', 1);
+    }
+  } else {
+    // Default values for non-predators or when no organisms provided
+    inputs.set('in-prey-distance', 1);
+    inputs.set('in-prey-direction', 0);
+    inputs.set('in-prey-detected', 0);
   }
 
   return inputs;
@@ -1141,7 +1193,7 @@ export function stepWorld(state, rng, params = {}) {
       );
     }
 
-    const brainEvaluation = evaluateBrain(organism, state.food, worldWidth, worldHeight);
+    const brainEvaluation = evaluateBrain(organism, state.food, worldWidth, worldHeight, activeOrganisms);
     const baseDirection = organism.direction ?? 0;
     const rotationDelta = deriveRotationDelta(organism, brainEvaluation.outputs, brainEvaluation.inputs);
     const direction = normalizeAngle(baseDirection + rotationDelta);
@@ -1279,8 +1331,74 @@ export function stepWorld(state, rng, params = {}) {
     .map((organism) => ({
       ...organism,
       energy: organism.energy + (consumedEnergyByOrganismId.get(organism.id) ?? 0)
-    }))
-    .map((organism) => {
+    }));
+
+  const predatorEnergyGain = params.predatorEnergyGain ?? 30;
+  const predatorHuntRadius = params.predatorHuntRadius ?? 50;
+  const predatorHuntRadiusSquared = predatorHuntRadius * predatorHuntRadius;
+  const preyCandidates = organisms.filter((organism) => organism.type !== 'predator');
+  const predators = organisms.filter((organism) => organism.type === 'predator');
+
+  if (predators.length > 0 && preyCandidates.length > 0) {
+    const preyById = new Map(preyCandidates.map((prey) => [prey.id, prey]));
+    const preyCellSize = Math.max(predatorHuntRadius, 1);
+    const { cells: preyCellsByKey } = buildFoodSpatialIndex(preyCandidates, preyCellSize);
+    const consumedPreyIds = new Set();
+    const predatorEnergyGains = new Map();
+    const predatorsByStableOrder = [...predators].sort((a, b) => a.id.localeCompare(b.id));
+
+    for (const predator of predatorsByStableOrder) {
+      let chosenPreyId = null;
+      let chosenDistance = Number.POSITIVE_INFINITY;
+      const minCellX = toCellIndex(predator.x - predatorHuntRadius, preyCellSize);
+      const maxCellX = toCellIndex(predator.x + predatorHuntRadius, preyCellSize);
+      const minCellY = toCellIndex(predator.y - predatorHuntRadius, preyCellSize);
+      const maxCellY = toCellIndex(predator.y + predatorHuntRadius, preyCellSize);
+
+      for (let cellX = minCellX; cellX <= maxCellX; cellX += 1) {
+        for (let cellY = minCellY; cellY <= maxCellY; cellY += 1) {
+          const cellPreyIds = preyCellsByKey.get(toCellKey(cellX, cellY));
+          if (!cellPreyIds || cellPreyIds.size === 0) {
+            continue;
+          }
+
+          for (const preyId of cellPreyIds) {
+            if (consumedPreyIds.has(preyId)) {
+              continue;
+            }
+
+            const prey = preyById.get(preyId);
+            if (!prey) {
+              continue;
+            }
+
+            const distance = squaredDistance(predator, prey);
+            if (distance > predatorHuntRadiusSquared) {
+              continue;
+            }
+
+            if (distance < chosenDistance || (distance === chosenDistance && (chosenPreyId === null || preyId < chosenPreyId))) {
+              chosenDistance = distance;
+              chosenPreyId = preyId;
+            }
+          }
+        }
+      }
+
+      if (chosenPreyId !== null) {
+        consumedPreyIds.add(chosenPreyId);
+        predatorEnergyGains.set(predator.id, (predatorEnergyGains.get(predator.id) ?? 0) + predatorEnergyGain);
+      }
+    }
+
+    organisms = organisms
+      .filter((organism) => !consumedPreyIds.has(organism.id))
+      .map((organism) => organism.type === 'predator'
+        ? { ...organism, energy: organism.energy + (predatorEnergyGains.get(organism.id) ?? 0) }
+        : organism);
+  }
+
+  organisms = organisms.map((organism) => {
       if (!shouldApplyInteractionCost) {
         return organism;
       }

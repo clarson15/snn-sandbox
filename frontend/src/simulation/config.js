@@ -64,7 +64,11 @@ export function saveCustomPreset(name, config) {
       offspringStartEnergy: config.offspringStartEnergy,
       reproductionMinimumAge: config.reproductionMinimumAge,
       reproductionRefractoryPeriod: config.reproductionRefractoryPeriod,
-      maximumOrganismAge: config.maximumOrganismAge
+      maximumOrganismAge: config.maximumOrganismAge,
+      initialPredatorCount: config.initialPredatorCount,
+      minimumPredatorCount: config.minimumPredatorCount,
+      predatorEnergyGain: config.predatorEnergyGain,
+      predatorHuntRadius: config.predatorHuntRadius
     },
     createdAt: now
   };
@@ -246,7 +250,12 @@ export const DEFAULT_CONFIG = {
   enableDangerZones: false,
   dangerZoneCount: 2,
   dangerZoneRadius: 40,
-  dangerZoneDamage: 0.5
+  dangerZoneDamage: 0.5,
+  // Predator settings
+  initialPredatorCount: 0,
+  minimumPredatorCount: 0,
+  predatorEnergyGain: 30,
+  predatorHuntRadius: 50
 };
 
 export function resolveSeed(seedInput) {
@@ -296,6 +305,10 @@ export function validateSimulationConfig(input) {
     ['reproductionMinimumAge', 0, 5000, 'Reproduction age must be between 0 and 5000.'],
     ['reproductionRefractoryPeriod', 0, 5000, 'Reproduction refractory period must be between 0 and 5000.'],
     ['maximumOrganismAge', 1, 10000, 'Maximum organism age must be between 1 and 10000.'],
+    ['initialPredatorCount', 0, 500, 'Initial predator count must be between 0 and 500.'],
+    ['minimumPredatorCount', 0, 500, 'Minimum predator count must be between 0 and 500.'],
+    ['predatorEnergyGain', 1, 200, 'Predator energy gain must be between 1 and 200.'],
+    ['predatorHuntRadius', 1, 500, 'Predator hunt radius must be between 1 and 500.'],
     // Hazard validation
     ['obstacleCount', 0, 20, 'Obstacle count must be between 0 and 20.'],
     ['obstacleMinSize', 10, 200, 'Obstacle min size must be between 10 and 200.'],
@@ -352,11 +365,15 @@ export function normalizeSimulationConfig(input, resolvedSeed) {
     enableDangerZones: Boolean(input.enableDangerZones ?? DEFAULT_CONFIG.enableDangerZones),
     dangerZoneCount: Number(input.dangerZoneCount ?? DEFAULT_CONFIG.dangerZoneCount),
     dangerZoneRadius: Number(input.dangerZoneRadius ?? DEFAULT_CONFIG.dangerZoneRadius),
-    dangerZoneDamage: Number(input.dangerZoneDamage ?? DEFAULT_CONFIG.dangerZoneDamage)
+    dangerZoneDamage: Number(input.dangerZoneDamage ?? DEFAULT_CONFIG.dangerZoneDamage),
+    initialPredatorCount: Number(input.initialPredatorCount ?? DEFAULT_CONFIG.initialPredatorCount),
+    minimumPredatorCount: Number(input.minimumPredatorCount ?? DEFAULT_CONFIG.minimumPredatorCount),
+    predatorEnergyGain: Number(input.predatorEnergyGain ?? DEFAULT_CONFIG.predatorEnergyGain),
+    predatorHuntRadius: Number(input.predatorHuntRadius ?? DEFAULT_CONFIG.predatorHuntRadius)
   };
 }
 
-function createInitialBrain(rng) {
+function createInitialBrain(rng, organismType = 'herbivore') {
   const hiddenCount = rng.nextInt(0, 3);
   const hiddenNeurons = Array.from({ length: hiddenCount }, (_, index) => createNeuronDefinition(
     `hidden-${index + 1}`,
@@ -366,13 +383,20 @@ function createInitialBrain(rng) {
       decay: Number((0.65 + (rng.nextFloat() * 0.25)).toFixed(3))
     }
   ));
+
   const neurons = [
     ...INPUT_NEURON_IDS.map((id) => createNeuronDefinition(id, 'input')),
     ...hiddenNeurons,
     ...OUTPUT_NEURON_IDS.map((id) => createNeuronDefinition(id, 'output'))
   ];
 
-  const inputIds = INPUT_NEURON_IDS;
+  if (organismType === 'predator') {
+    neurons.push(createNeuronDefinition('in-prey-distance', 'input'));
+    neurons.push(createNeuronDefinition('in-prey-direction', 'input'));
+    neurons.push(createNeuronDefinition('in-prey-detected', 'input'));
+  }
+
+  const inputIds = neurons.filter((neuron) => neuron.type === 'input').map((neuron) => neuron.id);
   const hiddenIds = hiddenNeurons.map((neuron) => neuron.id);
   const targetIds = hiddenIds.length > 0 ? [...hiddenIds, ...OUTPUT_NEURON_IDS] : [...OUTPUT_NEURON_IDS];
   const candidateSources = hiddenIds.length > 0 ? [...inputIds, ...hiddenIds] : [...inputIds];
@@ -503,7 +527,7 @@ function createDistinctColorGenerator(seedOffset = 0, initialColors = []) {
   };
 }
 
-function createRandomizedOrganism({ id, rng, worldWidth, worldHeight, color }) {
+function createRandomizedOrganism({ id, rng, worldWidth, worldHeight, color, type = 'herbivore' }) {
   return {
     id,
     x: rng.nextFloat() * worldWidth,
@@ -512,6 +536,7 @@ function createRandomizedOrganism({ id, rng, worldWidth, worldHeight, color }) {
     energy: 40,
     age: 0,
     generation: 1,
+    type,
     direction: Number((rng.nextFloat() * Math.PI * 2).toFixed(6)),
     traits: {
       size: Number((0.8 + rng.nextFloat() * 0.8).toFixed(3)),
@@ -524,7 +549,30 @@ function createRandomizedOrganism({ id, rng, worldWidth, worldHeight, color }) {
         ? 0
         : Number((1 + rng.nextFloat() * 7).toFixed(3))
     },
-    brain: createInitialBrain(rng)
+    brain: createInitialBrain(rng, type)
+  };
+}
+
+function createPredator({ id, rng, worldWidth, worldHeight, color }) {
+  // Predators are larger, faster, but have higher metabolism
+  return {
+    id,
+    x: rng.nextFloat() * worldWidth,
+    y: rng.nextFloat() * worldHeight,
+    color,
+    energy: 60,
+    age: 0,
+    generation: 1,
+    type: 'predator',
+    direction: Number((rng.nextFloat() * Math.PI * 2).toFixed(6)),
+    traits: {
+      size: Number((1.2 + rng.nextFloat() * 1.0).toFixed(3)),
+      speed: Number((1.2 + rng.nextFloat() * 2.0).toFixed(3)),
+      visionRange: Number((40 + rng.nextFloat() * 100).toFixed(3)),
+      turnRate: Number((0.04 + rng.nextFloat() * 0.1).toFixed(3)),
+      metabolism: Number((0.05 + rng.nextFloat() * 0.15).toFixed(3))
+    },
+    brain: createInitialBrain(rng, 'predator')
   };
 }
 
@@ -533,13 +581,27 @@ export function createInitialWorldFromConfig(config) {
   const founderColorOffset = rng.nextFloat() * 360;
   const nextFounderColor = createDistinctColorGenerator(founderColorOffset);
 
-  const organisms = Array.from({ length: config.initialPopulation }, (_, index) => createRandomizedOrganism({
+  // Create herbivore organisms
+  const herbivores = Array.from({ length: config.initialPopulation }, (_, index) => createRandomizedOrganism({
     id: `org-${index + 1}`,
+    rng,
+    worldWidth: config.worldWidth,
+    worldHeight: config.worldHeight,
+    color: nextFounderColor(),
+    type: 'herbivore'
+  }));
+
+  // Create predator organisms if configured
+  const predators = Array.from({ length: config.initialPredatorCount || 0 }, (_, index) => createPredator({
+    id: `pred-${index + 1}`,
     rng,
     worldWidth: config.worldWidth,
     worldHeight: config.worldHeight,
     color: nextFounderColor()
   }));
+
+  // Combine herbivores and predators
+  const organisms = [...herbivores, ...predators];
 
   const food = Array.from({ length: config.initialFoodCount }, (_, index) => ({
     id: `food-0-${index}`,
@@ -621,12 +683,15 @@ export function toEngineStepParams(config, options = {}) {
     reproductionMinimumAge: config.reproductionMinimumAge,
     reproductionRefractoryPeriod: config.reproductionRefractoryPeriod,
     maximumOrganismAge: config.maximumOrganismAge,
+    predatorEnergyGain: config.predatorEnergyGain,
+    predatorHuntRadius: config.predatorHuntRadius,
     createFloorSpawnOrganism: (id, rng) => createRandomizedOrganism({
       id,
       rng,
       worldWidth: config.worldWidth,
       worldHeight: config.worldHeight,
-      color: nextFloorSpawnColor()
+      color: nextFloorSpawnColor(),
+      type: 'herbivore'
     })
   };
 }
@@ -682,7 +747,11 @@ function sanitizeLoadedConfigDraft(parsed) {
     offspringStartEnergy: [0, 200],
     reproductionMinimumAge: [0, 5000],
     reproductionRefractoryPeriod: [0, 5000],
-    maximumOrganismAge: [1, 10000]
+    maximumOrganismAge: [1, 10000],
+    initialPredatorCount: [0, 500],
+    minimumPredatorCount: [0, 500],
+    predatorEnergyGain: [1, 200],
+    predatorHuntRadius: [1, 500]
   };
 
   const resolvedSeed = typeof source.resolvedSeed === 'string' ? source.resolvedSeed.trim() : '';

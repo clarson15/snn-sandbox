@@ -122,7 +122,11 @@ const FORM_FIELDS = [
   'offspringStartEnergy',
   'reproductionMinimumAge',
   'reproductionRefractoryPeriod',
-  'maximumOrganismAge'
+  'maximumOrganismAge',
+  'initialPredatorCount',
+  'minimumPredatorCount',
+  'predatorEnergyGain',
+  'predatorHuntRadius'
 ];
 
 function stableStringify(value) {
@@ -189,7 +193,11 @@ function createFormStateFromConfig(config) {
     offspringStartEnergy: String(config.offspringStartEnergy ?? DEFAULT_CONFIG.offspringStartEnergy),
     reproductionMinimumAge: String(config.reproductionMinimumAge ?? DEFAULT_CONFIG.reproductionMinimumAge),
     reproductionRefractoryPeriod: String(config.reproductionRefractoryPeriod ?? DEFAULT_CONFIG.reproductionRefractoryPeriod),
-    maximumOrganismAge: String(config.maximumOrganismAge ?? DEFAULT_CONFIG.maximumOrganismAge)
+    maximumOrganismAge: String(config.maximumOrganismAge ?? DEFAULT_CONFIG.maximumOrganismAge),
+    initialPredatorCount: String(config.initialPredatorCount ?? DEFAULT_CONFIG.initialPredatorCount),
+    minimumPredatorCount: String(config.minimumPredatorCount ?? DEFAULT_CONFIG.minimumPredatorCount),
+    predatorEnergyGain: String(config.predatorEnergyGain ?? DEFAULT_CONFIG.predatorEnergyGain),
+    predatorHuntRadius: String(config.predatorHuntRadius ?? DEFAULT_CONFIG.predatorHuntRadius)
   };
 }
 
@@ -1221,7 +1229,11 @@ function App() {
       offspringStartEnergy: String(preset.config.offspringStartEnergy ?? DEFAULT_CONFIG.offspringStartEnergy),
       reproductionMinimumAge: String(preset.config.reproductionMinimumAge ?? DEFAULT_CONFIG.reproductionMinimumAge),
       reproductionRefractoryPeriod: String(preset.config.reproductionRefractoryPeriod ?? DEFAULT_CONFIG.reproductionRefractoryPeriod),
-      maximumOrganismAge: String(preset.config.maximumOrganismAge ?? DEFAULT_CONFIG.maximumOrganismAge)
+      maximumOrganismAge: String(preset.config.maximumOrganismAge ?? DEFAULT_CONFIG.maximumOrganismAge),
+      initialPredatorCount: String(preset.config.initialPredatorCount ?? DEFAULT_CONFIG.initialPredatorCount),
+      minimumPredatorCount: String(preset.config.minimumPredatorCount ?? DEFAULT_CONFIG.minimumPredatorCount),
+      predatorEnergyGain: String(preset.config.predatorEnergyGain ?? DEFAULT_CONFIG.predatorEnergyGain),
+      predatorHuntRadius: String(preset.config.predatorHuntRadius ?? DEFAULT_CONFIG.predatorHuntRadius)
     };
 
     setFormState(newFormState);
@@ -1249,7 +1261,11 @@ function App() {
       offspringStartEnergy: toFiniteNumberOrDefault(formState.offspringStartEnergy, DEFAULT_CONFIG.offspringStartEnergy),
       reproductionMinimumAge: toFiniteNumberOrDefault(formState.reproductionMinimumAge, DEFAULT_CONFIG.reproductionMinimumAge),
       reproductionRefractoryPeriod: toFiniteNumberOrDefault(formState.reproductionRefractoryPeriod, DEFAULT_CONFIG.reproductionRefractoryPeriod),
-      maximumOrganismAge: toFiniteNumberOrDefault(formState.maximumOrganismAge, DEFAULT_CONFIG.maximumOrganismAge)
+      maximumOrganismAge: toFiniteNumberOrDefault(formState.maximumOrganismAge, DEFAULT_CONFIG.maximumOrganismAge),
+      initialPredatorCount: toFiniteNumberOrDefault(formState.initialPredatorCount, DEFAULT_CONFIG.initialPredatorCount),
+      minimumPredatorCount: toFiniteNumberOrDefault(formState.minimumPredatorCount, DEFAULT_CONFIG.minimumPredatorCount),
+      predatorEnergyGain: toFiniteNumberOrDefault(formState.predatorEnergyGain, DEFAULT_CONFIG.predatorEnergyGain),
+      predatorHuntRadius: toFiniteNumberOrDefault(formState.predatorHuntRadius, DEFAULT_CONFIG.predatorHuntRadius)
     };
 
     const success = saveCustomPreset(newPresetName, currentConfig);
@@ -3291,6 +3307,31 @@ function App() {
                   Max life (ticks)
                   <input type="number" value={formState.maximumOrganismAge} onChange={onFieldChange('maximumOrganismAge')} />
                   {errors.maximumOrganismAge ? <span className="error-text">{errors.maximumOrganismAge}</span> : null}
+                </label>
+              </div>
+
+              <h3>Predator settings</h3>
+              <p className="field-hint">Configure predator population and hunting behavior.</p>
+              <div className="field-row">
+                <label>
+                  Initial predators
+                  <input type="number" value={formState.initialPredatorCount} onChange={onFieldChange('initialPredatorCount')} />
+                  {errors.initialPredatorCount ? <span className="error-text">{errors.initialPredatorCount}</span> : null}
+                </label>
+                <label>
+                  Minimum predators
+                  <input type="number" value={formState.minimumPredatorCount} onChange={onFieldChange('minimumPredatorCount')} />
+                  {errors.minimumPredatorCount ? <span className="error-text">{errors.minimumPredatorCount}</span> : null}
+                </label>
+                <label>
+                  Predator energy gain
+                  <input type="number" value={formState.predatorEnergyGain} onChange={onFieldChange('predatorEnergyGain')} />
+                  {errors.predatorEnergyGain ? <span className="error-text">{errors.predatorEnergyGain}</span> : null}
+                </label>
+                <label>
+                  Predator hunt radius
+                  <input type="number" value={formState.predatorHuntRadius} onChange={onFieldChange('predatorHuntRadius')} />
+                  {errors.predatorHuntRadius ? <span className="error-text">{errors.predatorHuntRadius}</span> : null}
                 </label>
               </div>
 

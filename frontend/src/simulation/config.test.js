@@ -400,7 +400,11 @@ describe('simulation config helpers', () => {
       enableDangerZones: false,
       dangerZoneCount: 2,
       dangerZoneRadius: 40,
-      dangerZoneDamage: 0.5
+      dangerZoneDamage: 0.5,
+      initialPredatorCount: 0,
+      minimumPredatorCount: 0,
+      predatorEnergyGain: 30,
+      predatorHuntRadius: 50
     });
   });
 
@@ -453,7 +457,11 @@ describe('simulation config helpers', () => {
       enableDangerZones: false,
       dangerZoneCount: 2,
       dangerZoneRadius: 40,
-      dangerZoneDamage: 0.5
+      dangerZoneDamage: 0.5,
+      initialPredatorCount: 0,
+      minimumPredatorCount: 0,
+      predatorEnergyGain: 30,
+      predatorHuntRadius: 50
     });
   });
 
