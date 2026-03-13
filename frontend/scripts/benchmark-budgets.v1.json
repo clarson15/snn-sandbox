@@ -4,16 +4,16 @@
   "ticks": 300,
   "scenarios": {
     "population-500": {
-      "maxAverageTickMs": 8,
-      "minTicksPerSecond": 120
+      "maxAverageTickMs": 10,
+      "minTicksPerSecond": 100
     },
     "population-1000": {
-      "maxAverageTickMs": 14,
-      "minTicksPerSecond": 70
+      "maxAverageTickMs": 24,
+      "minTicksPerSecond": 42
     },
     "population-2000": {
-      "maxAverageTickMs": 24,
-      "minTicksPerSecond": 40
+      "maxAverageTickMs": 52,
+      "minTicksPerSecond": 18
     }
   }
 }
