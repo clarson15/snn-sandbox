@@ -36,6 +36,18 @@ function ensureWritableLocalStorage() {
   });
 }
 
+function getSimulationControlsRegion() {
+  return screen.getByRole('region', { name: /simulation controls/i });
+}
+
+function queryRunControlSaveStatus() {
+  return within(getSimulationControlsRegion()).queryByText(/^save status:/i);
+}
+
+function getRunControlSaveStatus(label) {
+  return within(getSimulationControlsRegion()).getByText(new RegExp(`^save status: ${label}$`, 'i'));
+}
+
 describe('App', () => {
   let clipboardWriteText;
 
@@ -348,26 +360,26 @@ describe('App', () => {
   it('shows deterministic save-status badge transitions and hides badge with no active run', async () => {
     render(<App />);
 
-    expect(screen.queryByText(/^save status:/i)).not.toBeInTheDocument();
+    expect(queryRunControlSaveStatus()).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'status-seed' } });
     fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/^save status: saved$/i)).toBeInTheDocument();
+      expect(getRunControlSaveStatus('saved')).toBeInTheDocument();
     });
 
     await waitFor(() => {
       expect(Number.parseInt(screen.getByText(/^tick count:/i).textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(0);
     });
 
-    expect(screen.getByText(/^save status: unsaved$/i)).toBeInTheDocument();
+    expect(getRunControlSaveStatus('unsaved')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
     fireEvent.click(screen.getByRole('button', { name: /save snapshot/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/^save status: saved$/i)).toBeInTheDocument();
+      expect(getRunControlSaveStatus('saved')).toBeInTheDocument();
       expect(screen.getByText(/^last saved tick:/i)).toHaveTextContent(/\d+/i);
     });
   });
@@ -379,7 +391,7 @@ describe('App', () => {
     fireEvent.click(within(savedRegion).getByRole('button', { name: /^resume$/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/^save status: saved$/i)).toBeInTheDocument();
+      expect(getRunControlSaveStatus('saved')).toBeInTheDocument();
       expect(screen.getByText(/^last saved tick: 0$/i)).toBeInTheDocument();
       expect(screen.getByText(/^last saved at:/i)).toBeInTheDocument();
     });
@@ -485,7 +497,7 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/^save status: unsaved$/i)).toBeInTheDocument();
+      expect(getRunControlSaveStatus('unsaved')).toBeInTheDocument();
     });
 
     fireEvent.change(screen.getByLabelText(/^save as$/i), { target: { value: 'Branch snapshot' } });
@@ -493,7 +505,7 @@ describe('App', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/^active snapshot: branch snapshot/i)).toBeInTheDocument();
-      expect(screen.getByText(/^save status: saved$/i)).toBeInTheDocument();
+      expect(getRunControlSaveStatus('saved')).toBeInTheDocument();
     });
 
     const saveAsPostCall = global.fetch.mock.calls.find(
@@ -511,7 +523,7 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/^save status: unsaved$/i)).toBeInTheDocument();
+      expect(getRunControlSaveStatus('unsaved')).toBeInTheDocument();
     });
 
     fireEvent.change(screen.getByLabelText(/^save as$/i), { target: { value: 'Fixture snapshot' } });
@@ -589,7 +601,7 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/^save status: unsaved$/i)).toBeInTheDocument();
+      expect(getRunControlSaveStatus('unsaved')).toBeInTheDocument();
       expect(screen.getByText(/fixture snapshot \(copy 1\)/i)).toBeInTheDocument();
     });
 

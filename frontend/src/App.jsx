@@ -2608,12 +2608,25 @@ function App() {
     }));
   };
 
+  const runtimeModeLabel = replayActive ? 'Replay active' : paused ? 'Paused' : `Running at ${speedMultiplier}x`;
+
   return (
     <main className="app-shell">
       <header className="app-header">
-        <h1>SNN Sandbox</h1>
-        <p>Configure and run deterministic simulations</p>
-        <p className="app-version">Version: {appVersion}</p>
+        <div className="app-brand">
+          <p className="eyebrow">Deterministic simulation lab</p>
+          <h1>SNN Sandbox</h1>
+          <p className="app-subtitle">Observe the ecosystem first, then tune the parameters that shape it.</p>
+        </div>
+        <div className="app-header-actions">
+          <div className="app-version-badge">Version {appVersion}</div>
+          <button type="button" onClick={() => setPreferencesModalOpen(true)}>
+            Preferences
+          </button>
+          <button type="button" onClick={() => setAboutModalOpen(true)}>
+            About
+          </button>
+        </div>
       </header>
 
       {toastsEnabled ? (
@@ -2634,280 +2647,828 @@ function App() {
       ) : null}
 
       <div className="page-content">
-      <div className="config-and-canvas-row">
-      <section className="config-panel" aria-label="simulation configuration">
-        <h2>Simulation config</h2>
-
-        <label>
-          Quick-start preset
-          <select value={selectedPresetId} onChange={onPresetChange}>
-            <option value="">Custom (select a preset)</option>
-            {SIMULATION_PRESETS.map((preset) => (
-              <option key={preset.id} value={preset.id}>
-                {preset.name}
-              </option>
-            ))}
-            {customPresets.length > 0 && (
-              <optgroup label="Custom Presets">
-                {customPresets.map((preset) => (
-                  <option key={preset.id} value={preset.id}>
-                    {preset.name}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-          </select>
-        </label>
-        {selectedPresetId && (
-          <p className="field-hint">
-            {getPresetById(selectedPresetId)?.description || customPresets.find(p => p.id === selectedPresetId)?.description}
-          </p>
-        )}
-
-        {!showSavePresetInput ? (
-          <button type="button" onClick={() => setShowSavePresetInput(true)}>
-            Save current as preset
-          </button>
-        ) : (
-          <div className="field-row">
-            <input
-              value={newPresetName}
-              onChange={(e) => setNewPresetName(e.target.value)}
-              placeholder="Preset name"
-              onKeyDown={(e) => e.key === 'Enter' && onSavePreset()}
-            />
-            <button type="button" onClick={onSavePreset}>
-              Save
-            </button>
-            <button type="button" onClick={() => { setShowSavePresetInput(false); setNewPresetName(''); }}>
-              Cancel
-            </button>
-          </div>
-        )}
-
-        <label>
-          Simulation name
-          <input value={formState.name} onChange={onFieldChange('name')} />
-          {errors.name ? <span className="error-text">{errors.name}</span> : null}
-        </label>
-
-        <label>
-          Seed (optional)
-          <input value={formState.seed} onChange={onFieldChange('seed')} placeholder="Leave blank to auto-generate" />
-        </label>
-        <p className="field-hint">Leave blank to generate a seed once at start; save this value to replay identical deterministic runs.</p>
-
-        <h3>World settings</h3>
-        <p className="field-hint">World width/height: 100–3000.</p>
-        <div className="field-row">
-          <label>
-            World width
-            <input type="number" value={formState.worldWidth} onChange={onFieldChange('worldWidth')} />
-            {errors.worldWidth ? <span className="error-text">{errors.worldWidth}</span> : null}
-          </label>
-          <label>
-            World height
-            <input type="number" value={formState.worldHeight} onChange={onFieldChange('worldHeight')} />
-            {errors.worldHeight ? <span className="error-text">{errors.worldHeight}</span> : null}
-          </label>
-        </div>
-
-        <h3>Population settings</h3>
-        <p className="field-hint">Initial/minimum population: 1–2000.</p>
-        <div className="field-row">
-          <label>
-            Initial population
-            <input type="number" value={formState.initialPopulation} onChange={onFieldChange('initialPopulation')} />
-            {errors.initialPopulation ? <span className="error-text">{errors.initialPopulation}</span> : null}
-          </label>
-          <label>
-            Minimum population
-            <input type="number" value={formState.minimumPopulation} onChange={onFieldChange('minimumPopulation')} />
-            {errors.minimumPopulation ? <span className="error-text">{errors.minimumPopulation}</span> : null}
-          </label>
-        </div>
-
-        <h3>Food settings</h3>
-        <p className="field-hint">Spawn chance: 0–1. Max food must be ≥ initial food count.</p>
-        <div className="field-row">
-          <label>
-            Initial food count
-            <input type="number" value={formState.initialFoodCount} onChange={onFieldChange('initialFoodCount')} />
-            {errors.initialFoodCount ? <span className="error-text">{errors.initialFoodCount}</span> : null}
-          </label>
-          <label>
-            Food spawn chance (0-1)
-            <input type="number" step="0.01" value={formState.foodSpawnChance} onChange={onFieldChange('foodSpawnChance')} />
-            {errors.foodSpawnChance ? <span className="error-text">{errors.foodSpawnChance}</span> : null}
-          </label>
-          <label>
-            Food energy value
-            <input type="number" value={formState.foodEnergyValue} onChange={onFieldChange('foodEnergyValue')} />
-            {errors.foodEnergyValue ? <span className="error-text">{errors.foodEnergyValue}</span> : null}
-          </label>
-        </div>
-
-        <label>
-          Max food
-          <input type="number" value={formState.maxFood} onChange={onFieldChange('maxFood')} />
-          {errors.maxFood ? <span className="error-text">{errors.maxFood}</span> : null}
-        </label>
-
-        <h3>Evolution settings</h3>
-        <p className="field-hint">Mutation controls are deterministic and seed-driven (range 0–1).</p>
-        <div className="field-row">
-          <label>
-            Mutation rate
-            <input type="number" step="0.01" value={formState.mutationRate} onChange={onFieldChange('mutationRate')} />
-            {errors.mutationRate ? <span className="error-text">{errors.mutationRate}</span> : null}
-          </label>
-          <label>
-            Mutation strength
-            <input type="number" step="0.01" value={formState.mutationStrength} onChange={onFieldChange('mutationStrength')} />
-            {errors.mutationStrength ? <span className="error-text">{errors.mutationStrength}</span> : null}
-          </label>
-        </div>
-
-        <div className="field-row">
-          <button type="button" onClick={onResetConfigToDefaults}>
-            Use defaults
-          </button>
-          <button type="button" onClick={startSimulation}>
-            Start simulation
-          </button>
-        </div>
-        {hasUnsavedFormChanges ? (
-          <p aria-live="polite">Unsaved setup changes in: {dirtyFormFields.join(', ')}.</p>
-        ) : null}
-        {queryPrefillStatus ? <p aria-live="polite">{queryPrefillStatus}</p> : null}
-      </section>
-
-      {resolvedSeed ? <p className="seed-banner">Resolved seed: {resolvedSeed}</p> : null}
-
-      <section className="controls layout-bottom-controls-placeholder" aria-label="simulation controls">
-        {hasUrlSeedMismatch ? (
-          <div className="seed-mismatch-banner" role="status" aria-live="polite">
+        <section className="hero-panel" aria-label="simulation overview">
+          <div className="hero-copy">
+            <p className="eyebrow">Homepage focus</p>
+            <h2>Simulation-first view for live runs, replay, and inspection.</h2>
             <p>
-              URL seed <strong>{urlSeed}</strong> does not match active seed <strong>{normalizedActiveSeed}</strong>.
+              The world canvas, runtime state, and saved run access stay in view while configuration moves into a secondary rail.
             </p>
-            <button type="button" onClick={onUseUrlSeed}>
-              Use URL seed
-            </button>
+          </div>
+          <div className="hero-metrics" aria-label="simulation status summary">
+            <div className="hero-metric-card">
+              <span className="metric-label">Runtime</span>
+              <strong>{runtimeModeLabel}</strong>
+              <span className="metric-detail">Tick {tickDisplay}</span>
+            </div>
+            <div className="hero-metric-card">
+              <span className="metric-label">Population</span>
+              <strong>{formattedStats.population}</strong>
+              <span className="metric-detail">{formatTrendIndicator(statsTrends.population)}</span>
+            </div>
+            <div className="hero-metric-card">
+              <span className="metric-label">Seed</span>
+              <strong>{resolvedSeed || 'No active simulation'}</strong>
+              <span className="metric-detail">{hasSimulation ? `Save status: ${runSaveStatusLabel}` : 'Start a run to lock determinism'}</span>
+            </div>
+          </div>
+        </section>
+
+        <div className="config-and-canvas-row">
+          <div className="simulation-area">
+            {resolvedSeed ? <p className="seed-banner">Resolved seed: {resolvedSeed}</p> : null}
+
+            <section className="controls control-surface" aria-label="simulation controls">
+              {hasUrlSeedMismatch ? (
+                <div className="seed-mismatch-banner" role="status" aria-live="polite">
+                  <p>
+                    URL seed <strong>{urlSeed}</strong> does not match active seed <strong>{normalizedActiveSeed}</strong>.
+                  </p>
+                  <button type="button" onClick={onUseUrlSeed}>
+                    Use URL seed
+                  </button>
+                </div>
+              ) : null}
+              <div className="control-cluster control-summary">
+                <p className="control-heading">Run controls</p>
+                <p>Active seed: {resolvedSeed || 'No active simulation'}</p>
+                <p role="status" aria-live="polite" data-tick-counter>
+                  Tick: {tickDisplay} | {replayActive ? 'Replay active' : paused ? 'runtime state: paused' : `runtime state: running at ${speedMultiplier}x`}
+                </p>
+                {hasSimulation ? (
+                  <>
+                    <p
+                      className={`save-status-badge ${hasUnsavedRunChanges ? 'is-unsaved' : 'is-saved'}`}
+                      role="status"
+                      aria-live="polite"
+                    >
+                      Save status: {runSaveStatusLabel}
+                    </p>
+                    <p>Last saved tick: {persistedRunMetadata?.lastSavedTick ?? 0}</p>
+                    <p>Last saved at: {formatSimulationTimestamp(persistedRunMetadata?.lastSavedAt)}</p>
+                  </>
+                ) : null}
+                {seedControlStatus ? <p aria-live="polite">{seedControlStatus}</p> : null}
+                {spectatorMode ? (
+                  <p className="spectator-banner"><strong>Spectator Mode</strong> - You are viewing a shared simulation. Changes cannot be saved.</p>
+                ) : null}
+              </div>
+              <div className="control-cluster">
+                <ControlButtonWithHint name="copy-seed-controls" onClick={onCopyActiveSeed} reason={controlDisableReasons.copySeed}>
+                  Copy seed
+                </ControlButtonWithHint>
+                <ControlButtonWithHint name="copy-share-link" onClick={onCopyShareLink} reason={controlDisableReasons.copyShareLink}>
+                  Copy share link
+                </ControlButtonWithHint>
+                <ControlButtonWithHint name="regenerate-seed" onClick={onRegenerateSeed} reason={controlDisableReasons.regenerateSeed}>
+                  Regenerate seed + restart
+                </ControlButtonWithHint>
+                <ControlButtonWithHint name="restart-run" onClick={onRestartRun} reason={controlDisableReasons.restartFromSeed}>
+                  New run with same seed
+                </ControlButtonWithHint>
+                <ControlButtonWithHint
+                  name="pause"
+                  onClick={onPause}
+                  reason={controlDisableReasons.pause}
+                  aria-pressed={paused || replayActive}
+                >
+                  Pause
+                </ControlButtonWithHint>
+                <ControlButtonWithHint
+                  name="resume"
+                  onClick={onResume}
+                  reason={controlDisableReasons.resume}
+                  aria-pressed={!paused && !replayActive}
+                >
+                  Resume
+                </ControlButtonWithHint>
+                <ControlButtonWithHint name="step-plus-1" onClick={onStepTick} reason={controlDisableReasons.step}>
+                  Step +1
+                </ControlButtonWithHint>
+                <ControlButtonWithHint name="step-plus-10" onClick={onStepTenTicks} reason={controlDisableReasons.step}>
+                  Step +10
+                </ControlButtonWithHint>
+                <ControlButtonWithHint name="save-snapshot" onClick={onSaveSimulation} reason={controlDisableReasons.saveSnapshot}>
+                  Save snapshot
+                </ControlButtonWithHint>
+                <ControlButtonWithHint name="save-as-snapshot" onClick={onSaveAsSimulation} reason={controlDisableReasons.saveSnapshot}>
+                  Save As
+                </ControlButtonWithHint>
+                {!spectatorMode && activeLoadedMetadata?.id ? (
+                  <ControlButtonWithHint name="share-snapshot" onClick={onShareSimulation} reason={''}>
+                    Share
+                  </ControlButtonWithHint>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={onOpenKeyboardShortcuts}
+                  ref={keyboardShortcutsTriggerRef}
+                  aria-haspopup="dialog"
+                  aria-expanded={keyboardShortcutsModalOpen}
+                >
+                  Keyboard Shortcuts
+                </button>
+              </div>
+              <div className="control-cluster control-speed">
+                <p className="control-heading">Playback speed</p>
+                <div className="speed-presets" role="group" aria-label="speed presets">
+                  {SPEED_OPTIONS.map((multiplier) => {
+                    const isActivePreset = !paused && !replayActive && speedMultiplier === multiplier;
+
+                    return (
+                      <ControlButtonWithHint
+                        key={multiplier}
+                        name={`speed-${multiplier}`}
+                        onClick={() => onSpeedSelect(multiplier)}
+                        reason={controlDisableReasons.speed}
+                        className={`speed-preset-button${isActivePreset ? ' is-active' : ''}`}
+                        aria-pressed={isActivePreset}
+                      >
+                        {multiplier}x
+                      </ControlButtonWithHint>
+                    );
+                  })}
+                </div>
+                <label>
+                  Save As
+                  <input
+                    type="text"
+                    value={saveAsDraftName}
+                    onChange={(event) => {
+                      setSaveAsDraftName(event.target.value);
+                      if (saveAsValidationError) {
+                        setSaveAsValidationError('');
+                      }
+                      if (saveConflictResolution) {
+                        setSaveConflictResolution(null);
+                      }
+                    }}
+                    placeholder={activeConfigRef.current?.name ?? 'New Simulation copy'}
+                  />
+                </label>
+                {saveAsValidationError ? <p aria-live="polite">{saveAsValidationError}</p> : null}
+                <p className="shortcut-hints">Shortcuts: Space pause/play · . single-step (paused) · 1/2/3/4 set speed (1x/2x/5x/10x)</p>
+              </div>
+            </section>
+
+            <section className="simulation-stage" aria-label="simulation stage">
+              <section className="simulation-stats-hud" aria-label="simulation stats hud">
+                <div className="hud-heading-row">
+                  <div>
+                    <p className="eyebrow">Live telemetry</p>
+                    <h2>Simulation stats</h2>
+                  </div>
+                  <div className="hud-toggle-group" role="group" aria-label="stats visibility presets">
+                    <button
+                      type="button"
+                      onClick={() => setHudVisibilityPreset(HUD_VISIBILITY_PRESETS.MINIMAL)}
+                      aria-pressed={hudVisibilityPreset === HUD_VISIBILITY_PRESETS.MINIMAL}
+                    >
+                      Minimal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHudVisibilityPreset(HUD_VISIBILITY_PRESETS.DETAILED)}
+                      aria-pressed={hudVisibilityPreset === HUD_VISIBILITY_PRESETS.DETAILED}
+                    >
+                      Detailed
+                    </button>
+                  </div>
+                </div>
+                <div className="hud-metric-grid">
+                  <p>Seed: {hudSeedLabel}</p>
+                  <p>Population: {formattedStats.population} ({formatTrendIndicator(statsTrends.population)})</p>
+                  {isDetailedHudVisible ? <p>Species count: {formattedStats.speciesCount}</p> : null}
+                  {isDetailedHudVisible ? <p>Food count: {formattedStats.foodCount}</p> : null}
+                  {isDetailedHudVisible ? <p>Average generation: {formattedStats.averageGeneration}</p> : null}
+                  {isDetailedHudVisible ? <p>Average organism energy: {formattedStats.averageEnergy} ({formatTrendIndicator(statsTrends.averageEnergy)})</p> : null}
+                  {isDetailedHudVisible ? <p>Tick count: {formattedStats.tickCount}</p> : null}
+                  {isDetailedHudVisible ? <p>Time elapsed: {formattedStats.elapsedTime}</p> : null}
+                  {isDetailedHudVisible ? (
+                    <p>Tick budget clamp: {schedulerClampState.active ? `Active (dropped ${schedulerClampState.droppedTicks} ticks this frame)` : 'Inactive'}</p>
+                  ) : null}
+                </div>
+                {formattedStats.energyDeathWarning ? (
+                  <p className="warning-banner">Warning: Low energy - organisms at risk of dying</p>
+                ) : null}
+                {isDetailedHudVisible && speciesLegend.length > 0 ? (
+                  <div className="legend-group species-legend">
+                    <strong>Species</strong>
+                    <div className="legend-items">
+                      {speciesLegend.slice(0, 10).map(({ id, color }) => (
+                        <div key={id} className="legend-item">
+                          <span className="legend-swatch is-round" style={{ backgroundColor: color }} />
+                          {id}
+                        </div>
+                      ))}
+                      {speciesLegend.length > 10 ? <span className="legend-item">+{speciesLegend.length - 10} more</span> : null}
+                    </div>
+                  </div>
+                ) : null}
+                {isDetailedHudVisible && hazardLegend.length > 0 ? (
+                  <div className="legend-group hazard-legend">
+                    <strong>Hazards</strong>
+                    <div className="legend-items">
+                      {hazardLegend.map(({ type, color }) => (
+                        <div key={type} className="legend-item">
+                          <span className="legend-swatch" style={{ backgroundColor: color }} />
+                          {type}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </section>
+
+              <div className="canvas-frame">
+                <canvas
+                  ref={canvasRef}
+                  width={Number(formState.worldWidth) || DEFAULT_CONFIG.worldWidth}
+                  height={Number(formState.worldHeight) || DEFAULT_CONFIG.worldHeight}
+                  aria-label="simulation world"
+                  onClick={onCanvasClick}
+                  onTouchStart={onCanvasTouchStart}
+                  onTouchEnd={onCanvasTouchEnd}
+                />
+
+                {hudOverlayVisible && selectedOrganism ? (
+                  <div className="organism-hud-overlay" role="region" aria-label="organism info">
+                    <div className="organism-hud-header">
+                      <span className="organism-hud-id">Organism {selectedOrganism.id.slice(0, 8)}</span>
+                      <button
+                        type="button"
+                        className="organism-hud-close"
+                        onClick={() => {
+                          setHudOverlayVisible(false);
+                          clearSelection();
+                        }}
+                        aria-label="Close organism info"
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <div className="organism-hud-stats">
+                      <p><strong>Generation:</strong> {formattedInspector.generation}</p>
+                      <p><strong>Size:</strong> {formattedInspector.size}</p>
+                      <p><strong>Energy:</strong> {formattedInspector.energy}</p>
+                      {selectedOrganismSpeciesId ? (
+                        <p><strong>Species:</strong> <span style={{ color: getSpeciesColor(selectedOrganismSpeciesId) }}>{selectedOrganismSpeciesId}</span></p>
+                      ) : null}
+                    </div>
+                    {brainGraphModel && brainGraphModel.nodes.length > 0 ? (
+                      <div className="organism-hud-brain">
+                        <div className="brain-graph-controls">
+                          <button type="button" onClick={onResetBrainGraphViewport} aria-label="Reset brain view">Reset</button>
+                          <button type="button" onClick={onFitSelectionBrainGraphViewport} aria-label="Fit selection">Fit</button>
+                          <button type="button" onClick={() => onZoomBrainGraphViewport(1)} aria-label="Zoom in">+</button>
+                          <button type="button" onClick={() => onZoomBrainGraphViewport(-1)} aria-label="Zoom out">−</button>
+                        </div>
+                        <svg
+                          className="brain-graph"
+                          viewBox={`0 0 ${BRAIN_GRAPH_VIEWBOX.width} ${BRAIN_GRAPH_VIEWBOX.height}`}
+                          aria-label="Brain neural network visualization"
+                        >
+                          <g transform={`translate(${brainGraphTransform.translateX}, ${brainGraphTransform.translateY}) scale(${brainGraphTransform.scale})`}>
+                            {brainGraphModel.edges.map((edge) => (
+                              <line
+                                key={edge.id}
+                                className="brain-graph-synapse-edge"
+                                x1={brainGraphNodeById.get(edge.sourceId)?.x ?? 0}
+                                y1={brainGraphNodeById.get(edge.sourceId)?.y ?? 0}
+                                x2={brainGraphNodeById.get(edge.targetId)?.x ?? 0}
+                                y2={brainGraphNodeById.get(edge.targetId)?.y ?? 0}
+                                stroke={edge.color}
+                                strokeWidth={edge.strokeWidth}
+                                opacity={edge.emphasisOpacity}
+                              />
+                            ))}
+                            {brainGraphModel.nodes.map((node) => (
+                              <circle
+                                key={node.id}
+                                cx={node.x}
+                                cy={node.y}
+                                r={8}
+                                fill={node.fillColor}
+                                stroke={node.id === pinnedBrainNeuronId ? '#38bdf8' : node.id === selectedBrainNeuronId ? '#f59e0b' : '#1e293b'}
+                                strokeWidth={node.id === pinnedBrainNeuronId || node.id === selectedBrainNeuronId ? 3 : 1}
+                                opacity={node.emphasisOpacity}
+                                style={{ cursor: 'pointer' }}
+                                onClick={() => setPinnedBrainNeuronId(node.id === pinnedBrainNeuronId ? null : node.id)}
+                                onMouseEnter={() => setHoveredBrainNeuronId(node.id)}
+                                onMouseLeave={() => setHoveredBrainNeuronId(null)}
+                                aria-label={`Neuron ${node.id}, type: ${node.type}`}
+                              />
+                            ))}
+                            {hoveredBrainNeuronId && brainGraphNodeById.get(hoveredBrainNeuronId) ? (
+                              <g transform={`translate(${brainGraphNodeById.get(hoveredBrainNeuronId).x + 12}, ${brainGraphNodeById.get(hoveredBrainNeuronId).y - 6})`}>
+                                <rect x="0" y="-10" width="80" height="20" rx="4" fill="#1e293b" opacity="0.95" />
+                                <text x="40" y="4" textAnchor="middle" fill="#f8fafc" fontSize="11" fontFamily="system-ui">
+                                  {brainGraphNodeById.get(hoveredBrainNeuronId).type}
+                                </text>
+                              </g>
+                            ) : null}
+                          </g>
+                        </svg>
+                        {brainGraphLegend && brainGraphLegend.neuronTypes.length > 0 ? (
+                          <div className="brain-graph-legend" role="region" aria-label="Brain graph legend">
+                            <div className="brain-graph-legend-section">
+                              <strong>Neuron Types</strong>
+                              <div className="brain-graph-legend-items">
+                                {brainGraphLegend.neuronTypes.map((nt) => (
+                                  <span key={nt.type} className="brain-graph-legend-item">
+                                    <span className="brain-graph-legend-swatch" style={{ backgroundColor: nt.color.cssColor }} />
+                                    {nt.label}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="brain-graph-legend-section">
+                              <strong>Synapses</strong>
+                              <div className="brain-graph-legend-items">
+                                {brainGraphLegend.synapseCues.map((sc) => (
+                                  <span key={sc.polarity} className="brain-graph-legend-item">
+                                    <span className="brain-graph-legend-swatch" style={{ backgroundColor: sc.color }} />
+                                    {sc.polarity}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          </div>
+
+          <div className="sidebar-column">
+            <section className="config-panel" aria-label="simulation configuration">
+              <div className="panel-heading">
+                <div>
+                  <p className="eyebrow">Simulation setup</p>
+                  <h2>Configuration</h2>
+                </div>
+                <p className="panel-copy">Tune the world after you can already see the run context.</p>
+              </div>
+
+              <label>
+                Quick-start preset
+                <select value={selectedPresetId} onChange={onPresetChange}>
+                  <option value="">Custom (select a preset)</option>
+                  {SIMULATION_PRESETS.map((preset) => (
+                    <option key={preset.id} value={preset.id}>
+                      {preset.name}
+                    </option>
+                  ))}
+                  {customPresets.length > 0 ? (
+                    <optgroup label="Custom Presets">
+                      {customPresets.map((preset) => (
+                        <option key={preset.id} value={preset.id}>
+                          {preset.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : null}
+                </select>
+              </label>
+              {selectedPresetId ? (
+                <p className="field-hint">
+                  {getPresetById(selectedPresetId)?.description || customPresets.find((p) => p.id === selectedPresetId)?.description}
+                </p>
+              ) : null}
+
+              {!showSavePresetInput ? (
+                <button type="button" onClick={() => setShowSavePresetInput(true)}>
+                  Save current as preset
+                </button>
+              ) : (
+                <div className="field-row">
+                  <input
+                    value={newPresetName}
+                    onChange={(event) => setNewPresetName(event.target.value)}
+                    placeholder="Preset name"
+                    onKeyDown={(event) => event.key === 'Enter' && onSavePreset()}
+                  />
+                  <button type="button" onClick={onSavePreset}>
+                    Save
+                  </button>
+                  <button type="button" onClick={() => { setShowSavePresetInput(false); setNewPresetName(''); }}>
+                    Cancel
+                  </button>
+                </div>
+              )}
+
+              <label>
+                Simulation name
+                <input value={formState.name} onChange={onFieldChange('name')} />
+                {errors.name ? <span className="error-text">{errors.name}</span> : null}
+              </label>
+
+              <label>
+                Seed (optional)
+                <input value={formState.seed} onChange={onFieldChange('seed')} placeholder="Leave blank to auto-generate" />
+              </label>
+              <p className="field-hint">Leave blank to generate a seed once at start; save this value to replay identical deterministic runs.</p>
+
+              <h3>World settings</h3>
+              <p className="field-hint">World width/height: 100–3000.</p>
+              <div className="field-row">
+                <label>
+                  World width
+                  <input type="number" value={formState.worldWidth} onChange={onFieldChange('worldWidth')} />
+                  {errors.worldWidth ? <span className="error-text">{errors.worldWidth}</span> : null}
+                </label>
+                <label>
+                  World height
+                  <input type="number" value={formState.worldHeight} onChange={onFieldChange('worldHeight')} />
+                  {errors.worldHeight ? <span className="error-text">{errors.worldHeight}</span> : null}
+                </label>
+              </div>
+
+              <h3>Population settings</h3>
+              <p className="field-hint">Initial/minimum population: 1–2000.</p>
+              <div className="field-row">
+                <label>
+                  Initial population
+                  <input type="number" value={formState.initialPopulation} onChange={onFieldChange('initialPopulation')} />
+                  {errors.initialPopulation ? <span className="error-text">{errors.initialPopulation}</span> : null}
+                </label>
+                <label>
+                  Minimum population
+                  <input type="number" value={formState.minimumPopulation} onChange={onFieldChange('minimumPopulation')} />
+                  {errors.minimumPopulation ? <span className="error-text">{errors.minimumPopulation}</span> : null}
+                </label>
+              </div>
+
+              <h3>Food settings</h3>
+              <p className="field-hint">Spawn chance: 0–1. Max food must be ≥ initial food count.</p>
+              <div className="field-row">
+                <label>
+                  Initial food count
+                  <input type="number" value={formState.initialFoodCount} onChange={onFieldChange('initialFoodCount')} />
+                  {errors.initialFoodCount ? <span className="error-text">{errors.initialFoodCount}</span> : null}
+                </label>
+                <label>
+                  Food spawn chance (0-1)
+                  <input type="number" step="0.01" value={formState.foodSpawnChance} onChange={onFieldChange('foodSpawnChance')} />
+                  {errors.foodSpawnChance ? <span className="error-text">{errors.foodSpawnChance}</span> : null}
+                </label>
+                <label>
+                  Food energy value
+                  <input type="number" value={formState.foodEnergyValue} onChange={onFieldChange('foodEnergyValue')} />
+                  {errors.foodEnergyValue ? <span className="error-text">{errors.foodEnergyValue}</span> : null}
+                </label>
+              </div>
+
+              <label>
+                Max food
+                <input type="number" value={formState.maxFood} onChange={onFieldChange('maxFood')} />
+                {errors.maxFood ? <span className="error-text">{errors.maxFood}</span> : null}
+              </label>
+
+              <h3>Evolution settings</h3>
+              <p className="field-hint">Mutation controls are deterministic and seed-driven (range 0–1).</p>
+              <div className="field-row">
+                <label>
+                  Mutation rate
+                  <input type="number" step="0.01" value={formState.mutationRate} onChange={onFieldChange('mutationRate')} />
+                  {errors.mutationRate ? <span className="error-text">{errors.mutationRate}</span> : null}
+                </label>
+                <label>
+                  Mutation strength
+                  <input type="number" step="0.01" value={formState.mutationStrength} onChange={onFieldChange('mutationStrength')} />
+                  {errors.mutationStrength ? <span className="error-text">{errors.mutationStrength}</span> : null}
+                </label>
+              </div>
+
+              <div className="field-row">
+                <button type="button" onClick={onResetConfigToDefaults}>
+                  Use defaults
+                </button>
+                <button type="button" onClick={startSimulation}>
+                  Start simulation
+                </button>
+              </div>
+              {hasUnsavedFormChanges ? <p aria-live="polite">Unsaved setup changes in: {dirtyFormFields.join(', ')}.</p> : null}
+              {queryPrefillStatus ? <p aria-live="polite">{queryPrefillStatus}</p> : null}
+            </section>
+
+            <section className="config-panel" aria-label="run metadata panel">
+              <details open={hasSimulation}>
+                <summary>Run metadata</summary>
+                <p>Seed: {runMetadata.seed}</p>
+                <p>Current tick: {runMetadata.tickCount}</p>
+                <p>Run start tick marker: {runStartTick}</p>
+                <p>Run elapsed marker: T+{runElapsedTicks} ticks</p>
+                <p>Speed multiplier: {runMetadata.speedMultiplier}</p>
+                <p>Snapshot ID: {runMetadata.snapshotId}</p>
+                <p>Config fingerprint: {simulationParametersFingerprint}</p>
+                <p>Config fingerprint hash: {simulationParametersFingerprintHash}</p>
+                <button type="button" onClick={onCopyRunMetadata} disabled={!hasSimulation}>Copy reproducibility string</button>
+              </details>
+            </section>
+
+            <section id="saved-simulations-section" className="config-panel" aria-label="saved simulations">
+              <div className="panel-heading">
+                <div>
+                  <p className="eyebrow">Saved runs</p>
+                  <h2>Saved simulations</h2>
+                </div>
+              </div>
+              <div className="field-row" aria-label="saved simulation list controls">
+                <label>
+                  Sort saves
+                  <select value={savedSimulationListViewState.sortKey} onChange={onSavedSimulationSortChange}>
+                    {SAVED_SIMULATION_SORT_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Filter by name
+                  <input
+                    type="text"
+                    value={savedSimulationListViewState.nameFilter}
+                    onChange={onSavedSimulationFilterChange}
+                    placeholder="Type to filter saves"
+                  />
+                </label>
+              </div>
+              {savedSimulationsError ? <p role="alert">{savedSimulationsError}</p> : null}
+              {savedSimulations.length === 0 ? (
+                <p>{savedSimulationsError ? 'Saved simulations unavailable.' : 'No saved simulations yet.'}</p>
+              ) : savedSimulationListView.visibleItems.length === 0 ? (
+                <p>No saved simulations match the current filter.</p>
+              ) : (
+                <ul className="saved-simulation-list">
+                  {savedSimulationListView.visibleItems.map((snapshot) => {
+                    const isLoadingSnapshot = Boolean(loadingSnapshotById[snapshot.id]);
+                    const hasValidMetadata = snapshot.metadataValid !== false;
+                    const seedLabel = hasValidMetadata ? (snapshot.seed || 'unknown') : 'metadata unavailable';
+                    const tickLabel = hasValidMetadata ? snapshot.tickCount : 'metadata unavailable';
+                    const isSelected = savedSimulationListView.selectedSnapshotId === snapshot.id;
+
+                    return (
+                      <li key={snapshot.id} className={`saved-simulation-item${isSelected ? ' is-selected' : ''}`} aria-current={isSelected ? 'true' : undefined}>
+                        <div className="saved-simulation-copy">
+                          <strong>{snapshot.name}</strong>
+                          <span>Updated {formatSimulationTimestamp(snapshot.updatedAt)}</span>
+                          <span>Seed {seedLabel} · tick {tickLabel}</span>
+                          <span>Population {snapshot.populationCount ?? 'metadata unavailable'} · config {snapshot.configSummary ?? 'metadata unavailable'}</span>
+                        </div>
+                        <div className="saved-simulation-actions">
+                          <button type="button" onClick={() => onSavedSimulationSelect(snapshot.id)} aria-pressed={isSelected}>
+                            {isSelected ? 'Selected' : 'Select'}
+                          </button>
+                          <button type="button" onClick={() => onLoadSimulation(snapshot)} disabled={isLoadingSnapshot || !hasValidMetadata}>
+                            {isLoadingSnapshot ? 'Loading…' : 'Resume'}
+                          </button>
+                          <button type="button" onClick={() => onSpectateSimulation(snapshot)} disabled={isLoadingSnapshot || !hasValidMetadata}>
+                            {isLoadingSnapshot ? 'Loading…' : 'Spectate'}
+                          </button>
+                          <button type="button" onClick={() => onDeleteSimulation(snapshot)} disabled={isLoadingSnapshot}>Delete</button>
+                        </div>
+                        {loadRecoveryBySnapshotId[snapshot.id] ? (
+                          <p role="alert">
+                            {loadRecoveryBySnapshotId[snapshot.id]}{' '}
+                            <button type="button" onClick={() => onLoadSimulation(snapshot)} disabled={isLoadingSnapshot}>Retry</button>{' '}
+                            <button type="button" onClick={() => onDeleteSimulation(snapshot)} disabled={isLoadingSnapshot}>Delete broken save</button>
+                          </p>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+          </div>
+        </div>
+
+        {replayActive ? (
+          <div ref={replayInteractionRegionRef} className="replay-layout" onKeyDown={onReplayMismatchKeyboardNavigate}>
+            <section className="config-panel replay-summary-strip" aria-label="replay session summary strip" tabIndex={-1}>
+              <h2>Replay summary</h2>
+              <p>Deterministic context: {replaySummaryStrip.contextLabel}</p>
+              <p>Seed: {replaySummaryStrip.seed}</p>
+              <p>Simulation version: {replaySummaryStrip.simulationVersion}</p>
+              <p>Parameter fingerprint: {replaySummaryStrip.parameterFingerprint}</p>
+              <button type="button" onClick={onCopyDeterministicContext}>Copy deterministic context</button>
+              {replaySummaryStrip.contextDifferences.length > 0 ? <p>Context differences: {replaySummaryStrip.contextDifferences.join(', ')}</p> : null}
+              <p>Simulation: {replaySummaryStrip.simulationName}</p>
+              <p>Simulation ID: {replaySummaryStrip.simulationId}</p>
+              <p>Captured tick range: {replaySummaryStrip.startTick} → {replaySummaryStrip.endTick}</p>
+              <p>Total replay duration (ticks): {replaySummaryStrip.durationTicks}</p>
+            </section>
+            {replaySummaryStrip.mismatchDetected || selectedMismatchDetails ? (
+              <section className="config-panel" aria-label="replay mismatch details">
+                <h2>Mismatch details</h2>
+                <button type="button" onClick={onCopyMismatchReport} disabled={!selectedMismatchDetails}>Copy mismatch report</button>
+                {replaySummaryStrip.mismatchEvents.length > 0 ? (
+                  <>
+                    <h3>Mismatch filters</h3>
+                    <div className="field-row" aria-label="mismatch type filters">
+                      {['state', 'input', 'output'].map((type) => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => toggleMismatchFilter('types', type)}
+                          aria-pressed={mismatchEventFilters.types.includes(type)}
+                        >
+                          Type: {type}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="field-row" aria-label="mismatch severity filters">
+                      {['low', 'medium', 'high'].map((severity) => (
+                        <button
+                          key={severity}
+                          type="button"
+                          onClick={() => toggleMismatchFilter('severities', severity)}
+                          aria-pressed={mismatchEventFilters.severities.includes(severity)}
+                        >
+                          Severity: {severity}
+                        </button>
+                      ))}
+                    </div>
+                    {activeMismatchFilterChips.length > 0 ? (
+                      <div className="field-row" aria-label="active mismatch filters">
+                        {activeMismatchFilterChips.map((chip) => (
+                          <button
+                            key={`${chip.category}-${chip.value}`}
+                            type="button"
+                            onClick={() => clearMismatchFilter(chip.category, chip.value)}
+                          >
+                            {chip.label} ×
+                          </button>
+                        ))}
+                        <button type="button" onClick={clearAllMismatchFilters}>Clear all filters</button>
+                      </div>
+                    ) : null}
+                    {filteredMismatchEvents.length > 0 ? (
+                      <>
+                        <h3>Mismatch events</h3>
+                        <p>Keyboard: Alt+ArrowUp / Alt+ArrowDown to move between mismatch events while focused in replay panels.</p>
+                        <p className="sr-only" aria-live="polite">{activeMismatchAnnouncement}</p>
+                        <ul>
+                          {filteredMismatchEvents.map((eventItem) => {
+                            const isActiveMismatch = selectedMismatchDetails?.id === eventItem.id;
+                            return (
+                              <li key={eventItem.id}>
+                                <button
+                                  type="button"
+                                  onClick={() => onJumpToMismatchEvent(eventItem)}
+                                  className={isActiveMismatch ? 'active-mismatch-event' : undefined}
+                                  aria-current={isActiveMismatch ? 'true' : undefined}
+                                >
+                                  Tick {eventItem.tick} · {eventItem.path} · type {eventItem.type} · baseline {formatMismatchDisplayValue(eventItem.baselineValue)} · comparison{' '}
+                                  {formatMismatchDisplayValue(eventItem.comparisonValue)}
+                                  {eventItem.severity ? ` · severity ${eventItem.severity}` : ''}
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </>
+                    ) : (
+                      <p>No mismatch events match active filters.</p>
+                    )}
+                  </>
+                ) : (
+                  <p>No mismatch events available for this replay payload.</p>
+                )}
+                {selectedMismatchDetails ? (
+                  <>
+                    <p>First mismatch tick: {selectedMismatchDetails.tick}</p>
+                    {selectedMismatchDetails.entityId ? <p>Entity ID: {selectedMismatchDetails.entityId}</p> : null}
+                    <p>Compared key/path: {selectedMismatchDetails.path}</p>
+                    <p>Baseline value: {formatMismatchDisplayValue(selectedMismatchDetails.baselineValue)}</p>
+                    <p>Comparison value: {formatMismatchDisplayValue(selectedMismatchDetails.comparisonValue)}</p>
+                    {selectedMismatchDetails.severity ? <p>Severity: {selectedMismatchDetails.severity}</p> : null}
+                    <p>
+                      Absolute delta:{' '}
+                      {selectedMismatchDetails.absoluteDelta === null ? 'N/A' : formatMismatchDisplayValue(selectedMismatchDetails.absoluteDelta)}
+                    </p>
+                  </>
+                ) : null}
+              </section>
+            ) : null}
+            <section className="config-panel" aria-label="replay comparison presets">
+              <h2>Replay comparison presets</h2>
+              <p>Save deterministic seed + parameter payloads for quick replay comparison reruns.</p>
+              <div className="field-row">
+                <label>
+                  Preset name
+                  <input
+                    value={replayPresetName}
+                    onChange={(event) => setReplayPresetName(event.target.value)}
+                    placeholder="e.g. mismatch regression seed"
+                  />
+                </label>
+                <button type="button" onClick={onSaveReplayPreset}>Save preset</button>
+              </div>
+              {replayComparisonPresets.length > 0 ? (
+                <ul>
+                  {replayComparisonPresets.map((preset) => (
+                    <li key={preset.name}>
+                      {preset.name} — seed {preset.seed}
+                      <button type="button" onClick={() => onApplyReplayPreset(preset)}>Apply</button>{' '}
+                      <button type="button" onClick={() => onDeleteReplayPreset(preset.name)}>Delete</button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p>No replay comparison presets saved yet.</p>
+              )}
+              {replayPresetStatus ? <p>{replayPresetStatus}</p> : null}
+            </section>
+            <section className="config-panel" aria-label="replay timeline controls">
+              <h2>Replay timeline</h2>
+              <p>Loaded tick floor: {replayContextRef.current?.baseWorldState?.tick ?? 0}</p>
+              <label>
+                Timeline scrubber
+                <input
+                  aria-label="Replay timeline scrubber"
+                  type="range"
+                  min={replayTimeline.minTick}
+                  max={replayTimeline.latestRecordedTick}
+                  step="1"
+                  value={replayTimeline.currentTick}
+                  onChange={onReplayScrub}
+                  list="replay-mismatch-markers"
+                />
+              </label>
+              {replayTimeline.markerTicks.length > 0 ? (
+                <div className="replay-marker-strip" aria-label="Replay mismatch markers">
+                  {replayTimeline.markerTicks.map((markerTick) => {
+                    const positionPercent = replayTimeline.latestRecordedTick > 0 ? (markerTick / replayTimeline.latestRecordedTick) * 100 : 0;
+                    const isActiveMismatchMarker = selectedMismatchDetails?.tick === markerTick;
+                    return (
+                      <span
+                        key={`marker-${markerTick}`}
+                        className={isActiveMismatchMarker ? 'replay-marker replay-marker-active' : 'replay-marker'}
+                        style={{ left: `${positionPercent}%` }}
+                        title={`Mismatch tick ${markerTick}`}
+                        aria-hidden="true"
+                      />
+                    );
+                  })}
+                </div>
+              ) : null}
+              <datalist id="replay-mismatch-markers">
+                {replayTimeline.markerTicks.map((markerTick) => (
+                  <option key={`tick-option-${markerTick}`} value={markerTick} />
+                ))}
+              </datalist>
+              <div className="field-row">
+                {replayPlaying ? (
+                  <button type="button" onClick={onReplayPause}>Pause</button>
+                ) : (
+                  <button type="button" onClick={onReplayPlay}>Play</button>
+                )}
+              </div>
+              <div className="speed-presets" role="group" aria-label="replay speed presets">
+                {REPLAY_SPEED_OPTIONS.map((multiplier) => (
+                  <button
+                    key={`replay-speed-${multiplier}`}
+                    type="button"
+                    onClick={() => onReplaySpeedSelect(multiplier)}
+                    className={`speed-preset-button${replaySpeedMultiplier === multiplier ? ' is-active' : ''}`}
+                    aria-pressed={replaySpeedMultiplier === multiplier}
+                  >
+                    {multiplier}x
+                  </button>
+                ))}
+              </div>
+              <label>
+                Jump to tick
+                <input
+                  type="number"
+                  value={replayTickInput}
+                  onChange={(event) => setReplayTickInput(event.target.value)}
+                  min={replayTimeline.minTick}
+                  max={replayTimeline.latestRecordedTick}
+                />
+              </label>
+              <div className="field-row">
+                <button type="button" onClick={onReplayJump}>Jump</button>
+                {replaySummaryStrip.mismatchDetected ? (
+                  <button
+                    type="button"
+                    onClick={onJumpToFirstMismatch}
+                    disabled={!replaySummaryStrip.canJumpToFirstMismatch}
+                  >
+                    Jump to First Mismatch
+                  </button>
+                ) : null}
+                <button type="button" onClick={onExportReplaySnapshot}>Export Snapshot</button>
+                <button type="button" onClick={onResumeFromReplay}>Resume live from selected tick</button>
+              </div>
+            </section>
           </div>
         ) : null}
-        <p>Active seed: {resolvedSeed || 'No active simulation'}</p>
-        <ControlButtonWithHint name="copy-seed-controls" onClick={onCopyActiveSeed} reason={controlDisableReasons.copySeed}>
-          Copy seed
-        </ControlButtonWithHint>
-        <ControlButtonWithHint name="copy-share-link" onClick={onCopyShareLink} reason={controlDisableReasons.copyShareLink}>
-          Copy share link
-        </ControlButtonWithHint>
-        <ControlButtonWithHint name="regenerate-seed" onClick={onRegenerateSeed} reason={controlDisableReasons.regenerateSeed}>
-          Regenerate seed + restart
-        </ControlButtonWithHint>
-        <ControlButtonWithHint name="restart-run" onClick={onRestartRun} reason={controlDisableReasons.restartFromSeed}>
-          New run with same seed
-        </ControlButtonWithHint>
-        {seedControlStatus ? <p aria-live="polite">{seedControlStatus}</p> : null}
-        <p role="status" aria-live="polite" data-tick-counter>
-          Tick: {tickDisplay} | {replayActive ? 'Replay active' : paused ? 'runtime state: paused' : `runtime state: running at ${speedMultiplier}x`}
-        </p>
-        {hasSimulation ? (
-          <>
-            <p
-              className={`save-status-badge ${hasUnsavedRunChanges ? 'is-unsaved' : 'is-saved'}`}
-              role="status"
-              aria-live="polite"
-            >
-              Save status: {runSaveStatusLabel}
-            </p>
-            <p>Last saved tick: {persistedRunMetadata?.lastSavedTick ?? 0}</p>
-            <p>Last saved at: {formatSimulationTimestamp(persistedRunMetadata?.lastSavedAt)}</p>
-          </>
-        ) : null}
-        <ControlButtonWithHint
-          name="pause"
-          onClick={onPause}
-          reason={controlDisableReasons.pause}
-          aria-pressed={paused || replayActive}
-        >
-          Pause
-        </ControlButtonWithHint>
-        <ControlButtonWithHint
-          name="resume"
-          onClick={onResume}
-          reason={controlDisableReasons.resume}
-          aria-pressed={!paused && !replayActive}
-        >
-          Resume
-        </ControlButtonWithHint>
-        <div className="speed-presets" role="group" aria-label="speed presets">
-          {SPEED_OPTIONS.map((multiplier) => {
-            const isActivePreset = !paused && !replayActive && speedMultiplier === multiplier;
-
-            return (
-              <ControlButtonWithHint
-                key={multiplier}
-                name={`speed-${multiplier}`}
-                onClick={() => onSpeedSelect(multiplier)}
-                reason={controlDisableReasons.speed}
-                className={`speed-preset-button${isActivePreset ? ' is-active' : ''}`}
-                aria-pressed={isActivePreset}
-              >
-                {multiplier}x
-              </ControlButtonWithHint>
-            );
-          })}
-        </div>
-        <ControlButtonWithHint name="step-plus-1" onClick={onStepTick} reason={controlDisableReasons.step}>
-          Step +1
-        </ControlButtonWithHint>
-        <ControlButtonWithHint name="step-plus-10" onClick={onStepTenTicks} reason={controlDisableReasons.step}>
-          Step +10
-        </ControlButtonWithHint>
-        <ControlButtonWithHint name="save-snapshot" onClick={onSaveSimulation} reason={controlDisableReasons.saveSnapshot}>
-          Save snapshot
-        </ControlButtonWithHint>
-        <label>
-          Save As
-          <input
-            type="text"
-            value={saveAsDraftName}
-            onChange={(event) => {
-              setSaveAsDraftName(event.target.value);
-              if (saveAsValidationError) {
-                setSaveAsValidationError('');
-              }
-              if (saveConflictResolution) {
-                setSaveConflictResolution(null);
-              }
-            }}
-            placeholder={activeConfigRef.current?.name ?? 'New Simulation copy'}
-          />
-        </label>
-        <ControlButtonWithHint name="save-as-snapshot" onClick={onSaveAsSimulation} reason={controlDisableReasons.saveSnapshot}>
-          Save As
-        </ControlButtonWithHint>
-        {!spectatorMode && activeLoadedMetadata?.id ? (
-          <ControlButtonWithHint name="share-snapshot" onClick={onShareSimulation} reason={''}>
-            Share
-          </ControlButtonWithHint>
-        ) : null}
-        {spectatorMode ? (
-          <p><strong>🔍 Spectator Mode</strong> - You are viewing a shared simulation. Changes cannot be saved.</p>
-        ) : null}
-        {saveAsValidationError ? <p aria-live="polite">{saveAsValidationError}</p> : null}
-        <button
-          type="button"
-          onClick={onOpenKeyboardShortcuts}
-          ref={keyboardShortcutsTriggerRef}
-          aria-haspopup="dialog"
-          aria-expanded={keyboardShortcutsModalOpen}
-        >
-          Keyboard Shortcuts
-        </button>
-        <p className="shortcut-hints">Shortcuts: Space pause/play · . single-step (paused) · 1/2/3/4 set speed (1x/2x/5x/10x)</p>
-      </section>
+      </div>
 
       {keyboardShortcutsModalOpen ? (
         <div className="modal-backdrop" role="presentation">
@@ -3023,258 +3584,8 @@ function App() {
         </div>
       ) : null}
 
-      <section className="config-panel" aria-label="run metadata panel">
-        <details>
-          <summary>Run metadata</summary>
-          <p>Seed: {runMetadata.seed}</p>
-          <p>Current tick: {runMetadata.tickCount}</p>
-          <p>Run start tick marker: {runStartTick}</p>
-          <p>Run elapsed marker: T+{runElapsedTicks} ticks</p>
-          <p>Speed multiplier: {runMetadata.speedMultiplier}</p>
-          <p>Snapshot ID: {runMetadata.snapshotId}</p>
-          <p>Config fingerprint: {simulationParametersFingerprint}</p>
-          <p>Config fingerprint hash: {simulationParametersFingerprintHash}</p>
-          <button type="button" onClick={onCopyRunMetadata} disabled={!hasSimulation}>Copy reproducibility string</button>
-        </details>
-      </section>
-
-      {replayActive ? (
-        <div ref={replayInteractionRegionRef} onKeyDown={onReplayMismatchKeyboardNavigate}>
-          <section className="config-panel replay-summary-strip" aria-label="replay session summary strip" tabIndex={-1}>
-            <h2>Replay summary</h2>
-            <p>Deterministic context: {replaySummaryStrip.contextLabel}</p>
-            <p>Seed: {replaySummaryStrip.seed}</p>
-            <p>Simulation version: {replaySummaryStrip.simulationVersion}</p>
-            <p>Parameter fingerprint: {replaySummaryStrip.parameterFingerprint}</p>
-            <button type="button" onClick={onCopyDeterministicContext}>Copy deterministic context</button>
-            {replaySummaryStrip.contextDifferences.length > 0 ? (
-              <p>Context differences: {replaySummaryStrip.contextDifferences.join(', ')}</p>
-            ) : null}
-            <p>Simulation: {replaySummaryStrip.simulationName}</p>
-            <p>Simulation ID: {replaySummaryStrip.simulationId}</p>
-            <p>Captured tick range: {replaySummaryStrip.startTick} → {replaySummaryStrip.endTick}</p>
-            <p>Total replay duration (ticks): {replaySummaryStrip.durationTicks}</p>
-          </section>
-          {replaySummaryStrip.mismatchDetected || selectedMismatchDetails ? (
-            <section className="config-panel" aria-label="replay mismatch details">
-              <h2>Mismatch details</h2>
-              <button type="button" onClick={onCopyMismatchReport} disabled={!selectedMismatchDetails}>Copy mismatch report</button>
-              {replaySummaryStrip.mismatchEvents.length > 0 ? (
-                <>
-                  <h3>Mismatch filters</h3>
-                  <div className="field-row" aria-label="mismatch type filters">
-                    {['state', 'input', 'output'].map((type) => (
-                      <button
-                        key={type}
-                        type="button"
-                        onClick={() => toggleMismatchFilter('types', type)}
-                        aria-pressed={mismatchEventFilters.types.includes(type)}
-                      >
-                        Type: {type}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="field-row" aria-label="mismatch severity filters">
-                    {['low', 'medium', 'high'].map((severity) => (
-                      <button
-                        key={severity}
-                        type="button"
-                        onClick={() => toggleMismatchFilter('severities', severity)}
-                        aria-pressed={mismatchEventFilters.severities.includes(severity)}
-                      >
-                        Severity: {severity}
-                      </button>
-                    ))}
-                  </div>
-                  {activeMismatchFilterChips.length > 0 ? (
-                    <div className="field-row" aria-label="active mismatch filters">
-                      {activeMismatchFilterChips.map((chip) => (
-                        <button
-                          key={`${chip.category}-${chip.value}`}
-                          type="button"
-                          onClick={() => clearMismatchFilter(chip.category, chip.value)}
-                        >
-                          {chip.label} ×
-                        </button>
-                      ))}
-                      <button type="button" onClick={clearAllMismatchFilters}>Clear all filters</button>
-                    </div>
-                  ) : null}
-                  {filteredMismatchEvents.length > 0 ? (
-                    <>
-                      <h3>Mismatch events</h3>
-                      <p>Keyboard: Alt+ArrowUp / Alt+ArrowDown to move between mismatch events while focused in replay panels.</p>
-                      <p className="sr-only" aria-live="polite">{activeMismatchAnnouncement}</p>
-                      <ul>
-                        {filteredMismatchEvents.map((eventItem) => {
-                          const isActiveMismatch = selectedMismatchDetails?.id === eventItem.id;
-                          return (
-                            <li key={eventItem.id}>
-                              <button
-                                type="button"
-                                onClick={() => onJumpToMismatchEvent(eventItem)}
-                                className={isActiveMismatch ? 'active-mismatch-event' : undefined}
-                                aria-current={isActiveMismatch ? 'true' : undefined}
-                              >
-                                Tick {eventItem.tick} · {eventItem.path} · type {eventItem.type} · baseline {formatMismatchDisplayValue(eventItem.baselineValue)} · comparison{' '}
-                                {formatMismatchDisplayValue(eventItem.comparisonValue)}
-                                {eventItem.severity ? ` · severity ${eventItem.severity}` : ''}
-                              </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </>
-                  ) : (
-                    <p>No mismatch events match active filters.</p>
-                  )}
-                </>
-              ) : (
-                <p>No mismatch events available for this replay payload.</p>
-              )}
-              {selectedMismatchDetails ? (
-                <>
-                  <p>First mismatch tick: {selectedMismatchDetails.tick}</p>
-                  {selectedMismatchDetails.entityId ? (
-                    <p>Entity ID: {selectedMismatchDetails.entityId}</p>
-                  ) : null}
-                  <p>Compared key/path: {selectedMismatchDetails.path}</p>
-                  <p>Baseline value: {formatMismatchDisplayValue(selectedMismatchDetails.baselineValue)}</p>
-                  <p>Comparison value: {formatMismatchDisplayValue(selectedMismatchDetails.comparisonValue)}</p>
-                  {selectedMismatchDetails.severity ? <p>Severity: {selectedMismatchDetails.severity}</p> : null}
-                  <p>
-                    Absolute delta:{' '}
-                    {selectedMismatchDetails.absoluteDelta === null
-                      ? 'N/A'
-                      : formatMismatchDisplayValue(selectedMismatchDetails.absoluteDelta)}
-                  </p>
-                </>
-              ) : null}
-            </section>
-          ) : null}
-          <section className="config-panel" aria-label="replay comparison presets">
-            <h2>Replay comparison presets</h2>
-            <p>Save deterministic seed + parameter payloads for quick replay comparison reruns.</p>
-            <div className="field-row">
-              <label>
-                Preset name
-                <input
-                  value={replayPresetName}
-                  onChange={(event) => setReplayPresetName(event.target.value)}
-                  placeholder="e.g. mismatch regression seed"
-                />
-              </label>
-              <button type="button" onClick={onSaveReplayPreset}>Save preset</button>
-            </div>
-            {replayComparisonPresets.length > 0 ? (
-              <ul>
-                {replayComparisonPresets.map((preset) => (
-                  <li key={preset.name}>
-                    {preset.name} — seed {preset.seed}
-                    <button type="button" onClick={() => onApplyReplayPreset(preset)}>Apply</button>{' '}
-                    <button type="button" onClick={() => onDeleteReplayPreset(preset.name)}>Delete</button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p>No replay comparison presets saved yet.</p>
-            )}
-            {replayPresetStatus ? <p>{replayPresetStatus}</p> : null}
-          </section>
-          <section className="config-panel" aria-label="replay timeline controls">
-            <h2>Replay timeline</h2>
-            <p>Loaded tick floor: {replayContextRef.current?.baseWorldState?.tick ?? 0}</p>
-            <label>
-              Timeline scrubber
-              <input
-                aria-label="Replay timeline scrubber"
-                type="range"
-                min={replayTimeline.minTick}
-                max={replayTimeline.latestRecordedTick}
-                step="1"
-                value={replayTimeline.currentTick}
-                onChange={onReplayScrub}
-                list="replay-mismatch-markers"
-              />
-            </label>
-            {replayTimeline.markerTicks.length > 0 ? (
-              <div className="replay-marker-strip" aria-label="Replay mismatch markers">
-                {replayTimeline.markerTicks.map((markerTick) => {
-                  const positionPercent = replayTimeline.latestRecordedTick > 0
-                    ? (markerTick / replayTimeline.latestRecordedTick) * 100
-                    : 0;
-                  const isActiveMismatchMarker = selectedMismatchDetails?.tick === markerTick;
-                  return (
-                    <span
-                      key={`marker-${markerTick}`}
-                      className={isActiveMismatchMarker ? 'replay-marker replay-marker-active' : 'replay-marker'}
-                      style={{ left: `${positionPercent}%` }}
-                      title={`Mismatch tick ${markerTick}`}
-                      aria-hidden="true"
-                    />
-                  );
-                })}
-              </div>
-            ) : null}
-            <datalist id="replay-mismatch-markers">
-              {replayTimeline.markerTicks.map((markerTick) => (
-                <option key={`tick-option-${markerTick}`} value={markerTick} />
-              ))}
-            </datalist>
-            <div className="field-row">
-              {replayPlaying ? (
-                <button type="button" onClick={onReplayPause}>Pause</button>
-              ) : (
-                <button type="button" onClick={onReplayPlay}>Play</button>
-              )}
-            </div>
-            <div className="speed-presets" role="group" aria-label="replay speed presets">
-              {REPLAY_SPEED_OPTIONS.map((multiplier) => (
-                <button
-                  key={`replay-speed-${multiplier}`}
-                  type="button"
-                  onClick={() => onReplaySpeedSelect(multiplier)}
-                  className={`speed-preset-button${replaySpeedMultiplier === multiplier ? ' is-active' : ''}`}
-                  aria-pressed={replaySpeedMultiplier === multiplier}
-                >
-                  {multiplier}x
-                </button>
-              ))}
-            </div>
-            <label>
-              Jump to tick
-              <input
-                type="number"
-                value={replayTickInput}
-                onChange={(event) => setReplayTickInput(event.target.value)}
-                min={replayTimeline.minTick}
-                max={replayTimeline.latestRecordedTick}
-              />
-            </label>
-            <div className="field-row">
-              <button type="button" onClick={onReplayJump}>Jump</button>
-              {replaySummaryStrip.mismatchDetected ? (
-                <button
-                  type="button"
-                  onClick={onJumpToFirstMismatch}
-                  disabled={!replaySummaryStrip.canJumpToFirstMismatch}
-                >
-                  Jump to First Mismatch
-                </button>
-              ) : null}
-              <button type="button" onClick={onExportReplaySnapshot}>Export Snapshot</button>
-              <button type="button" onClick={onResumeFromReplay}>Resume live from selected tick</button>
-            </div>
-          </section>
-        </div>
-      ) : null}
-
       {saveStatus ? <p>{saveStatus}</p> : null}
-      {saveErrorDetail ? (
-        <p role="alert">
-          Save error: {saveErrorDetail} <button type="button" onClick={onSaveSimulation}>Retry save</button>
-        </p>
-      ) : null}
+      {saveErrorDetail ? <p role="alert">Save error: {saveErrorDetail} <button type="button" onClick={onSaveSimulation}>Retry save</button></p> : null}
       {saveConflictResolution ? (
         <section aria-label="save name conflict resolution">
           <p>
@@ -3292,265 +3603,7 @@ function App() {
       {deleteStatus ? <p>{deleteStatus}</p> : null}
       {copyMetadataStatus ? <p>{copyMetadataStatus}</p> : null}
       {replayStatus ? <p>{replayStatus}</p> : null}
-      {activeLoadedMetadata ? (
-        <p>
-          Active snapshot: {activeLoadedMetadata.name} (updated {formatSimulationTimestamp(activeLoadedMetadata.updatedAt)})
-        </p>
-      ) : null}
-
-      <section id="saved-simulations-section" className="config-panel" aria-label="saved simulations">
-        <h2>Saved simulations</h2>
-        <div className="field-row" aria-label="saved simulation list controls">
-          <label>
-            Sort saves
-            <select value={savedSimulationListViewState.sortKey} onChange={onSavedSimulationSortChange}>
-              {SAVED_SIMULATION_SORT_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Filter by name
-            <input
-              type="text"
-              value={savedSimulationListViewState.nameFilter}
-              onChange={onSavedSimulationFilterChange}
-              placeholder="Type to filter saves"
-            />
-          </label>
-        </div>
-        {savedSimulationsError ? <p role="alert">{savedSimulationsError}</p> : null}
-        {savedSimulations.length === 0 ? (
-          <p>{savedSimulationsError ? 'Saved simulations unavailable.' : 'No saved simulations yet.'}</p>
-        ) : savedSimulationListView.visibleItems.length === 0 ? (
-          <p>No saved simulations match the current filter.</p>
-        ) : (
-          <ul>
-            {savedSimulationListView.visibleItems.map((snapshot) => {
-              const isLoadingSnapshot = Boolean(loadingSnapshotById[snapshot.id]);
-              const hasValidMetadata = snapshot.metadataValid !== false;
-              const seedLabel = hasValidMetadata ? (snapshot.seed || 'unknown') : 'metadata unavailable';
-              const tickLabel = hasValidMetadata ? snapshot.tickCount : 'metadata unavailable';
-              const isSelected = savedSimulationListView.selectedSnapshotId === snapshot.id;
-
-              return (
-                <li key={snapshot.id} aria-current={isSelected ? 'true' : undefined}>
-                  <strong>{snapshot.name}</strong> — updated {formatSimulationTimestamp(snapshot.updatedAt)} · seed {seedLabel} · tick {tickLabel} · population {snapshot.populationCount ?? 'metadata unavailable'} · config {snapshot.configSummary ?? 'metadata unavailable'}{' '}
-                  <button type="button" onClick={() => onSavedSimulationSelect(snapshot.id)} aria-pressed={isSelected}>
-                    {isSelected ? 'Selected' : 'Select'}
-                  </button>{' '}
-                  <button type="button" onClick={() => onLoadSimulation(snapshot)} disabled={isLoadingSnapshot || !hasValidMetadata}>
-                    {isLoadingSnapshot ? 'Loading…' : 'Resume'}
-                  </button>{' '}
-                  <button type="button" onClick={() => onSpectateSimulation(snapshot)} disabled={isLoadingSnapshot || !hasValidMetadata}>
-                    {isLoadingSnapshot ? 'Loading…' : 'Spectate'}
-                  </button>{' '}
-                  <button type="button" onClick={() => onDeleteSimulation(snapshot)} disabled={isLoadingSnapshot}>Delete</button>
-                  {loadRecoveryBySnapshotId[snapshot.id] ? (
-                    <p role="alert">
-                      {loadRecoveryBySnapshotId[snapshot.id]}{' '}
-                      <button type="button" onClick={() => onLoadSimulation(snapshot)} disabled={isLoadingSnapshot}>Retry</button>{' '}
-                      <button type="button" onClick={() => onDeleteSimulation(snapshot)} disabled={isLoadingSnapshot}>Delete broken save</button>
-                    </p>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-      <div className="simulation-area">
-      <section className="simulation-stage" aria-label="simulation stage">
-        <section className="simulation-stats-hud" aria-label="simulation stats hud">
-          <h2>Simulation stats</h2>
-          <div className="field-row" role="group" aria-label="stats visibility presets">
-            <button
-              type="button"
-              onClick={() => setHudVisibilityPreset(HUD_VISIBILITY_PRESETS.MINIMAL)}
-              aria-pressed={hudVisibilityPreset === HUD_VISIBILITY_PRESETS.MINIMAL}
-            >
-              Minimal
-            </button>
-            <button
-              type="button"
-              onClick={() => setHudVisibilityPreset(HUD_VISIBILITY_PRESETS.DETAILED)}
-              aria-pressed={hudVisibilityPreset === HUD_VISIBILITY_PRESETS.DETAILED}
-            >
-              Detailed
-            </button>
-          </div>
-          <p>Seed: {hudSeedLabel}</p>
-          <p>Population: {formattedStats.population} ({formatTrendIndicator(statsTrends.population)})</p>
-          {formattedStats.energyDeathWarning && (
-            <p style={{color: '#ff6b6b', fontWeight: 'bold'}}>
-              ⚠️ Warning: Low energy - organisms at risk of dying
-            </p>
-          )}
-          {isDetailedHudVisible ? <p>Species count: {formattedStats.speciesCount}</p> : null}
-          {isDetailedHudVisible && speciesLegend.length > 0 && (
-            <div className="species-legend" style={{marginTop: '8px'}}>
-              <strong>Species:</strong>
-              <div style={{display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px'}}>
-                {speciesLegend.slice(0, 10).map(({ id, color }) => (
-                  <div key={id} style={{display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px'}}>
-                    <span style={{display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: color}}></span>
-                    {id}
-                  </div>
-                ))}
-                {speciesLegend.length > 10 && <span style={{fontSize: '11px'}}>+{speciesLegend.length - 10} more</span>}
-              </div>
-            </div>
-          )}
-          {isDetailedHudVisible && hazardLegend.length > 0 && (
-            <div className="hazard-legend" style={{marginTop: '8px'}}>
-              <strong>Hazards:</strong>
-              <div style={{display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px'}}>
-                {hazardLegend.map(({ type, color }) => (
-                  <div key={type} style={{display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px'}}>
-                    <span style={{display: 'inline-block', width: '10px', height: '10px', borderRadius: '2px', backgroundColor: color}}></span>
-                    {type}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {isDetailedHudVisible ? (
-            <>
-              <p>Food count: {formattedStats.foodCount}</p>
-              <p>Average generation: {formattedStats.averageGeneration}</p>
-              <p>Average organism energy: {formattedStats.averageEnergy} ({formatTrendIndicator(statsTrends.averageEnergy)})</p>
-              <p>Tick count: {formattedStats.tickCount}</p>
-              <p>Time elapsed: {formattedStats.elapsedTime}</p>
-            </>
-          ) : null}
-          {isDetailedHudVisible ? (
-            <p>Tick budget clamp: {schedulerClampState.active ? `Active (dropped ${schedulerClampState.droppedTicks} ticks this frame)` : 'Inactive'}</p>
-          ) : null}
-        </section>
-
-        <canvas
-          ref={canvasRef}
-          width={Number(formState.worldWidth) || DEFAULT_CONFIG.worldWidth}
-          height={Number(formState.worldHeight) || DEFAULT_CONFIG.worldHeight}
-          aria-label="simulation world"
-          onClick={onCanvasClick}
-          onTouchStart={onCanvasTouchStart}
-          onTouchEnd={onCanvasTouchEnd}
-        />
-
-        {/* HUD overlay for organism selection - shown near canvas when organism is selected */}
-        {hudOverlayVisible && selectedOrganism && (
-          <div className="organism-hud-overlay" role="region" aria-label="organism info">
-            <div className="organism-hud-header">
-              <span className="organism-hud-id">Organism {selectedOrganism.id.slice(0, 8)}</span>
-              <button
-                type="button"
-                className="organism-hud-close"
-                onClick={() => {
-                  setHudOverlayVisible(false);
-                  clearSelection();
-                }}
-                aria-label="Close organism info"
-              >
-                ×
-              </button>
-            </div>
-            <div className="organism-hud-stats">
-              <p><strong>Generation:</strong> {formattedInspector.generation}</p>
-              <p><strong>Size:</strong> {formattedInspector.size}</p>
-              <p><strong>Energy:</strong> {formattedInspector.energy}</p>
-              {selectedOrganismSpeciesId && (
-                <p><strong>Species:</strong> <span style={{color: getSpeciesColor(selectedOrganismSpeciesId)}}>{selectedOrganismSpeciesId}</span></p>
-              )}
-            </div>
-            {brainGraphModel && brainGraphModel.nodes.length > 0 && (
-              <div className="organism-hud-brain">
-                <div className="brain-graph-controls">
-                  <button type="button" onClick={onResetBrainGraphViewport} aria-label="Reset brain view">Reset</button>
-                  <button type="button" onClick={onFitSelectionBrainGraphViewport} aria-label="Fit selection">Fit</button>
-                  <button type="button" onClick={() => onZoomBrainGraphViewport(1)} aria-label="Zoom in">+</button>
-                  <button type="button" onClick={() => onZoomBrainGraphViewport(-1)} aria-label="Zoom out">−</button>
-                </div>
-                <svg
-                  className="brain-graph"
-                  viewBox={`0 0 ${BRAIN_GRAPH_VIEWBOX.width} ${BRAIN_GRAPH_VIEWBOX.height}`}
-                  aria-label="Brain neural network visualization"
-                >
-                  <g transform={`translate(${brainGraphTransform.translateX}, ${brainGraphTransform.translateY}) scale(${brainGraphTransform.scale})`}>
-                    {brainGraphModel.edges.map((edge) => (
-                      <line
-                        key={edge.id}
-                        className="brain-graph-synapse-edge"
-                        x1={brainGraphNodeById.get(edge.sourceId)?.x ?? 0}
-                        y1={brainGraphNodeById.get(edge.sourceId)?.y ?? 0}
-                        x2={brainGraphNodeById.get(edge.targetId)?.x ?? 0}
-                        y2={brainGraphNodeById.get(edge.targetId)?.y ?? 0}
-                        stroke={edge.color}
-                        strokeWidth={edge.strokeWidth}
-                        opacity={edge.emphasisOpacity}
-                      />
-                    ))}
-                    {brainGraphModel.nodes.map((node) => (
-                      <circle
-                        key={node.id}
-                        cx={node.x}
-                        cy={node.y}
-                        r={8}
-                        fill={node.fillColor}
-                        stroke={node.id === pinnedBrainNeuronId ? '#38bdf8' : node.id === selectedBrainNeuronId ? '#f59e0b' : '#1e293b'}
-                        strokeWidth={node.id === pinnedBrainNeuronId || node.id === selectedBrainNeuronId ? 3 : 1}
-                        opacity={node.emphasisOpacity}
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => setPinnedBrainNeuronId(node.id === pinnedBrainNeuronId ? null : node.id)}
-                        onMouseEnter={() => setHoveredBrainNeuronId(node.id)}
-                        onMouseLeave={() => setHoveredBrainNeuronId(null)}
-                        aria-label={`Neuron ${node.id}, type: ${node.type}`}
-                      />
-                    ))}
-                    {hoveredBrainNeuronId && brainNodeById.get(hoveredBrainNeuronId) && (
-                      <g transform={`translate(${brainNodeById.get(hoveredBrainNeuronId).x + 12}, ${brainNodeById.get(hoveredBrainNeuronId).y - 6})`}>
-                        <rect x="0" y="-10" width="80" height="20" rx="4" fill="#1e293b" opacity="0.95" />
-                        <text x="40" y="4" textAnchor="middle" fill="#f8fafc" fontSize="11" fontFamily="system-ui">
-                          {brainNodeById.get(hoveredBrainNeuronId).type}
-                        </text>
-                      </g>
-                    )}
-                  </g>
-                </svg>
-                {brainGraphLegend && brainGraphLegend.neuronTypes.length > 0 && (
-                  <div className="brain-graph-legend" role="region" aria-label="Brain graph legend">
-                    <div className="brain-graph-legend-section">
-                      <strong>Neuron Types</strong>
-                      <div className="brain-graph-legend-items">
-                        {brainGraphLegend.neuronTypes.map((nt) => (
-                          <span key={nt.type} className="brain-graph-legend-item">
-                            <span className="brain-graph-legend-swatch" style={{ backgroundColor: nt.color.cssColor }} />
-                            {nt.label}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="brain-graph-legend-section">
-                      <strong>Synapses</strong>
-                      <div className="brain-graph-legend-items">
-                        {brainGraphLegend.synapseCues.map((sc) => (
-                          <span key={sc.polarity} className="brain-graph-legend-item">
-                            <span className="brain-graph-legend-swatch" style={{ backgroundColor: sc.color }} />
-                            {sc.polarity}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </section>
-      </div>
-      </div>
-      </div>
+      {activeLoadedMetadata ? <p>Active snapshot: {activeLoadedMetadata.name} (updated {formatSimulationTimestamp(activeLoadedMetadata.updatedAt)})</p> : null}
 
     </main>
   );
