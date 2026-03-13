@@ -31,10 +31,10 @@ describe('shareLink helpers', () => {
     );
 
     expect(prefill.seed).toBe('shared-seed');
-    expect(prefill.worldWidth).toBe('800');
+    expect(prefill.worldWidth).toBe('1920');
     expect(prefill.worldHeight).toBe('1000');
     expect(prefill.initialPopulation).toBe('50');
-    expect(prefill.maxFood).toBe('120');
+    expect(prefill.maxFood).toBe('450');
     expect(warningMessage).toContain('worldWidth');
     expect(warningMessage).toContain('minimumPopulation');
   });
