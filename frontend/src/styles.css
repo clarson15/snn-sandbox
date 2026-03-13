@@ -40,26 +40,10 @@ body {
   overflow: hidden;
 }
 
-/* Make config and simulation appear side by side */
 .app-main-content > .config-panel,
 .app-main-content > .simulation-stage {
   flex: 1;
   min-width: 0;
-}
-
-/* Container to make config and simulation side by side */
-.sim-config-row {
-  display: flex;
-  flex: 1;
-  gap: 0.75rem;
-}
-
-.sim-config-row > .config-panel:first-child {
-  flex: 1;
-}
-
-.sim-config-row > .simulation-stage {
-  flex: 2;
 }
 
 .app-header {
