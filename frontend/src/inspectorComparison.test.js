@@ -11,6 +11,7 @@ describe('deriveInspectorComparisonRows', () => {
       traits: {
         size: 1.2,
         speed: 2.4,
+        adolescenceAge: 60,
         visionRange: 55,
         turnRate: 0.5,
         metabolism: 1.1
@@ -23,6 +24,7 @@ describe('deriveInspectorComparisonRows', () => {
       traits: {
         size: 1.1,
         speed: 2.6,
+        adolescenceAge: 45,
         visionRange: 50,
         turnRate: 0.5,
         metabolism: 1.2
@@ -38,6 +40,7 @@ describe('deriveInspectorComparisonRows', () => {
       'energy',
       'size',
       'speed',
+      'adolescenceAge',
       'turnRate',
       'visionRange',
       'metabolism'
@@ -54,6 +57,7 @@ describe('deriveInspectorComparisonRows', () => {
       traits: {
         size: 1,
         speed: undefined,
+        adolescenceAge: undefined,
         visionRange: 3,
         turnRate: 0.2
       }
@@ -65,6 +69,7 @@ describe('deriveInspectorComparisonRows', () => {
       traits: {
         size: 1,
         speed: 2,
+        adolescenceAge: 30,
         visionRange: 3,
         turnRate: 0.2,
         metabolism: 0.7

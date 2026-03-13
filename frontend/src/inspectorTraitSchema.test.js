@@ -14,6 +14,7 @@ describe('deriveInspectorTraitSections', () => {
       position: '(12.000, 8.000)',
       size: '1.100',
       speed: '2.200',
+      adolescenceAge: '48.000',
       turnRate: '0.300',
       visionRange: '42.000',
       nearestFoodDistance: '9.000',
@@ -39,7 +40,7 @@ describe('deriveInspectorTraitSections', () => {
 
     expect(first.map((section) => section.fields.map((field) => field.key))).toEqual([
       ['id', 'parentId', 'offspringCount', 'generation', 'age', 'energy'],
-      ['position', 'size', 'speed', 'turnRate', 'visionRange', 'nearestFoodDistance', 'metabolism'],
+      ['position', 'size', 'speed', 'adolescenceAge', 'turnRate', 'visionRange', 'nearestFoodDistance', 'metabolism'],
       ['neuronCount', 'synapseCount']
     ]);
   });

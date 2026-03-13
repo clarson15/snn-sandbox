@@ -15,6 +15,7 @@ describe('formatInspectorSnapshot', () => {
         traits: {
           size: 1.2,
           speed: 0.333333,
+          adolescenceAge: 75.25,
           visionRange: 99.98765,
           turnRate: 0.12555,
           metabolism: 0.0199
@@ -42,6 +43,7 @@ describe('formatInspectorSnapshot', () => {
       nearestFoodDistance: '7.891',
       size: '1.200',
       speed: '0.333',
+      adolescenceAge: '75.250',
       visionRange: '99.988',
       turnRate: '0.126',
       metabolism: '0.020',

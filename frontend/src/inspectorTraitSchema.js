@@ -18,6 +18,7 @@ const INSPECTOR_TRAIT_SECTION_SCHEMA = Object.freeze([
       Object.freeze({ key: 'position', label: 'Position' }),
       Object.freeze({ key: 'size', label: 'Size' }),
       Object.freeze({ key: 'speed', label: 'Speed' }),
+      Object.freeze({ key: 'adolescenceAge', label: 'Adolescence' }),
       Object.freeze({ key: 'turnRate', label: 'Turn rate' }),
       Object.freeze({ key: 'visionRange', label: 'Vision range' }),
       Object.freeze({ key: 'nearestFoodDistance', label: 'Food distance' }),

@@ -3,6 +3,8 @@
  * Read-only: never mutates simulation state.
  */
 
+import { resolveExpressedTraits } from './engine';
+
 /**
  * @typedef {import('./engine').WorldState} WorldState
  */
@@ -38,7 +40,7 @@ function clamp(value, min, max) {
 }
 
 function deriveOrganismRadius(organism) {
-  const sizeTrait = organism?.traits?.size ?? 1;
+  const sizeTrait = resolveExpressedTraits(organism).size ?? 1;
   return clamp(ORGANISM_BASE_RADIUS * sizeTrait, 3, 18);
 }
 

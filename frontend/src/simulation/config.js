@@ -57,7 +57,13 @@ export function saveCustomPreset(name, config) {
       foodEnergyValue: config.foodEnergyValue,
       maxFood: config.maxFood,
       mutationRate: config.mutationRate,
-      mutationStrength: config.mutationStrength
+      mutationStrength: config.mutationStrength,
+      reproductionThreshold: config.reproductionThreshold,
+      reproductionCost: config.reproductionCost,
+      offspringStartEnergy: config.offspringStartEnergy,
+      reproductionMinimumAge: config.reproductionMinimumAge,
+      reproductionRefractoryPeriod: config.reproductionRefractoryPeriod,
+      maximumOrganismAge: config.maximumOrganismAge
     },
     createdAt: now
   };
@@ -500,7 +506,8 @@ function createRandomizedOrganism({ id, rng, worldWidth, worldHeight, color }) {
       speed: Number((0.8 + rng.nextFloat() * 1.6).toFixed(3)),
       visionRange: Number((25 + rng.nextFloat() * 90).toFixed(3)),
       turnRate: Number((0.03 + rng.nextFloat() * 0.09).toFixed(3)),
-      metabolism: Number((0.02 + rng.nextFloat() * 0.1).toFixed(3))
+      metabolism: Number((0.02 + rng.nextFloat() * 0.1).toFixed(3)),
+      adolescenceAge: Number((20 + rng.nextFloat() * 180).toFixed(3))
     },
     brain: createInitialBrain(rng)
   };

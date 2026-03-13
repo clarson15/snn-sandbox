@@ -19,7 +19,7 @@
  * @property {string} [parentId] id of parent organism (set on reproduction)
  * @property {number} [lastReproductionTick] most recent tick when organism reproduced
  * @property {number} [direction] heading in radians
- * @property {{size:number,speed:number,visionRange:number,turnRate:number,metabolism:number}} traits
+ * @property {{size:number,speed:number,visionRange:number,turnRate:number,metabolism:number,adolescenceAge?:number}} traits
  */
 
 /**
@@ -124,6 +124,48 @@ function normalizeAngle(angle) {
   return normalized < 0 ? normalized + fullTurn : normalized;
 }
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function resolveGrowthProgress(organism) {
+  const adolescenceAge = Number(organism?.traits?.adolescenceAge ?? 0);
+  if (!Number.isFinite(adolescenceAge) || adolescenceAge <= 0) {
+    return 1;
+  }
+
+  const age = Number(organism?.age ?? 0);
+  if (!Number.isFinite(age) || age <= 0) {
+    return 0;
+  }
+
+  return clamp(age / adolescenceAge, 0, 1);
+}
+
+function interpolateByGrowth(progress, juvenileValue, adultValue) {
+  return juvenileValue + ((adultValue - juvenileValue) * progress);
+}
+
+export function resolveExpressedTraits(organism) {
+  const traits = organism?.traits ?? {};
+  const progress = resolveGrowthProgress(organism);
+  const adultSize = Number.isFinite(traits.size) ? traits.size : 1;
+  const adultSpeed = Number.isFinite(traits.speed) ? traits.speed : 1;
+  const hasExplicitMetabolism = Number.isFinite(traits.metabolism);
+  const adultMetabolism = hasExplicitMetabolism ? traits.metabolism : undefined;
+
+  return {
+    ...traits,
+    size: interpolateByGrowth(progress, adultSize * 0.55, adultSize),
+    speed: interpolateByGrowth(progress, adultSpeed * 1.25, adultSpeed),
+    metabolism: hasExplicitMetabolism
+      ? interpolateByGrowth(progress, adultMetabolism * 0.6, adultMetabolism)
+      : undefined,
+    movementCostScale: interpolateByGrowth(progress, 0.75, 1),
+    adulthoodProgress: progress
+  };
+}
+
 /**
  * Compute input neuron values based on organism state and environment.
  * @param {WorldOrganism} organism
@@ -134,6 +176,7 @@ function normalizeAngle(angle) {
  */
 function computeInputNeuronValues(organism, food, worldWidth, worldHeight) {
   const inputs = new Map();
+  const expressedTraits = resolveExpressedTraits(organism);
 
   // Energy: normalized to reasonable range (0-1 where 1 = 100 energy)
   inputs.set('in-energy', Math.min(1, (organism.energy ?? 0) / 100));
@@ -151,12 +194,12 @@ function computeInputNeuronValues(organism, food, worldWidth, worldHeight) {
   inputs.set('in-direction-cos', Math.cos(direction)); // -1 to 1
 
   // Traits: normalized
-  inputs.set('in-size', Math.min(1, (organism.traits?.size ?? 1) / 5));
-  inputs.set('in-speed', Math.min(1, (organism.traits?.speed ?? 1) / 5));
-  inputs.set('in-vision-range', Math.min(1, (organism.traits?.visionRange ?? 25) / 100));
+  inputs.set('in-size', Math.min(1, (expressedTraits.size ?? 1) / 5));
+  inputs.set('in-speed', Math.min(1, (expressedTraits.speed ?? 1) / 5));
+  inputs.set('in-vision-range', Math.min(1, (expressedTraits.visionRange ?? 25) / 100));
 
   // Food sensors: find nearest food within vision range
-  const visionRange = organism.traits?.visionRange ?? 25;
+  const visionRange = expressedTraits.visionRange ?? 25;
   const visionRangeSquared = visionRange * visionRange;
 
   let nearestFoodDist = Infinity;
@@ -237,7 +280,7 @@ function deriveRotationDelta(organism, inputValues = null) {
 }
 
 function deriveForwardDelta(organism, inputValues = null) {
-  const speed = Number(organism?.traits?.speed ?? 1);
+  const speed = Number(resolveExpressedTraits(organism).speed ?? 1);
   if (!Number.isFinite(speed) || speed === 0) {
     return 0;
   }
@@ -274,12 +317,14 @@ function deriveForwardDelta(organism, inputValues = null) {
 }
 
 function moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMultiplier, inputValues = null) {
+  const expressedTraits = resolveExpressedTraits(organism);
   // Use organism's metabolism trait for deterministic energy loss, fallback to param for backward compatibility
-  const organismMetabolism = Number.isFinite(organism?.traits?.metabolism)
-    ? organism.traits.metabolism
+  const organismMetabolism = Number.isFinite(expressedTraits.metabolism)
+    ? expressedTraits.metabolism
     : metabolismPerTick;
   const movementDistance = Math.hypot(dx, dy);
-  const energySpent = organismMetabolism + movementDistance * movementCostMultiplier;
+  const movementCostScale = Number.isFinite(expressedTraits.movementCostScale) ? expressedTraits.movementCostScale : 1;
+  const energySpent = organismMetabolism + movementDistance * movementCostMultiplier * movementCostScale;
   const baseDirection = organism.direction ?? 0;
   const rotationDelta = deriveRotationDelta(organism, inputValues);
   const direction = normalizeAngle(baseDirection + rotationDelta);
@@ -301,7 +346,7 @@ function moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMul
  * @returns {boolean}
  */
 function isCollidingWithObstacle(organism, obstacle) {
-  const organismRadius = (organism.traits?.size ?? 1) * 3; // Approximate radius
+  const organismRadius = (resolveExpressedTraits(organism).size ?? 1) * 3; // Approximate radius
   // Check if organism's bounding circle overlaps with obstacle rectangle
   const closestX = Math.max(obstacle.x, Math.min(organism.x, obstacle.x + obstacle.width));
   const closestY = Math.max(obstacle.y, Math.min(organism.y, obstacle.y + obstacle.height));
@@ -372,7 +417,7 @@ function handleObstacleCollisions(organisms, obstacles, worldWidth, worldHeight)
   }
 
   return organisms.map((organism) => {
-    const organismRadius = (organism.traits?.size ?? 1) * 3;
+    const organismRadius = (resolveExpressedTraits(organism).size ?? 1) * 3;
     let newX = organism.x;
     let newY = organism.y;
     let collided = false;
@@ -691,7 +736,7 @@ export function stepWorld(state, rng, params = {}) {
   const organismConsumeRadii = new Map();
   let maxConsumeRadius = baseConsumeRadius;
   for (const organism of organismsByStableOrder) {
-    const organismSize = organism.traits?.size ?? 1;
+    const organismSize = resolveExpressedTraits(organism).size ?? 1;
     const effectiveRadius = Math.max(baseConsumeRadius, organismSize + foodRadius);
     organismConsumeRadii.set(organism.id, effectiveRadius);
     if (effectiveRadius > maxConsumeRadius) {
@@ -978,14 +1023,14 @@ export function runTickSchedule(initialState, rng, schedule, params = {}) {
  */
 function calculateGeneticDistance(a, b) {
   // Trait distance (normalized)
-  const traitNames = ['size', 'speed', 'visionRange', 'turnRate', 'metabolism'];
+  const traitNames = ['size', 'speed', 'visionRange', 'turnRate', 'metabolism', 'adolescenceAge'];
   let traitDistance = 0;
 
   for (const trait of traitNames) {
     const aVal = Number(a?.traits?.[trait] ?? 0);
     const bVal = Number(b?.traits?.[trait] ?? 0);
     // Normalize by typical range for each trait
-    const maxVals = { size: 5, speed: 5, visionRange: 50, turnRate: 1, metabolism: 1 };
+    const maxVals = { size: 5, speed: 5, visionRange: 50, turnRate: 1, metabolism: 1, adolescenceAge: 500 };
     const normalizedDiff = (aVal - bVal) / (maxVals[trait] || 1);
     traitDistance += normalizedDiff * normalizedDiff;
   }

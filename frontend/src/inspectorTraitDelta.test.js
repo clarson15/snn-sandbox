@@ -9,6 +9,7 @@ describe('deriveInspectorTraitDeltaModel', () => {
       lineage: { parentId: 'parent-1' },
       traits: {
         speed: 2.34567,
+        adolescenceAge: 90.25,
         metabolism: 0.51234,
         turnRate: 0.12345,
         visionRange: 10.5555,
@@ -19,6 +20,7 @@ describe('deriveInspectorTraitDeltaModel', () => {
       id: 'parent-1',
       traits: {
         speed: 2.24567,
+        adolescenceAge: 100,
         metabolism: 0.61234,
         turnRate: 0.12345,
         visionRange: 10,
@@ -32,6 +34,7 @@ describe('deriveInspectorTraitDeltaModel', () => {
     expect(model.rows.map((row) => row.key)).toEqual([
       'size',
       'speed',
+      'adolescenceAge',
       'turnRate',
       'visionRange',
       'metabolism'
@@ -39,6 +42,7 @@ describe('deriveInspectorTraitDeltaModel', () => {
     expect(model.rows.map((row) => row.label)).toEqual([
       'size',
       'speed',
+      'adolescence_age',
       'turn_rate',
       'vision_range',
       'metabolism'
@@ -57,6 +61,7 @@ describe('deriveInspectorTraitDeltaModel', () => {
       traits: {
         size: 1,
         speed: 2,
+        adolescenceAge: 20,
         visionRange: 3,
         turnRate: 4,
         metabolism: 5

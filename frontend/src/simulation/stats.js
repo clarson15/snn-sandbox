@@ -17,15 +17,15 @@ function toNonNegativeInteger(value) {
 /**
  * Calculate genetic distance between two organisms based on trait differences.
  * Uses normalized Euclidean distance across all physical traits.
- * @param {object} o1 - First organism with traits {size, speed, visionRange, turnRate, metabolism}
+ * @param {object} o1 - First organism with traits {size, speed, adolescenceAge, visionRange, turnRate, metabolism}
  * @param {object} o2 - Second organism with traits
  * @returns {number} Distance between 0 and 1 (1 = max different)
  */
 function calculateGeneticDistance(o1, o2) {
-  const traits = ['size', 'speed', 'visionRange', 'turnRate', 'metabolism'];
+  const traits = ['size', 'speed', 'adolescenceAge', 'visionRange', 'turnRate', 'metabolism'];
 
   // Get trait ranges from typical values to normalize
-  const maxValues = { size: 5, speed: 5, visionRange: 20, turnRate: 1, metabolism: 1 };
+  const maxValues = { size: 5, speed: 5, adolescenceAge: 500, visionRange: 20, turnRate: 1, metabolism: 1 };
 
   let squaredSum = 0;
   for (const trait of traits) {

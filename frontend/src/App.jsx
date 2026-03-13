@@ -3173,7 +3173,7 @@ function App() {
               </div>
 
               <h3>Reproduction settings</h3>
-              <p className="field-hint">Threshold/cost/start energy: 1-200, 0-200, 0-200. Reproduction age and refractory period gate breeding cadence. Maximum age hard-caps lifespan.</p>
+              <p className="field-hint">Threshold/cost/start energy: 1-200, 0-200, 0-200. Reproduction age and refractory period gate breeding cadence. Max life sets the lifespan cap in ticks.</p>
               <div className="field-row">
                 <label>
                   Reproduction threshold
@@ -3203,7 +3203,7 @@ function App() {
                   {errors.reproductionRefractoryPeriod ? <span className="error-text">{errors.reproductionRefractoryPeriod}</span> : null}
                 </label>
                 <label>
-                  Maximum age
+                  Max life (ticks)
                   <input type="number" value={formState.maximumOrganismAge} onChange={onFieldChange('maximumOrganismAge')} />
                   {errors.maximumOrganismAge ? <span className="error-text">{errors.maximumOrganismAge}</span> : null}
                 </label>

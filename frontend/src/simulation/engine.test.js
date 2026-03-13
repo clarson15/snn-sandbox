@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createSeededPrng } from './prng';
-import { createWorldState, runTickSchedule, runTicks, stepWorld } from './engine';
+import { createWorldState, resolveExpressedTraits, runTickSchedule, runTicks, stepWorld } from './engine';
 
 const baseState = createWorldState({
   tick: 0,
@@ -802,6 +802,62 @@ describe('simulation engine skeleton', () => {
 
     // Should use the fallback 0.15 instead of undefined
     expect(result.organisms[0].energy).toBeCloseTo(48.5, 1); // 50 - (0.15 * 10) = 48.5
+  });
+
+  it('scales juvenile size, speed, and energy use until adolescence age', () => {
+    const juvenile = {
+      id: 'org-juvenile',
+      x: 0,
+      y: 0,
+      energy: 20,
+      age: 0,
+      generation: 1,
+      direction: 0,
+      traits: {
+        size: 2,
+        speed: 4,
+        visionRange: 10,
+        turnRate: 0.05,
+        metabolism: 1,
+        adolescenceAge: 10
+      },
+      brain: { synapses: [{ targetId: 'out-forward', weight: 1 }] }
+    };
+    const adult = {
+      ...juvenile,
+      id: 'org-adult',
+      age: 10
+    };
+
+    expect(resolveExpressedTraits(juvenile)).toMatchObject({
+      size: 1.1,
+      speed: 5,
+      metabolism: 0.6
+    });
+    expect(resolveExpressedTraits(adult)).toMatchObject({
+      size: 2,
+      speed: 4,
+      metabolism: 1
+    });
+
+    const result = stepWorld(createWorldState({
+      tick: 0,
+      organisms: [juvenile, adult],
+      food: []
+    }), createSeededPrng('adolescence-traits'), {
+      movementDelta: 10,
+      metabolismPerTick: 0,
+      movementCostMultiplier: 1,
+      foodSpawnChance: 0
+    });
+
+    const nextJuvenile = result.organisms.find((organism) => organism.id === 'org-juvenile');
+    const nextAdult = result.organisms.find((organism) => organism.id === 'org-adult');
+
+    expect(nextJuvenile.x).toBeCloseTo(5);
+    expect(nextAdult.x).toBeCloseTo(4);
+    expect(nextJuvenile.energy).toBeCloseTo(15.65);
+    expect(nextAdult.energy).toBeCloseTo(15);
   });
 
   describe('deterministic reproduction', () => {

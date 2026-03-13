@@ -75,6 +75,7 @@ function formatInspectorSnapshot(organism, nearestFoodDistance) {
     nearestFoodDistance: formatFoodDistance(nearestFoodDistance),
     size: formatFixed(organism?.traits?.size, 3),
     speed: formatFixed(organism?.traits?.speed, 3),
+    adolescenceAge: formatFixed(organism?.traits?.adolescenceAge, 3),
     visionRange: formatFixed(organism?.traits?.visionRange, 3),
     turnRate: formatFixed(organism?.traits?.turnRate, 3),
     metabolism: formatFixed(organism?.traits?.metabolism, 3),

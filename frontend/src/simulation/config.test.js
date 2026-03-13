@@ -5,9 +5,11 @@ import {
   applyPreset,
   createDeterministicRunBootstrap,
   createInitialWorldFromConfig,
+  getCustomPresets,
   loadSimulationConfig,
   normalizeSimulationConfig,
   resolveSeed,
+  saveCustomPreset,
   SEED_FALLBACK_COUNTER_KEY,
   STORAGE_KEY,
   toEngineStepParams,
@@ -310,6 +312,42 @@ describe('simulation config helpers', () => {
     expect(normalized.reproductionMinimumAge).toBe(18);
     expect(normalized.reproductionRefractoryPeriod).toBe(27);
     expect(normalized.maximumOrganismAge).toBe(850);
+  });
+
+  it('persists lifespan and reproduction settings in custom presets', () => {
+    const saved = saveCustomPreset('Long-lived colony', {
+      worldWidth: 900,
+      worldHeight: 500,
+      initialPopulation: 18,
+      minimumPopulation: 12,
+      initialFoodCount: 45,
+      foodSpawnChance: 0.07,
+      foodEnergyValue: 8,
+      maxFood: 220,
+      mutationRate: 0.09,
+      mutationStrength: 0.14,
+      reproductionThreshold: 60,
+      reproductionCost: 24,
+      offspringStartEnergy: 10,
+      reproductionMinimumAge: 30,
+      reproductionRefractoryPeriod: 150,
+      maximumOrganismAge: 1400
+    });
+
+    expect(saved).toBe(true);
+    expect(getCustomPresets()).toEqual([
+      expect.objectContaining({
+        name: 'Long-lived colony',
+        config: expect.objectContaining({
+          reproductionThreshold: 60,
+          reproductionCost: 24,
+          offspringStartEnergy: 10,
+          reproductionMinimumAge: 30,
+          reproductionRefractoryPeriod: 150,
+          maximumOrganismAge: 1400
+        })
+      })
+    ]);
   });
 
   it('loads schema-safe draft values and ignores unknown fields', () => {

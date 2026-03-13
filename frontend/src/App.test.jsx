@@ -181,6 +181,7 @@ describe('App', () => {
 
     expect(screen.getByRole('button', { name: /start simulation/i })).toBeInTheDocument();
     expect(screen.getByText(/leave blank to generate a seed once at start/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/max life \(ticks\)/i)).toHaveValue(1000);
   });
 
   it('prefills seed from URL query parameter when provided', () => {
