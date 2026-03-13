@@ -2639,6 +2639,7 @@ function App() {
         </section>
       ) : null}
 
+      <div className="sim-config-row">
       <section className="config-panel layout-side-drawer-placeholder" aria-label="simulation configuration">
         <h2>Simulation config</h2>
 
@@ -3432,13 +3433,14 @@ function App() {
           ) : null}
         </section>
 
+        {hasSimulation && (
         <canvas
           ref={canvasRef}
           width={Number(formState.worldWidth) || DEFAULT_CONFIG.worldWidth}
           height={Number(formState.worldHeight) || DEFAULT_CONFIG.worldHeight}
           aria-label="simulation world"
           onClick={onCanvasClick}
-        />
+        />)}
 
         {/* HUD overlay for organism selection - shown near canvas when organism is selected */}
         {hudOverlayVisible && selectedOrganism && (
@@ -3539,7 +3541,8 @@ function App() {
             )}
           </div>
         )}
-      </section>
+      </section
+      </div>>
 
     </main>
   );
