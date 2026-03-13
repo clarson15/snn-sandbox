@@ -3504,9 +3504,19 @@ function App() {
                         opacity={node.emphasisOpacity}
                         style={{ cursor: 'pointer' }}
                         onClick={() => setPinnedBrainNeuronId(node.id === pinnedBrainNeuronId ? null : node.id)}
+                        onMouseEnter={() => setHoveredBrainNeuronId(node.id)}
+                        onMouseLeave={() => setHoveredBrainNeuronId(null)}
                         aria-label={`Neuron ${node.id}, type: ${node.type}`}
                       />
                     ))}
+                    {hoveredBrainNeuronId && brainNodeById.get(hoveredBrainNeuronId) && (
+                      <g transform={`translate(${brainNodeById.get(hoveredBrainNeuronId).x + 12}, ${brainNodeById.get(hoveredBrainNeuronId).y - 6})`}>
+                        <rect x="0" y="-10" width="80" height="20" rx="4" fill="#1e293b" opacity="0.95" />
+                        <text x="40" y="4" textAnchor="middle" fill="#f8fafc" fontSize="11" fontFamily="system-ui">
+                          {brainNodeById.get(hoveredBrainNeuronId).type}
+                        </text>
+                      </g>
+                    )}
                   </g>
                 </svg>
                 {brainGraphLegend && brainGraphLegend.neuronTypes.length > 0 && (
