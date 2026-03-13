@@ -1942,6 +1942,54 @@ function App() {
     setHudOverlayVisible(true);
   };
 
+  // Touch handler for mobile - tap to select organism
+  const touchStartRef = useRef(null);
+
+  const onCanvasTouchStart = (event) => {
+    if (event.touches.length === 1) {
+      const touch = event.touches[0];
+      touchStartRef.current = {
+        x: touch.clientX,
+        y: touch.clientY,
+        time: Date.now()
+      };
+    }
+  };
+
+  const onCanvasTouchEnd = (event) => {
+    if (!canvasRef.current || !displayWorld) {
+      return;
+    }
+
+    const touch = touchStartRef.current;
+    if (!touch) {
+      return;
+    }
+
+    // Check if it was a tap (not a drag) - minimal movement and quick
+    const rect = canvasRef.current.getBoundingClientRect();
+    const dpr = canvasScaleRef.current;
+    const scaleX = (canvasRef.current.width / rect.width) / dpr;
+    const scaleY = (canvasRef.current.height / rect.height) / dpr;
+    const x = (touch.x - rect.left) * scaleX;
+    const y = (touch.y - rect.top) * scaleY;
+
+    const selected = pickOrganismAtPoint(displayWorld.organisms, x, y);
+    if (!selected) {
+      if (!inspectorPinned) {
+        clearSelection();
+        setHudOverlayVisible(false);
+      }
+      touchStartRef.current = null;
+      return;
+    }
+
+    setSelectedOrganismId(selected.id);
+    setSelectedOrganismUnavailable(false);
+    setHudOverlayVisible(true);
+    touchStartRef.current = null;
+  };
+
   const onSaveSimulation = async (options = {}) => {
     const {
       forceOverwrite = false,
@@ -3439,6 +3487,8 @@ function App() {
           height={Number(formState.worldHeight) || DEFAULT_CONFIG.worldHeight}
           aria-label="simulation world"
           onClick={onCanvasClick}
+          onTouchStart={onCanvasTouchStart}
+          onTouchEnd={onCanvasTouchEnd}
         />
 
         {/* HUD overlay for organism selection - shown near canvas when organism is selected */}
