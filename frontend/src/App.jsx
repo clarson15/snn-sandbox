@@ -2639,6 +2639,7 @@ function App() {
         </section>
       ) : null}
 
+      <div className="app-main-content">
       <section className="config-panel layout-side-drawer-placeholder" aria-label="simulation configuration">
         <h2>Simulation config</h2>
 
@@ -3540,6 +3541,7 @@ function App() {
           </div>
         )}
       </section>
+      </div>
 
     </main>
   );
