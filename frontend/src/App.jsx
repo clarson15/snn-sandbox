@@ -3371,9 +3371,9 @@ function App() {
           {isDetailedHudVisible ? (
             <p>Tick budget clamp: {schedulerClampState.active ? `Active (dropped ${schedulerClampState.droppedTicks} ticks this frame)` : 'Inactive'}</p>
           ) : null}
-        </section
+        </section>
 
-<section id="saved-simulations-section" className="config-panel" aria-label="saved simulations">
+      <section id="saved-simulations-section" className="config-panel" aria-label="saved simulations">
         <h2>Saved simulations</h2>
         <div className="field-row" aria-label="saved simulation list controls">
           <label>
