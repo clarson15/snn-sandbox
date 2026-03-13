@@ -16,7 +16,8 @@ body,
 
 body {
   margin: 0;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .app-shell {
@@ -24,39 +25,36 @@ body {
   --layout-bottom-controls-height: 9.5rem;
   --layout-gap: 0.75rem;
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
   padding: 0.75rem;
   gap: 0.75rem;
   box-sizing: border-box;
-  overflow-y: auto;
 }
 
-/* Main content area with side drawer */
-.app-main-content {
-  display: flex;
-  flex: 1;
-  gap: 0.75rem;
-  min-height: 0;
-  overflow-y: auto;
-}
-
-.app-main-content > .config-panel,
-.app-main-content > .simulation-stage {
-  flex: 1;
-  min-width: 0;
-  overflow: auto;
+.app-header {
+  grid-row: 1;
 }
 
 .app-header {
   text-align: left;
-  padding-left: 0.25rem;
   background: #0b1220;
-  padding: 0.5rem 0.75rem;
+  padding: 0.25rem 0.75rem;
   border-radius: 0.5rem;
-  position: relative;
-  z-index: 5;
-  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.app-header h1 {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.app-header p {
+  margin: 0;
+  font-size: 0.8rem;
 }
 
 .app-version {
@@ -76,13 +74,12 @@ p {
 }
 
 .config-panel {
-  width: min(100%, 820px);
   display: grid;
-  gap: 0.75rem;
+  gap: 0.5rem;
   border: 1px solid #334155;
   border-radius: 0.5rem;
   background: #0b1220;
-  padding: 1rem;
+  padding: 0.75rem;
 }
 
 .field-row {
@@ -636,10 +633,10 @@ button:disabled {
 
 .simulation-stage {
   position: relative;
-  min-height: 300px;
-  flex: 1;
+  min-height: 250px;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .simulation-stats-hud {
