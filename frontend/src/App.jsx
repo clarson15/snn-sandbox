@@ -2639,8 +2639,7 @@ function App() {
         </section>
       ) : null}
 
-      <div className="sim-config-row">
-<section className="config-panel layout-side-drawer-placeholder" aria-label="simulation configuration">
+      <section className="config-panel layout-side-drawer-placeholder" aria-label="simulation configuration">
         <h2>Simulation config</h2>
 
         <label>
@@ -3303,7 +3302,67 @@ function App() {
         </p>
       ) : null}
 
-      >
+      <section id="saved-simulations-section" className="config-panel" aria-label="saved simulations">
+        <h2>Saved simulations</h2>
+        <div className="field-row" aria-label="saved simulation list controls">
+          <label>
+            Sort saves
+            <select value={savedSimulationListViewState.sortKey} onChange={onSavedSimulationSortChange}>
+              {SAVED_SIMULATION_SORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Filter by name
+            <input
+              type="text"
+              value={savedSimulationListViewState.nameFilter}
+              onChange={onSavedSimulationFilterChange}
+              placeholder="Type to filter saves"
+            />
+          </label>
+        </div>
+        {savedSimulationsError ? <p role="alert">{savedSimulationsError}</p> : null}
+        {savedSimulations.length === 0 ? (
+          <p>{savedSimulationsError ? 'Saved simulations unavailable.' : 'No saved simulations yet.'}</p>
+        ) : savedSimulationListView.visibleItems.length === 0 ? (
+          <p>No saved simulations match the current filter.</p>
+        ) : (
+          <ul>
+            {savedSimulationListView.visibleItems.map((snapshot) => {
+              const isLoadingSnapshot = Boolean(loadingSnapshotById[snapshot.id]);
+              const hasValidMetadata = snapshot.metadataValid !== false;
+              const seedLabel = hasValidMetadata ? (snapshot.seed || 'unknown') : 'metadata unavailable';
+              const tickLabel = hasValidMetadata ? snapshot.tickCount : 'metadata unavailable';
+              const isSelected = savedSimulationListView.selectedSnapshotId === snapshot.id;
+
+              return (
+                <li key={snapshot.id} aria-current={isSelected ? 'true' : undefined}>
+                  <strong>{snapshot.name}</strong> — updated {formatSimulationTimestamp(snapshot.updatedAt)} · seed {seedLabel} · tick {tickLabel} · population {snapshot.populationCount ?? 'metadata unavailable'} · config {snapshot.configSummary ?? 'metadata unavailable'}{' '}
+                  <button type="button" onClick={() => onSavedSimulationSelect(snapshot.id)} aria-pressed={isSelected}>
+                    {isSelected ? 'Selected' : 'Select'}
+                  </button>{' '}
+                  <button type="button" onClick={() => onLoadSimulation(snapshot)} disabled={isLoadingSnapshot || !hasValidMetadata}>
+                    {isLoadingSnapshot ? 'Loading…' : 'Resume'}
+                  </button>{' '}
+                  <button type="button" onClick={() => onSpectateSimulation(snapshot)} disabled={isLoadingSnapshot || !hasValidMetadata}>
+                    {isLoadingSnapshot ? 'Loading…' : 'Spectate'}
+                  </button>{' '}
+                  <button type="button" onClick={() => onDeleteSimulation(snapshot)} disabled={isLoadingSnapshot}>Delete</button>
+                  {loadRecoveryBySnapshotId[snapshot.id] ? (
+                    <p role="alert">
+                      {loadRecoveryBySnapshotId[snapshot.id]}{' '}
+                      <button type="button" onClick={() => onLoadSimulation(snapshot)} disabled={isLoadingSnapshot}>Retry</button>{' '}
+                      <button type="button" onClick={() => onDeleteSimulation(snapshot)} disabled={isLoadingSnapshot}>Delete broken save</button>
+                    </p>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
 
       <section className="simulation-stage" aria-label="simulation stage">
         <section className="simulation-stats-hud" aria-label="simulation stats hud">
@@ -3372,68 +3431,6 @@ function App() {
             <p>Tick budget clamp: {schedulerClampState.active ? `Active (dropped ${schedulerClampState.droppedTicks} ticks this frame)` : 'Inactive'}</p>
           ) : null}
         </section>
-
-      <section id="saved-simulations-section" className="config-panel" aria-label="saved simulations">
-        <h2>Saved simulations</h2>
-        <div className="field-row" aria-label="saved simulation list controls">
-          <label>
-            Sort saves
-            <select value={savedSimulationListViewState.sortKey} onChange={onSavedSimulationSortChange}>
-              {SAVED_SIMULATION_SORT_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Filter by name
-            <input
-              type="text"
-              value={savedSimulationListViewState.nameFilter}
-              onChange={onSavedSimulationFilterChange}
-              placeholder="Type to filter saves"
-            />
-          </label>
-        </div>
-        {savedSimulationsError ? <p role="alert">{savedSimulationsError}</p> : null}
-        {savedSimulations.length === 0 ? (
-          <p>{savedSimulationsError ? 'Saved simulations unavailable.' : 'No saved simulations yet.'}</p>
-        ) : savedSimulationListView.visibleItems.length === 0 ? (
-          <p>No saved simulations match the current filter.</p>
-        ) : (
-          <ul>
-            {savedSimulationListView.visibleItems.map((snapshot) => {
-              const isLoadingSnapshot = Boolean(loadingSnapshotById[snapshot.id]);
-              const hasValidMetadata = snapshot.metadataValid !== false;
-              const seedLabel = hasValidMetadata ? (snapshot.seed || 'unknown') : 'metadata unavailable';
-              const tickLabel = hasValidMetadata ? snapshot.tickCount : 'metadata unavailable';
-              const isSelected = savedSimulationListView.selectedSnapshotId === snapshot.id;
-
-              return (
-                <li key={snapshot.id} aria-current={isSelected ? 'true' : undefined}>
-                  <strong>{snapshot.name}</strong> — updated {formatSimulationTimestamp(snapshot.updatedAt)} · seed {seedLabel} · tick {tickLabel} · population {snapshot.populationCount ?? 'metadata unavailable'} · config {snapshot.configSummary ?? 'metadata unavailable'}{' '}
-                  <button type="button" onClick={() => onSavedSimulationSelect(snapshot.id)} aria-pressed={isSelected}>
-                    {isSelected ? 'Selected' : 'Select'}
-                  </button>{' '}
-                  <button type="button" onClick={() => onLoadSimulation(snapshot)} disabled={isLoadingSnapshot || !hasValidMetadata}>
-                    {isLoadingSnapshot ? 'Loading…' : 'Resume'}
-                  </button>{' '}
-                  <button type="button" onClick={() => onSpectateSimulation(snapshot)} disabled={isLoadingSnapshot || !hasValidMetadata}>
-                    {isLoadingSnapshot ? 'Loading…' : 'Spectate'}
-                  </button>{' '}
-                  <button type="button" onClick={() => onDeleteSimulation(snapshot)} disabled={isLoadingSnapshot}>Delete</button>
-                  {loadRecoveryBySnapshotId[snapshot.id] ? (
-                    <p role="alert">
-                      {loadRecoveryBySnapshotId[snapshot.id]}{' '}
-                      <button type="button" onClick={() => onLoadSimulation(snapshot)} disabled={isLoadingSnapshot}>Retry</button>{' '}
-                      <button type="button" onClick={() => onDeleteSimulation(snapshot)} disabled={isLoadingSnapshot}>Delete broken save</button>
-                    </p>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
 
         <canvas
           ref={canvasRef}
@@ -3542,8 +3539,7 @@ function App() {
             )}
           </div>
         )}
-      </section
-      </div>>
+      </section>
 
     </main>
   );
