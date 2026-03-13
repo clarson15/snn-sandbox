@@ -1,4 +1,4 @@
-/* Reset and base */
+/* Reset */
 * {
   box-sizing: border-box;
 }
@@ -16,12 +16,12 @@ html, body {
   min-height: 100vh;
 }
 
-/* App shell - simple vertical stack */
+/* App shell - vertical layout */
 .app-shell {
-  display: flex;
-  flex-direction: column;
   min-height: 100vh;
   padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
   gap: 0.5rem;
 }
 
@@ -33,7 +33,6 @@ html, body {
   padding: 0.5rem 1rem;
   background: #0b1220;
   border-radius: 0.5rem;
-  flex-wrap: wrap;
 }
 
 .app-header h1 {
@@ -47,17 +46,17 @@ html, body {
   color: #94a3b8;
 }
 
-/* Main content area - side by side */
-.main-content {
+/* Page content - side by side */
+.page-content {
   display: flex;
   flex: 1;
   gap: 0.5rem;
   min-height: 0;
 }
 
-/* Config panel */
+/* Config panel - 300px */
 .config-panel {
-  width: 400px;
+  width: 300px;
   min-width: 300px;
   background: #0b1220;
   border: 1px solid #334155;
@@ -66,36 +65,24 @@ html, body {
   overflow-y: auto;
 }
 
-.config-panel h2 {
-  margin: 0 0 0.5rem 0;
-  font-size: 1rem;
-}
-
-/* Simulation stage */
-.simulation-stage {
+/* Simulation area - right side */
+.simulation-area {
   flex: 1;
   display: flex;
   flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.simulation-stage {
+  flex: 1;
   background: #0b1220;
   border: 1px solid #334155;
   border-radius: 0.5rem;
   padding: 0.5rem;
-  min-height: 400px;
-}
-
-.simulation-stats-hud {
-  margin-bottom: 0.5rem;
-}
-
-.simulation-stats-hud h2 {
-  margin: 0 0 0.25rem 0;
-  font-size: 0.9rem;
-}
-
-.simulation-stats-hud p {
-  margin: 0.1rem 0;
-  font-size: 0.75rem;
-  color: #94a3b8;
+  display: flex;
+  flex-direction: column;
+  min-height: 300px;
 }
 
 canvas {
@@ -103,9 +90,22 @@ canvas {
   flex: 1;
   background: #020617;
   border-radius: 0.25rem;
+  border: 1px solid #334155;
 }
 
-/* Field rows */
+/* Controls */
+.controls {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.5rem;
+  background: #0b1220;
+  border: 1px solid #334155;
+  border-radius: 0.5rem;
+  align-items: center;
+}
+
+/* Form */
 .field-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -114,28 +114,19 @@ canvas {
 }
 
 label {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: #94a3b8;
 }
 
 input, select {
-  width: 100%;
   padding: 0.3rem;
   background: #1e293b;
   border: 1px solid #334155;
   color: #e2e8f0;
   border-radius: 0.25rem;
+  font-size: 0.8rem;
 }
 
-/* Controls */
-.controls {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin: 0.5rem 0;
-}
-
-/* Buttons */
 button {
   padding: 0.4rem 0.75rem;
   background: #1e293b;
@@ -143,56 +134,15 @@ button {
   color: #e2e8f0;
   border-radius: 0.25rem;
   cursor: pointer;
+  font-size: 0.8rem;
 }
 
-button:hover {
-  background: #334155;
-}
-
-/* Saved simulations section */
-.saved-section {
-  margin-top: 0.5rem;
-  background: #0b1220;
-  border: 1px solid #334155;
-  border-radius: 0.5rem;
-  padding: 0.75rem;
-}
-
-.saved-section h2 {
-  margin: 0 0 0.5rem 0;
-  font-size: 1rem;
-}
-
-.saved-section ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.saved-section li {
-  padding: 0.5rem;
-  border-bottom: 1px solid #334155;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-/* Toast viewport */
+/* Toast */
 .toast-viewport {
   position: fixed;
   top: 0.5rem;
   right: 0.5rem;
   z-index: 100;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.toast-item {
-  padding: 0.5rem 1rem;
-  border-radius: 0.25rem;
-  background: #1e293b;
-  border: 1px solid #334155;
 }
 
 /* Modal */
