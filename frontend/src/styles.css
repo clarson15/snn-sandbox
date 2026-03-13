@@ -46,12 +46,22 @@ html, body {
   color: #94a3b8;
 }
 
-/* Page content - side by side */
+/* Page content - vertical layout with nested horizontal row for config+canvas */
 .page-content {
   display: flex;
+  flex-direction: column;
   flex: 1;
   gap: 0.5rem;
   min-height: 0;
+}
+
+/* Row 2: config + canvas side by side */
+.page-content > .config-and-canvas-row {
+  display: flex;
+  flex-direction: row;
+  gap: 0.5rem;
+  min-height: 0;
+  flex: 1;
 }
 
 /* Config panel - 300px */

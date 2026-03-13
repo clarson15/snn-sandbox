@@ -2634,6 +2634,7 @@ function App() {
       ) : null}
 
       <div className="page-content">
+      <div className="config-and-canvas-row">
       <section className="config-panel" aria-label="simulation configuration">
         <h2>Simulation config</h2>
 
@@ -3358,7 +3359,6 @@ function App() {
           </ul>
         )}
       </section>
-
       <div className="simulation-area">
       <section className="simulation-stage" aria-label="simulation stage">
         <section className="simulation-stats-hud" aria-label="simulation stats hud">
@@ -3548,6 +3548,7 @@ function App() {
           </div>
         )}
       </section>
+      </div>
       </div>
       </div>
 
