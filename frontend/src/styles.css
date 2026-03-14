@@ -281,16 +281,6 @@ a {
   gap: 0.55rem;
 }
 
-.action-surface {
-  display: flex;
-  flex-direction: column;
-  gap: 0.9rem;
-}
-
-.action-cluster {
-  justify-content: flex-start;
-}
-
 .hud-metric-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
@@ -316,6 +306,13 @@ a {
   flex-direction: column;
   gap: 0.35rem;
   max-width: 24rem;
+}
+
+.hud-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: flex-start;
 }
 
 .hud-metric-grid p,

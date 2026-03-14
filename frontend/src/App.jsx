@@ -2660,10 +2660,10 @@ function App() {
       <div className="page-content">
         <section className="hero-panel" aria-label="simulation overview">
           <div className="hero-copy">
-            <p className="eyebrow">Homepage focus</p>
-            <h2>Simulation-first view for live runs, replay, and inspection.</h2>
+            <p className="eyebrow">Artificial life sandbox</p>
+            <h2>Grow strange ecosystems, watch them adapt, and shape what happens next.</h2>
             <p>
-              The world canvas, runtime state, and saved run access stay in view while configuration moves into a secondary rail.
+              Start a world, watch populations rise and collapse, then tune the setup to see how different conditions change the story.
             </p>
           </div>
           <div className="hero-metrics" aria-label="simulation status summary">
@@ -2680,7 +2680,7 @@ function App() {
             <div className="hero-metric-card">
               <span className="metric-label">Seed</span>
               <strong>{resolvedSeed || 'No active simulation'}</strong>
-              <span className="metric-detail">{hasSimulation ? `Save status: ${runSaveStatusLabel}` : 'Start a run to lock determinism'}</span>
+              <span className="metric-detail">{hasSimulation ? `Save status: ${runSaveStatusLabel}` : 'Start a run to bring the world to life'}</span>
             </div>
           </div>
         </section>
@@ -2688,69 +2688,6 @@ function App() {
         <div className="config-and-canvas-row">
           <div className="simulation-area">
             {resolvedSeed ? <p className="seed-banner">Resolved seed: {resolvedSeed}</p> : null}
-
-            <section className="controls action-surface" aria-label="simulation controls">
-              {hasUrlSeedMismatch ? (
-                <div className="seed-mismatch-banner" role="status" aria-live="polite">
-                  <p>
-                    URL seed <strong>{urlSeed}</strong> does not match active seed <strong>{normalizedActiveSeed}</strong>.
-                  </p>
-                  <button type="button" onClick={onUseUrlSeed}>
-                    Use URL seed
-                  </button>
-                </div>
-              ) : null}
-              <div className="control-cluster action-cluster">
-                <ControlButtonWithHint name="regenerate-seed" onClick={onRegenerateSeed} reason={controlDisableReasons.regenerateSeed}>
-                  Regenerate seed + restart
-                </ControlButtonWithHint>
-                <ControlButtonWithHint name="restart-run" onClick={onRestartRun} reason={controlDisableReasons.restartFromSeed}>
-                  New run with same seed
-                </ControlButtonWithHint>
-                <ControlButtonWithHint
-                  name="pause"
-                  onClick={onPause}
-                  reason={controlDisableReasons.pause}
-                  aria-pressed={paused || replayActive}
-                >
-                  Pause
-                </ControlButtonWithHint>
-                <ControlButtonWithHint
-                  name="resume"
-                  onClick={onResume}
-                  reason={controlDisableReasons.resume}
-                  aria-pressed={!paused && !replayActive}
-                >
-                  Resume
-                </ControlButtonWithHint>
-                <ControlButtonWithHint name="step-plus-1" onClick={onStepTick} reason={controlDisableReasons.step}>
-                  Step +1
-                </ControlButtonWithHint>
-                <ControlButtonWithHint name="step-plus-10" onClick={onStepTenTicks} reason={controlDisableReasons.step}>
-                  Step +10
-                </ControlButtonWithHint>
-                <ControlButtonWithHint name="save-snapshot" onClick={onSaveSimulation} reason={controlDisableReasons.saveSnapshot}>
-                  Save snapshot
-                </ControlButtonWithHint>
-                <ControlButtonWithHint name="save-as-snapshot" onClick={onSaveAsSimulation} reason={controlDisableReasons.saveSnapshot}>
-                  Save As
-                </ControlButtonWithHint>
-                {!spectatorMode && activeLoadedMetadata?.id ? (
-                  <ControlButtonWithHint name="share-snapshot" onClick={onShareSimulation} reason={''}>
-                    Share
-                  </ControlButtonWithHint>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={onOpenKeyboardShortcuts}
-                  ref={keyboardShortcutsTriggerRef}
-                  aria-haspopup="dialog"
-                  aria-expanded={keyboardShortcutsModalOpen}
-                >
-                  Keyboard Shortcuts
-                </button>
-              </div>
-            </section>
 
             <section className="simulation-stage" aria-label="simulation stage">
               <section className="simulation-stats-hud" aria-label="simulation stats hud">
@@ -2812,6 +2749,16 @@ function App() {
                     </div>
                   </div>
                   <div className="hud-runtime-copy">
+                    {hasUrlSeedMismatch ? (
+                      <div className="seed-mismatch-banner" role="status" aria-live="polite">
+                        <p>
+                          URL seed <strong>{urlSeed}</strong> does not match active seed <strong>{normalizedActiveSeed}</strong>.
+                        </p>
+                        <button type="button" onClick={onUseUrlSeed}>
+                          Use URL seed
+                        </button>
+                      </div>
+                    ) : null}
                     <p role="status" aria-live="polite" data-tick-counter>
                       Tick: {tickDisplay} | {replayActive ? 'Replay active' : paused ? 'runtime state: paused' : `runtime state: running at ${speedMultiplier}x`}
                     </p>
@@ -2829,6 +2776,56 @@ function App() {
                       <p className="spectator-banner"><strong>Spectator Mode</strong> - You are viewing a shared simulation. Changes cannot be saved.</p>
                     ) : null}
                   </div>
+                </div>
+                <div className="hud-action-row" role="group" aria-label="simulation actions">
+                  <ControlButtonWithHint name="regenerate-seed" onClick={onRegenerateSeed} reason={controlDisableReasons.regenerateSeed}>
+                    Regenerate seed + restart
+                  </ControlButtonWithHint>
+                  <ControlButtonWithHint name="restart-run" onClick={onRestartRun} reason={controlDisableReasons.restartFromSeed}>
+                    New run with same seed
+                  </ControlButtonWithHint>
+                  <ControlButtonWithHint
+                    name="pause"
+                    onClick={onPause}
+                    reason={controlDisableReasons.pause}
+                    aria-pressed={paused || replayActive}
+                  >
+                    Pause
+                  </ControlButtonWithHint>
+                  <ControlButtonWithHint
+                    name="resume"
+                    onClick={onResume}
+                    reason={controlDisableReasons.resume}
+                    aria-pressed={!paused && !replayActive}
+                  >
+                    Resume
+                  </ControlButtonWithHint>
+                  <ControlButtonWithHint name="step-plus-1" onClick={onStepTick} reason={controlDisableReasons.step}>
+                    Step +1
+                  </ControlButtonWithHint>
+                  <ControlButtonWithHint name="step-plus-10" onClick={onStepTenTicks} reason={controlDisableReasons.step}>
+                    Step +10
+                  </ControlButtonWithHint>
+                  <ControlButtonWithHint name="save-snapshot" onClick={onSaveSimulation} reason={controlDisableReasons.saveSnapshot}>
+                    Save snapshot
+                  </ControlButtonWithHint>
+                  <ControlButtonWithHint name="save-as-snapshot" onClick={onSaveAsSimulation} reason={controlDisableReasons.saveSnapshot}>
+                    Save As
+                  </ControlButtonWithHint>
+                  {!spectatorMode && activeLoadedMetadata?.id ? (
+                    <ControlButtonWithHint name="share-snapshot" onClick={onShareSimulation} reason={''}>
+                      Share
+                    </ControlButtonWithHint>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={onOpenKeyboardShortcuts}
+                    ref={keyboardShortcutsTriggerRef}
+                    aria-haspopup="dialog"
+                    aria-expanded={keyboardShortcutsModalOpen}
+                  >
+                    Keyboard Shortcuts
+                  </button>
                 </div>
                 <label className="hud-save-as-field">
                   Save As

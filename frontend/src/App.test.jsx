@@ -188,6 +188,8 @@ describe('App', () => {
     ).toBeInTheDocument();
 
     expect(screen.getByRole('button', { name: /start simulation/i })).toBeInTheDocument();
+    expect(screen.getByText(/artificial life sandbox/i)).toBeInTheDocument();
+    expect(screen.getByText(/grow strange ecosystems, watch them adapt, and shape what happens next/i)).toBeInTheDocument();
     expect(screen.getByText(/start a simulation to populate the world/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /quick start defaults/i })).toBeInTheDocument();
     expect(screen.getByText(/leave blank to generate a seed once at start/i)).toBeInTheDocument();
