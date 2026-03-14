@@ -377,6 +377,58 @@ function App() {
   const normalizedActiveSeed = useMemo(() => normalizeComparableSeed(resolvedSeed), [resolvedSeed]);
   const hasUrlSeedMismatch = Boolean(urlSeed && normalizedActiveSeed && urlSeed !== normalizedActiveSeed);
 
+  const getViewportDimensions = () => ({
+    width: Number(formState.worldWidth) || viewportRef.current.width || DEFAULT_CONFIG.worldWidth,
+    height: Number(formState.worldHeight) || viewportRef.current.height || DEFAULT_CONFIG.worldHeight
+  });
+
+  const syncCanvasViewport = (canvas, ctx) => {
+    const dpr = window.devicePixelRatio || 1;
+    const { width: logicalWidth, height: logicalHeight } = getViewportDimensions();
+
+    viewportRef.current = {
+      width: logicalWidth,
+      height: logicalHeight
+    };
+    canvasScaleRef.current = dpr;
+    canvas.width = logicalWidth * dpr;
+    canvas.height = logicalHeight * dpr;
+
+    if (ctx.setTransform) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+    }
+    if (ctx.scale) {
+      ctx.scale(dpr, dpr);
+    }
+
+    canvas.setAttribute('width', String(logicalWidth * dpr));
+    canvas.setAttribute('height', String(logicalHeight * dpr));
+  };
+
+  const redrawCanvasSnapshot = (ctx) => {
+    if (
+      typeof ctx?.clearRect !== 'function'
+      || typeof ctx?.fillRect !== 'function'
+      || typeof ctx?.beginPath !== 'function'
+      || typeof ctx?.arc !== 'function'
+      || typeof ctx?.fill !== 'function'
+      || typeof ctx?.moveTo !== 'function'
+      || typeof ctx?.lineTo !== 'function'
+      || typeof ctx?.stroke !== 'function'
+    ) {
+      return;
+    }
+
+    const worldToDraw = replayWorldState ?? worldRef.current;
+    if (!worldToDraw) {
+      return;
+    }
+
+    drawWorldSnapshot(ctx, worldToDraw, viewportRef.current, {
+      selectedOrganismId
+    });
+  };
+
   const currentRunLifecycleMetadata = useMemo(
     () => deriveRunLifecycleMetadata({
       seed: resolvedSeed,
@@ -540,16 +592,8 @@ function App() {
       return undefined;
     }
 
-    // Scale canvas for high-DPI displays (crisp rendering)
-    const dpr = window.devicePixelRatio || 1;
-    canvasScaleRef.current = dpr;
-    const logicalWidth = viewportRef.current.width;
-    const logicalHeight = viewportRef.current.height;
-    canvas.width = logicalWidth * dpr;
-    canvas.height = logicalHeight * dpr;
-    if (ctx.scale) {
-      ctx.scale(dpr, dpr);
-    }
+    syncCanvasViewport(canvas, ctx);
+    redrawCanvasSnapshot(ctx);
 
     let frameRequest = 0;
     let frameNumber = 0;
@@ -568,7 +612,7 @@ function App() {
     frameRequest = requestAnimationFrame(render);
 
     return () => cancelAnimationFrame(frameRequest);
-  }, [replayWorldState, selectedOrganismId]);
+  }, [replayWorldState, selectedOrganismId, formState.worldWidth, formState.worldHeight]);
 
   // Handle canvas DPI scaling when viewport changes
   useEffect(() => {
@@ -582,23 +626,9 @@ function App() {
       return;
     }
 
-    const dpr = window.devicePixelRatio || 1;
-    canvasScaleRef.current = dpr;
-    const logicalWidth = viewportRef.current.width;
-    const logicalHeight = viewportRef.current.height;
-    canvas.width = logicalWidth * dpr;
-    canvas.height = logicalHeight * dpr;
-    if (ctx.setTransform) {
-      ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform before scaling
-    }
-    if (ctx.scale) {
-      ctx.scale(dpr, dpr);
-    }
-
-    // Also update canvas element attributes to match (for React reconciliation)
-    canvas.setAttribute('width', String(logicalWidth * dpr));
-    canvas.setAttribute('height', String(logicalHeight * dpr));
-  }, [formState.worldWidth, formState.worldHeight]);
+    syncCanvasViewport(canvas, ctx);
+    redrawCanvasSnapshot(ctx);
+  }, [formState.worldWidth, formState.worldHeight, replayWorldState, selectedOrganismId]);
 
   useEffect(() => {
     if (replayWorldState) {
