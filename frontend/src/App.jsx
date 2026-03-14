@@ -306,6 +306,10 @@ function App() {
   const [schedulerClampState, setSchedulerClampState] = useState({ active: false, droppedTicks: 0 });
   const [statsTrendHistory, setStatsTrendHistory] = useState([]);
   const [hudVisibilityPreset, setHudVisibilityPreset] = useState(() => loadHudVisibilityPreset());
+  const [activeViewport, setActiveViewport] = useState({
+    width: DEFAULT_CONFIG.worldWidth,
+    height: DEFAULT_CONFIG.worldHeight
+  });
   const [initialQueryPrefill] = useState(() => {
     if (typeof window === 'undefined') {
       return { prefill: null, warningMessage: '' };
@@ -378,8 +382,8 @@ function App() {
   const hasUrlSeedMismatch = Boolean(urlSeed && normalizedActiveSeed && urlSeed !== normalizedActiveSeed);
 
   const getViewportDimensions = () => ({
-    width: Number(formState.worldWidth) || viewportRef.current.width || DEFAULT_CONFIG.worldWidth,
-    height: Number(formState.worldHeight) || viewportRef.current.height || DEFAULT_CONFIG.worldHeight
+    width: activeViewport.width || viewportRef.current.width || DEFAULT_CONFIG.worldWidth,
+    height: activeViewport.height || viewportRef.current.height || DEFAULT_CONFIG.worldHeight
   });
 
   const syncCanvasViewport = (canvas, ctx) => {
@@ -612,7 +616,7 @@ function App() {
     frameRequest = requestAnimationFrame(render);
 
     return () => cancelAnimationFrame(frameRequest);
-  }, [replayWorldState, selectedOrganismId, formState.worldWidth, formState.worldHeight]);
+  }, [replayWorldState, selectedOrganismId, activeViewport.width, activeViewport.height]);
 
   // Handle canvas DPI scaling when viewport changes
   useEffect(() => {
@@ -628,7 +632,7 @@ function App() {
 
     syncCanvasViewport(canvas, ctx);
     redrawCanvasSnapshot(ctx);
-  }, [formState.worldWidth, formState.worldHeight, replayWorldState, selectedOrganismId]);
+  }, [activeViewport.width, activeViewport.height, replayWorldState, selectedOrganismId]);
 
   useEffect(() => {
     if (replayWorldState) {
@@ -1287,6 +1291,10 @@ function App() {
       width: loadedConfig.worldWidth,
       height: loadedConfig.worldHeight
     };
+    setActiveViewport({
+      width: loadedConfig.worldWidth,
+      height: loadedConfig.worldHeight
+    });
     lastPersistedTickRef.current = loadedWorld.tick;
 
     saveSimulationConfig(loadedConfig);
@@ -1355,6 +1363,10 @@ function App() {
       width: config.worldWidth,
       height: config.worldHeight
     };
+    setActiveViewport({
+      width: config.worldWidth,
+      height: config.worldHeight
+    });
     lastPersistedTickRef.current = 0;
 
     setSelectedOrganismId(null);
@@ -2723,8 +2735,8 @@ function App() {
               <div className="canvas-frame">
                 <canvas
                   ref={canvasRef}
-                  width={Number(formState.worldWidth) || DEFAULT_CONFIG.worldWidth}
-                  height={Number(formState.worldHeight) || DEFAULT_CONFIG.worldHeight}
+                  width={activeViewport.width}
+                  height={activeViewport.height}
                   aria-label="simulation world"
                   onClick={onCanvasClick}
                   onTouchStart={onCanvasTouchStart}
