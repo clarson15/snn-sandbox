@@ -2690,6 +2690,140 @@ function App() {
             {resolvedSeed ? <p className="seed-banner">Resolved seed: {resolvedSeed}</p> : null}
 
             <section className="simulation-stage" aria-label="simulation stage">
+              <div className="canvas-frame">
+                <canvas
+                  ref={canvasRef}
+                  width={Number(formState.worldWidth) || DEFAULT_CONFIG.worldWidth}
+                  height={Number(formState.worldHeight) || DEFAULT_CONFIG.worldHeight}
+                  aria-label="simulation world"
+                  onClick={onCanvasClick}
+                  onTouchStart={onCanvasTouchStart}
+                  onTouchEnd={onCanvasTouchEnd}
+                />
+
+                {!hasSimulation ? (
+                  <div className="simulation-empty-state" role="status" aria-live="polite">
+                    <p className="eyebrow">Simulation ready</p>
+                    <h3>Start a simulation to populate the world.</h3>
+                    <p>Use the configuration panel to customize the run, or launch a default run immediately.</p>
+                    <div className="simulation-empty-state-actions">
+                      <button type="button" onClick={onQuickStartSimulation}>
+                        Quick start defaults
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {hudOverlayVisible && selectedOrganism ? (
+                  <div className="organism-hud-overlay" role="region" aria-label="organism info">
+                    <div className="organism-hud-header">
+                      <span className="organism-hud-id">Organism {selectedOrganism.id.slice(0, 8)}</span>
+                      <button
+                        type="button"
+                        className="organism-hud-close"
+                        onClick={() => {
+                          setHudOverlayVisible(false);
+                          clearSelection();
+                        }}
+                        aria-label="Close organism info"
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <div className="organism-hud-stats">
+                      <p><strong>Generation:</strong> {formattedInspector.generation}</p>
+                      <p><strong>Size:</strong> {formattedInspector.size}</p>
+                      <p><strong>Energy:</strong> {formattedInspector.energy}</p>
+                      {selectedOrganismSpeciesId ? (
+                        <p><strong>Species:</strong> <span style={{ color: getSpeciesColor(selectedOrganismSpeciesId) }}>{selectedOrganismSpeciesId}</span></p>
+                      ) : null}
+                    </div>
+                    {brainGraphModel && brainGraphModel.nodes.length > 0 ? (
+                      <div className="organism-hud-brain">
+                        <div className="brain-graph-controls">
+                          <button type="button" onClick={onResetBrainGraphViewport} aria-label="Reset brain view">Reset</button>
+                          <button type="button" onClick={onFitSelectionBrainGraphViewport} aria-label="Fit selection">Fit</button>
+                          <button type="button" onClick={() => onZoomBrainGraphViewport(1)} aria-label="Zoom in">+</button>
+                          <button type="button" onClick={() => onZoomBrainGraphViewport(-1)} aria-label="Zoom out">−</button>
+                        </div>
+                        <svg
+                          className="brain-graph"
+                          viewBox={`0 0 ${BRAIN_GRAPH_VIEWBOX.width} ${BRAIN_GRAPH_VIEWBOX.height}`}
+                          aria-label="Brain neural network visualization"
+                        >
+                          <g transform={`translate(${brainGraphTransform.translateX}, ${brainGraphTransform.translateY}) scale(${brainGraphTransform.scale})`}>
+                            {brainGraphModel.edges.map((edge) => (
+                              <line
+                                key={edge.id}
+                                className="brain-graph-synapse-edge"
+                                x1={brainGraphNodeById.get(edge.sourceId)?.x ?? 0}
+                                y1={brainGraphNodeById.get(edge.sourceId)?.y ?? 0}
+                                x2={brainGraphNodeById.get(edge.targetId)?.x ?? 0}
+                                y2={brainGraphNodeById.get(edge.targetId)?.y ?? 0}
+                                stroke={edge.color}
+                                strokeWidth={edge.strokeWidth}
+                                opacity={edge.emphasisOpacity}
+                              />
+                            ))}
+                            {brainGraphModel.nodes.map((node) => (
+                              <circle
+                                key={node.id}
+                                cx={node.x}
+                                cy={node.y}
+                                r={8}
+                                fill={node.fillColor}
+                                stroke={node.id === pinnedBrainNeuronId ? '#38bdf8' : node.id === selectedBrainNeuronId ? '#f59e0b' : '#1e293b'}
+                                strokeWidth={node.id === pinnedBrainNeuronId || node.id === selectedBrainNeuronId ? 3 : 1}
+                                opacity={node.emphasisOpacity}
+                                style={{ cursor: 'pointer' }}
+                                onClick={() => setPinnedBrainNeuronId(node.id === pinnedBrainNeuronId ? null : node.id)}
+                                onMouseEnter={() => setHoveredBrainNeuronId(node.id)}
+                                onMouseLeave={() => setHoveredBrainNeuronId(null)}
+                                aria-label={`Neuron ${node.id}, type: ${node.type}`}
+                              />
+                            ))}
+                            {hoveredBrainNeuronId && brainGraphNodeById.get(hoveredBrainNeuronId) ? (
+                              <g transform={`translate(${brainGraphNodeById.get(hoveredBrainNeuronId).x + 12}, ${brainGraphNodeById.get(hoveredBrainNeuronId).y - 6})`}>
+                                <rect x="0" y="-10" width="80" height="20" rx="4" fill="#1e293b" opacity="0.95" />
+                                <text x="40" y="4" textAnchor="middle" fill="#f8fafc" fontSize="11" fontFamily="system-ui">
+                                  {brainGraphNodeById.get(hoveredBrainNeuronId).type}
+                                </text>
+                              </g>
+                            ) : null}
+                          </g>
+                        </svg>
+                        {brainGraphLegend && brainGraphLegend.neuronTypes.length > 0 ? (
+                          <div className="brain-graph-legend" role="region" aria-label="Brain graph legend">
+                            <div className="brain-graph-legend-section">
+                              <strong>Neuron Types</strong>
+                              <div className="brain-graph-legend-items">
+                                {brainGraphLegend.neuronTypes.map((nt) => (
+                                  <span key={nt.type} className="brain-graph-legend-item">
+                                    <span className="brain-graph-legend-swatch" style={{ backgroundColor: nt.color.cssColor }} />
+                                    {nt.label}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="brain-graph-legend-section">
+                              <strong>Synapses</strong>
+                              <div className="brain-graph-legend-items">
+                                {brainGraphLegend.synapseCues.map((sc) => (
+                                  <span key={sc.polarity} className="brain-graph-legend-item">
+                                    <span className="brain-graph-legend-swatch" style={{ backgroundColor: sc.color }} />
+                                    {sc.polarity}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+
               <section className="simulation-stats-hud" aria-label="simulation stats hud">
                 <div className="hud-heading-row">
                   <div>
@@ -2877,140 +3011,6 @@ function App() {
                   </div>
                 ) : null}
               </section>
-
-              <div className="canvas-frame">
-                <canvas
-                  ref={canvasRef}
-                  width={Number(formState.worldWidth) || DEFAULT_CONFIG.worldWidth}
-                  height={Number(formState.worldHeight) || DEFAULT_CONFIG.worldHeight}
-                  aria-label="simulation world"
-                  onClick={onCanvasClick}
-                  onTouchStart={onCanvasTouchStart}
-                  onTouchEnd={onCanvasTouchEnd}
-                />
-
-                {!hasSimulation ? (
-                  <div className="simulation-empty-state" role="status" aria-live="polite">
-                    <p className="eyebrow">Simulation ready</p>
-                    <h3>Start a simulation to populate the world.</h3>
-                    <p>Use the configuration panel to customize the run, or launch a default run immediately.</p>
-                    <div className="simulation-empty-state-actions">
-                      <button type="button" onClick={onQuickStartSimulation}>
-                        Quick start defaults
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-
-                {hudOverlayVisible && selectedOrganism ? (
-                  <div className="organism-hud-overlay" role="region" aria-label="organism info">
-                    <div className="organism-hud-header">
-                      <span className="organism-hud-id">Organism {selectedOrganism.id.slice(0, 8)}</span>
-                      <button
-                        type="button"
-                        className="organism-hud-close"
-                        onClick={() => {
-                          setHudOverlayVisible(false);
-                          clearSelection();
-                        }}
-                        aria-label="Close organism info"
-                      >
-                        ×
-                      </button>
-                    </div>
-                    <div className="organism-hud-stats">
-                      <p><strong>Generation:</strong> {formattedInspector.generation}</p>
-                      <p><strong>Size:</strong> {formattedInspector.size}</p>
-                      <p><strong>Energy:</strong> {formattedInspector.energy}</p>
-                      {selectedOrganismSpeciesId ? (
-                        <p><strong>Species:</strong> <span style={{ color: getSpeciesColor(selectedOrganismSpeciesId) }}>{selectedOrganismSpeciesId}</span></p>
-                      ) : null}
-                    </div>
-                    {brainGraphModel && brainGraphModel.nodes.length > 0 ? (
-                      <div className="organism-hud-brain">
-                        <div className="brain-graph-controls">
-                          <button type="button" onClick={onResetBrainGraphViewport} aria-label="Reset brain view">Reset</button>
-                          <button type="button" onClick={onFitSelectionBrainGraphViewport} aria-label="Fit selection">Fit</button>
-                          <button type="button" onClick={() => onZoomBrainGraphViewport(1)} aria-label="Zoom in">+</button>
-                          <button type="button" onClick={() => onZoomBrainGraphViewport(-1)} aria-label="Zoom out">−</button>
-                        </div>
-                        <svg
-                          className="brain-graph"
-                          viewBox={`0 0 ${BRAIN_GRAPH_VIEWBOX.width} ${BRAIN_GRAPH_VIEWBOX.height}`}
-                          aria-label="Brain neural network visualization"
-                        >
-                          <g transform={`translate(${brainGraphTransform.translateX}, ${brainGraphTransform.translateY}) scale(${brainGraphTransform.scale})`}>
-                            {brainGraphModel.edges.map((edge) => (
-                              <line
-                                key={edge.id}
-                                className="brain-graph-synapse-edge"
-                                x1={brainGraphNodeById.get(edge.sourceId)?.x ?? 0}
-                                y1={brainGraphNodeById.get(edge.sourceId)?.y ?? 0}
-                                x2={brainGraphNodeById.get(edge.targetId)?.x ?? 0}
-                                y2={brainGraphNodeById.get(edge.targetId)?.y ?? 0}
-                                stroke={edge.color}
-                                strokeWidth={edge.strokeWidth}
-                                opacity={edge.emphasisOpacity}
-                              />
-                            ))}
-                            {brainGraphModel.nodes.map((node) => (
-                              <circle
-                                key={node.id}
-                                cx={node.x}
-                                cy={node.y}
-                                r={8}
-                                fill={node.fillColor}
-                                stroke={node.id === pinnedBrainNeuronId ? '#38bdf8' : node.id === selectedBrainNeuronId ? '#f59e0b' : '#1e293b'}
-                                strokeWidth={node.id === pinnedBrainNeuronId || node.id === selectedBrainNeuronId ? 3 : 1}
-                                opacity={node.emphasisOpacity}
-                                style={{ cursor: 'pointer' }}
-                                onClick={() => setPinnedBrainNeuronId(node.id === pinnedBrainNeuronId ? null : node.id)}
-                                onMouseEnter={() => setHoveredBrainNeuronId(node.id)}
-                                onMouseLeave={() => setHoveredBrainNeuronId(null)}
-                                aria-label={`Neuron ${node.id}, type: ${node.type}`}
-                              />
-                            ))}
-                            {hoveredBrainNeuronId && brainGraphNodeById.get(hoveredBrainNeuronId) ? (
-                              <g transform={`translate(${brainGraphNodeById.get(hoveredBrainNeuronId).x + 12}, ${brainGraphNodeById.get(hoveredBrainNeuronId).y - 6})`}>
-                                <rect x="0" y="-10" width="80" height="20" rx="4" fill="#1e293b" opacity="0.95" />
-                                <text x="40" y="4" textAnchor="middle" fill="#f8fafc" fontSize="11" fontFamily="system-ui">
-                                  {brainGraphNodeById.get(hoveredBrainNeuronId).type}
-                                </text>
-                              </g>
-                            ) : null}
-                          </g>
-                        </svg>
-                        {brainGraphLegend && brainGraphLegend.neuronTypes.length > 0 ? (
-                          <div className="brain-graph-legend" role="region" aria-label="Brain graph legend">
-                            <div className="brain-graph-legend-section">
-                              <strong>Neuron Types</strong>
-                              <div className="brain-graph-legend-items">
-                                {brainGraphLegend.neuronTypes.map((nt) => (
-                                  <span key={nt.type} className="brain-graph-legend-item">
-                                    <span className="brain-graph-legend-swatch" style={{ backgroundColor: nt.color.cssColor }} />
-                                    {nt.label}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                            <div className="brain-graph-legend-section">
-                              <strong>Synapses</strong>
-                              <div className="brain-graph-legend-items">
-                                {brainGraphLegend.synapseCues.map((sc) => (
-                                  <span key={sc.polarity} className="brain-graph-legend-item">
-                                    <span className="brain-graph-legend-swatch" style={{ backgroundColor: sc.color }} />
-                                    {sc.polarity}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
             </section>
           </div>
 
