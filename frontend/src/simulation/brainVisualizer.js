@@ -1,3 +1,5 @@
+import { formatNeuronBindingLabel } from '../neuronLabels';
+
 const LAYER_ORDER = ['input', 'hidden', 'output'];
 const SYNAPSE_WEIGHT_MIN = -1;
 const SYNAPSE_WEIGHT_MAX = 1;
@@ -633,6 +635,7 @@ export function mapBrainToVisualizerModel(brain) {
         id: neuron.id,
         type: typeof neuron.type === 'string' ? neuron.type : 'unknown',
         value,
+        displayLabel: formatNeuronBindingLabel(neuron.id, neuron.type),
         fillColor: color.cssColor,
         labelColor: Math.abs(value) >= 0.65 ? '#f8fafc' : '#cbd5e1'
       };

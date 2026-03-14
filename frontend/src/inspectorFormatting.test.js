@@ -24,8 +24,12 @@ describe('formatInspectorSnapshot', () => {
           metabolism: 0.0199
         },
         brain: {
-          neurons: [{ id: 'n1' }, { id: 'n2' }],
-          synapses: [{ id: 's1' }]
+          neurons: [
+            { id: 'in-energy', type: 'input' },
+            { id: 'n-hidden-1', type: 'hidden' },
+            { id: 'out-turn-left', type: 'output' }
+          ],
+          synapses: [{ id: 's1', sourceId: 'in-energy', targetId: 'out-turn-left' }]
         },
         lineage: {
           parentId: 'org-7',
@@ -53,8 +57,13 @@ describe('formatInspectorSnapshot', () => {
       visionRange: '99.988',
       turnRate: '0.126',
       metabolism: '0.020',
-      neuronCount: '2',
-      synapseCount: '1'
+      neuronCount: '3',
+      inputNeuronCount: '1',
+      hiddenNeuronCount: '1',
+      outputNeuronCount: '1',
+      synapseCount: '1',
+      inputBindings: 'Energy sensor',
+      outputBindings: 'Turn left actuator'
     });
   });
 
@@ -76,6 +85,8 @@ describe('formatInspectorSnapshot', () => {
     expect(formatted.position).toBe('—');
     expect(formatted.nearestFoodDistance).toBe('—');
     expect(formatted.size).toBe('—');
-    expect(formatted.neuronCount).toBe('—');
+    expect(formatted.neuronCount).toBe('0');
+    expect(formatted.inputBindings).toBe('—');
+    expect(formatted.outputBindings).toBe('—');
   });
 });

@@ -33,7 +33,12 @@ const INSPECTOR_TRAIT_SECTION_SCHEMA = Object.freeze([
     label: 'Genome/Brain',
     fields: Object.freeze([
       Object.freeze({ key: 'neuronCount', label: 'Neurons' }),
-      Object.freeze({ key: 'synapseCount', label: 'Synapses' })
+      Object.freeze({ key: 'inputNeuronCount', label: 'Input neurons' }),
+      Object.freeze({ key: 'hiddenNeuronCount', label: 'Hidden neurons' }),
+      Object.freeze({ key: 'outputNeuronCount', label: 'Output neurons' }),
+      Object.freeze({ key: 'synapseCount', label: 'Synapses' }),
+      Object.freeze({ key: 'inputBindings', label: 'Inputs' }),
+      Object.freeze({ key: 'outputBindings', label: 'Outputs' })
     ])
   })
 ]);

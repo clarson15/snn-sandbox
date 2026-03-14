@@ -2784,9 +2784,9 @@ function App() {
                             ))}
                             {hoveredBrainNeuronId && brainGraphNodeById.get(hoveredBrainNeuronId) ? (
                               <g transform={`translate(${brainGraphNodeById.get(hoveredBrainNeuronId).x + 12}, ${brainGraphNodeById.get(hoveredBrainNeuronId).y - 6})`}>
-                                <rect x="0" y="-10" width="80" height="20" rx="4" fill="#1e293b" opacity="0.95" />
-                                <text x="40" y="4" textAnchor="middle" fill="#f8fafc" fontSize="11" fontFamily="system-ui">
-                                  {brainGraphNodeById.get(hoveredBrainNeuronId).type}
+                                <rect x="0" y="-10" width="156" height="20" rx="4" fill="#1e293b" opacity="0.95" />
+                                <text x="78" y="4" textAnchor="middle" fill="#f8fafc" fontSize="11" fontFamily="system-ui">
+                                  {brainGraphNodeById.get(hoveredBrainNeuronId).displayLabel}
                                 </text>
                               </g>
                             ) : null}

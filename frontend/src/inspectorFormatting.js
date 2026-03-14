@@ -1,3 +1,5 @@
+import { formatNeuronBindingList } from './neuronLabels';
+
 const INSPECTOR_PLACEHOLDER = '—';
 
 function isFiniteNumber(value) {
@@ -35,6 +37,40 @@ function formatFoodDistance(value) {
   return formatFixed(value, 3);
 }
 
+function countNeuronsByType(neurons, type) {
+  const count = Array.isArray(neurons)
+    ? neurons.filter((neuron) => neuron?.type === type).length
+    : 0;
+
+  return count > 0 ? String(count) : INSPECTOR_PLACEHOLDER;
+}
+
+function deriveBindingIds(brain, type) {
+  const neurons = Array.isArray(brain?.neurons) ? brain.neurons : [];
+  const neuronIds = neurons
+    .filter((neuron) => neuron?.type === type && typeof neuron?.id === 'string')
+    .map((neuron) => neuron.id);
+
+  if (neuronIds.length > 0) {
+    return neuronIds;
+  }
+
+  const synapses = Array.isArray(brain?.synapses) ? brain.synapses : [];
+  if (type === 'input') {
+    return synapses
+      .map((synapse) => synapse?.sourceId)
+      .filter((id) => typeof id === 'string' && id.startsWith('in-'));
+  }
+
+  if (type === 'output') {
+    return synapses
+      .map((synapse) => synapse?.targetId)
+      .filter((id) => typeof id === 'string' && id.startsWith('out-'));
+  }
+
+  return [];
+}
+
 function resolveParentId(organism) {
   const parentId = organism?.lineage?.parentId ?? organism?.parentId;
   if (typeof parentId === 'string' && parentId.trim().length > 0) {
@@ -64,6 +100,10 @@ function resolveOffspringCount(organism) {
 }
 
 function formatInspectorSnapshot(organism, nearestFoodDistance) {
+  const brain = organism?.brain ?? {};
+  const neurons = Array.isArray(brain.neurons) ? brain.neurons : [];
+  const synapses = Array.isArray(brain.synapses) ? brain.synapses : [];
+
   return {
     id: typeof organism?.id === 'string' && organism.id.trim().length > 0 ? organism.id : INSPECTOR_PLACEHOLDER,
     lifeStage: typeof organism?.lifeStage === 'string' ? organism.lifeStage : 'live',
@@ -82,8 +122,13 @@ function formatInspectorSnapshot(organism, nearestFoodDistance) {
     visionRange: formatFixed(organism?.traits?.visionRange, 3),
     turnRate: formatFixed(organism?.traits?.turnRate, 3),
     metabolism: formatFixed(organism?.traits?.metabolism, 3),
-    neuronCount: formatInteger(organism?.brain?.neurons?.length),
-    synapseCount: formatInteger(organism?.brain?.synapses?.length)
+    neuronCount: formatInteger(neurons.length),
+    inputNeuronCount: countNeuronsByType(neurons, 'input'),
+    hiddenNeuronCount: countNeuronsByType(neurons, 'hidden'),
+    outputNeuronCount: countNeuronsByType(neurons, 'output'),
+    synapseCount: formatInteger(synapses.length),
+    inputBindings: formatNeuronBindingList(deriveBindingIds(brain, 'input'), 'input', INSPECTOR_PLACEHOLDER),
+    outputBindings: formatNeuronBindingList(deriveBindingIds(brain, 'output'), 'output', INSPECTOR_PLACEHOLDER)
   };
 }
 
