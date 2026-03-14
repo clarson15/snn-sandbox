@@ -1357,11 +1357,31 @@ function App() {
     setLoadStatus('');
     setCopyMetadataStatus('');
     saveSimulationConfig(config);
-    setFormState((prev) => {
-      const next = { ...prev, seed: config.seed || config.resolvedSeed };
+    setFormState(() => {
+      const next = createFormStateFromConfig({
+        ...config,
+        seed: config.seed || config.resolvedSeed
+      });
       setFormBaselineState(next);
       return next;
     });
+  };
+
+  const startSimulationFromFormState = (nextFormState, { resetPresetSelection = false } = {}) => {
+    const nextErrors = validateSimulationConfig(nextFormState);
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
+      return;
+    }
+
+    const seedToUse = resolveSeed(nextFormState.seed);
+    const config = normalizeSimulationConfig(nextFormState, seedToUse);
+    applySimulationConfig(config, { paused: false });
+    if (resetPresetSelection) {
+      setSelectedPresetId('');
+    }
+    setErrors({});
+    setSeedControlStatus('');
   };
 
   const startSimulation = () => {
@@ -1370,16 +1390,24 @@ function App() {
       return;
     }
 
-    const nextErrors = validateSimulationConfig(formState);
-    if (Object.keys(nextErrors).length > 0) {
-      setErrors(nextErrors);
+    startSimulationFromFormState(formState);
+  };
+
+  const onQuickStartSimulation = () => {
+    if (hasSimulation && !confirmDiscardUnsavedRunChanges()) {
+      setSeedControlStatus('Quick start cancelled.');
       return;
     }
 
-    const seedToUse = resolveSeed(formState.seed);
-    const config = normalizeSimulationConfig(formState, seedToUse);
-    applySimulationConfig(config, { paused: false });
-    setSeedControlStatus('');
+    if (hasUnsavedFormChanges && !confirmDiscardUnsavedFormChanges()) {
+      setSeedControlStatus('Quick start cancelled.');
+      return;
+    }
+
+    const defaultFormState = createFormStateFromConfig(DEFAULT_CONFIG);
+    startSimulationFromFormState(defaultFormState, {
+      resetPresetSelection: true
+    });
   };
 
   const onCopyActiveSeed = async () => {
@@ -2920,6 +2948,19 @@ function App() {
                   onTouchEnd={onCanvasTouchEnd}
                 />
 
+                {!hasSimulation ? (
+                  <div className="simulation-empty-state" role="status" aria-live="polite">
+                    <p className="eyebrow">Simulation ready</p>
+                    <h3>Start a simulation to populate the world.</h3>
+                    <p>Use the configuration panel to customize the run, or launch a default run immediately.</p>
+                    <div className="simulation-empty-state-actions">
+                      <button type="button" onClick={onQuickStartSimulation}>
+                        Quick start defaults
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
                 {hudOverlayVisible && selectedOrganism ? (
                   <div className="organism-hud-overlay" role="region" aria-label="organism info">
                     <div className="organism-hud-header">
@@ -3616,7 +3657,7 @@ function App() {
               </button>
             </div>
             <p><strong>SNN Sandbox</strong> - Deterministic Spiking Neural Network Simulation</p>
-            <p style={{ marginTop: '0.5rem' }}>Version: {packageJson.version}</p>
+            <p style={{ marginTop: '0.5rem' }}>Version: {appVersion}</p>
             <p style={{ marginTop: '0.5rem', color: '#b9c4d1' }}>
               A deterministic simulation environment for evolving spiking neural networks.
               The simulation produces identical results regardless of when or where it runs,

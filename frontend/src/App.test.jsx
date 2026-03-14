@@ -78,6 +78,14 @@ describe('App', () => {
     });
 
     vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
+      if (url === '/api/status' && (!options.method || options.method === 'GET')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ version: 'test-version', environment: 'test' })
+        };
+      }
+
       if (url === '/api/simulations/snapshots' && (!options.method || options.method === 'GET')) {
         return {
           ok: true,
@@ -180,8 +188,37 @@ describe('App', () => {
     ).toBeInTheDocument();
 
     expect(screen.getByRole('button', { name: /start simulation/i })).toBeInTheDocument();
+    expect(screen.getByText(/start a simulation to populate the world/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /quick start defaults/i })).toBeInTheDocument();
     expect(screen.getByText(/leave blank to generate a seed once at start/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/max life \(ticks\)/i)).toHaveValue(1000);
+  });
+
+  it('uses the resolved app version in the about dialog', async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: /about/i }));
+
+    const aboutDialog = screen.getByRole('dialog', { name: /about/i });
+    await waitFor(() => {
+      expect(within(aboutDialog).getByText(/version: test-version/i)).toBeInTheDocument();
+    });
+  });
+
+  it('quick starts a default simulation from the empty state', async () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/simulation name/i), { target: { value: 'Custom setup' } });
+    fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '1200' } });
+    fireEvent.click(screen.getByRole('button', { name: /quick start defaults/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText(/start a simulation to populate the world/i)).not.toBeInTheDocument();
+      expect(screen.getByText(/^active seed:/i)).not.toHaveTextContent('No active simulation');
+    });
+
+    expect(screen.getByLabelText(/simulation name/i)).toHaveValue('New Simulation');
+    expect(screen.getByLabelText(/world width/i)).toHaveValue(1920);
   });
 
   it('prefills seed from URL query parameter when provided', () => {
