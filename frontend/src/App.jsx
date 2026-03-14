@@ -3693,15 +3693,15 @@ function App() {
                 Close
               </button>
             </div>
-            <p><strong>SNN Sandbox</strong> - Deterministic Spiking Neural Network Simulation</p>
+            <p><strong>SNN Sandbox</strong> - Organism Simulation Sandbox</p>
             <p style={{ marginTop: '0.5rem' }}>Version: {appVersion}</p>
             <p style={{ marginTop: '0.5rem', color: '#b9c4d1' }}>
-              A deterministic simulation environment for evolving spiking neural networks.
-              The simulation produces identical results regardless of when or where it runs,
-              enabling reproducible scientific experiments.
+              Explore a living sandbox of organisms that move, feed, reproduce, and evolve
+              their own spiking brains inside a shared ecosystem.
             </p>
             <p style={{ marginTop: '0.5rem', color: '#b9c4d1' }}>
-              Built with React, deterministic PRNG, and spatial indexing for efficient simulation.
+              Watch populations rise or collapse, inspect individual creatures, and tune the
+              world to see how behavior changes over time.
             </p>
             <p>Press Escape to close this dialog.</p>
           </section>

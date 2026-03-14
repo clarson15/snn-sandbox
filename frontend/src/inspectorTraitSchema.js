@@ -32,6 +32,9 @@ const INSPECTOR_TRAIT_SECTION_SCHEMA = Object.freeze([
     key: 'genomeBrain',
     label: 'Genome/Brain',
     fields: Object.freeze([
+      Object.freeze({ key: 'birthMode', label: 'Birth mode' }),
+      Object.freeze({ key: 'maturationPeriod', label: 'Adolescence period' }),
+      Object.freeze({ key: 'eggHatchTime', label: 'Egg incubation' }),
       Object.freeze({ key: 'neuronCount', label: 'Neurons' }),
       Object.freeze({ key: 'inputNeuronCount', label: 'Input neurons' }),
       Object.freeze({ key: 'hiddenNeuronCount', label: 'Hidden neurons' }),

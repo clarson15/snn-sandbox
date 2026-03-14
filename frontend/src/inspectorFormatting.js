@@ -37,6 +37,14 @@ function formatFoodDistance(value) {
   return formatFixed(value, 3);
 }
 
+function formatBirthMode(eggHatchTime) {
+  if (!isFiniteNumber(eggHatchTime)) {
+    return INSPECTOR_PLACEHOLDER;
+  }
+
+  return eggHatchTime > 0 ? 'Egg-laying' : 'Live birth';
+}
+
 function countNeuronsByType(neurons, type) {
   const count = Array.isArray(neurons)
     ? neurons.filter((neuron) => neuron?.type === type).length
@@ -119,6 +127,8 @@ function formatInspectorSnapshot(organism, nearestFoodDistance) {
     speed: formatFixed(organism?.traits?.speed, 3),
     adolescenceAge: formatFixed(organism?.traits?.adolescenceAge, 3),
     eggHatchTime: formatFixed(organism?.traits?.eggHatchTime, 3),
+    birthMode: formatBirthMode(organism?.traits?.eggHatchTime),
+    maturationPeriod: formatFixed(organism?.traits?.adolescenceAge, 3),
     visionRange: formatFixed(organism?.traits?.visionRange, 3),
     turnRate: formatFixed(organism?.traits?.turnRate, 3),
     metabolism: formatFixed(organism?.traits?.metabolism, 3),

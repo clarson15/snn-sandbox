@@ -18,6 +18,8 @@ describe('deriveInspectorTraitSections', () => {
       speed: '2.200',
       adolescenceAge: '48.000',
       eggHatchTime: '6.000',
+      birthMode: 'Egg-laying',
+      maturationPeriod: '48.000',
       turnRate: '0.300',
       visionRange: '42.000',
       nearestFoodDistance: '9.000',
@@ -50,7 +52,7 @@ describe('deriveInspectorTraitSections', () => {
     expect(first.map((section) => section.fields.map((field) => field.key))).toEqual([
       ['id', 'lifeStage', 'parentId', 'offspringCount', 'generation', 'age', 'incubationAge', 'energy'],
       ['position', 'size', 'speed', 'adolescenceAge', 'eggHatchTime', 'turnRate', 'visionRange', 'nearestFoodDistance', 'metabolism'],
-      ['neuronCount', 'inputNeuronCount', 'hiddenNeuronCount', 'outputNeuronCount', 'synapseCount', 'inputBindings', 'outputBindings']
+      ['birthMode', 'maturationPeriod', 'eggHatchTime', 'neuronCount', 'inputNeuronCount', 'hiddenNeuronCount', 'outputNeuronCount', 'synapseCount', 'inputBindings', 'outputBindings']
     ]);
   });
 

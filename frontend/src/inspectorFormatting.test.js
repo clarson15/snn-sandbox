@@ -54,6 +54,8 @@ describe('formatInspectorSnapshot', () => {
       speed: '0.333',
       adolescenceAge: '75.250',
       eggHatchTime: '6.500',
+      birthMode: 'Egg-laying',
+      maturationPeriod: '75.250',
       visionRange: '99.988',
       turnRate: '0.126',
       metabolism: '0.020',
@@ -85,8 +87,26 @@ describe('formatInspectorSnapshot', () => {
     expect(formatted.position).toBe('—');
     expect(formatted.nearestFoodDistance).toBe('—');
     expect(formatted.size).toBe('—');
+    expect(formatted.birthMode).toBe('—');
+    expect(formatted.maturationPeriod).toBe('—');
     expect(formatted.neuronCount).toBe('0');
     expect(formatted.inputBindings).toBe('—');
     expect(formatted.outputBindings).toBe('—');
+  });
+
+  it('formats live birth when egg hatch time is zero', () => {
+    const formatted = formatInspectorSnapshot(
+      {
+        traits: {
+          adolescenceAge: 24,
+          eggHatchTime: 0
+        },
+        brain: {}
+      },
+      null
+    );
+
+    expect(formatted.birthMode).toBe('Live birth');
+    expect(formatted.maturationPeriod).toBe('24.000');
   });
 });
