@@ -224,12 +224,6 @@ a {
   padding: 1.1rem;
 }
 
-.control-surface {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(15rem, 0.9fr);
-  gap: 0.9rem;
-}
-
 .control-cluster {
   display: flex;
   flex-wrap: wrap;
@@ -239,11 +233,6 @@ a {
   border-radius: 18px;
   background: rgba(16, 36, 61, 0.38);
   border: 1px solid rgba(148, 163, 184, 0.08);
-}
-
-.control-summary,
-.control-speed {
-  flex-direction: column;
 }
 
 .control-heading,
@@ -292,14 +281,45 @@ a {
   gap: 0.55rem;
 }
 
+.action-surface {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.action-cluster {
+  justify-content: flex-start;
+}
+
 .hud-metric-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
   gap: 0.55rem 1rem;
 }
 
+.hud-runtime-row {
+  display: grid;
+  grid-template-columns: minmax(14rem, 18rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.hud-playback-controls,
+.hud-runtime-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.hud-save-as-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-width: 24rem;
+}
+
 .hud-metric-grid p,
-.control-summary p,
+.hud-runtime-copy p,
 .legend-item,
 .saved-simulation-copy span,
 .saved-simulation-copy strong {
@@ -660,7 +680,7 @@ button:disabled {
 @media (max-width: 1180px) {
   .hero-panel,
   .config-and-canvas-row,
-  .control-surface {
+  .hud-runtime-row {
     grid-template-columns: 1fr;
   }
 }

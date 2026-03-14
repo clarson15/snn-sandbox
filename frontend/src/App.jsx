@@ -81,7 +81,7 @@ import {
 } from './simulation/api';
 import { formatSimulationTimestamp } from './simulation/timestamp';
 import { generateDeterministicCopyName } from './simulation/saveName';
-import { buildDeterministicShareUrl, resolveDeterministicQueryPrefill } from './simulation/shareLink';
+import { resolveDeterministicQueryPrefill } from './simulation/shareLink';
 import {
   DEFAULT_SAVED_SIMULATION_LIST_VIEW_STATE,
   deriveSavedSimulationListView,
@@ -203,8 +203,6 @@ function getControlDisableReasons({ hasSimulation, replayActive, paused, spectat
   const spectatorModeReason = 'Spectator mode is active. Changes cannot be saved.';
 
   return {
-    copySeed: hasSimulation ? '' : simulationRequiredReason,
-    copyShareLink: hasSimulation ? '' : simulationRequiredReason,
     regenerateSeed: hasSimulation ? '' : spectatorMode ? spectatorModeReason : simulationRequiredReason,
     restartFromSeed: hasSimulation ? '' : spectatorMode ? spectatorModeReason : simulationRequiredReason,
     pause: !hasSimulation ? simulationRequiredReason : replayActive ? 'Replay mode is active. Resume live simulation to pause playback.' : spectatorMode ? spectatorModeReason : '',
@@ -1408,50 +1406,6 @@ function App() {
     startSimulationFromFormState(defaultFormState, {
       resetPresetSelection: true
     });
-  };
-
-  const onCopyActiveSeed = async () => {
-    if (!resolvedSeed) {
-      return;
-    }
-
-    const writeText = globalThis?.navigator?.clipboard?.writeText;
-    if (typeof writeText !== 'function') {
-      setSeedControlStatus('Clipboard is unavailable.');
-      return;
-    }
-
-    try {
-      await writeText(resolvedSeed);
-      setSeedControlStatus('Seed copied.');
-    } catch {
-      setSeedControlStatus('Failed to copy seed.');
-    }
-  };
-
-  const onCopyShareLink = async () => {
-    if (!activeConfigRef.current || !resolvedSeed) {
-      return;
-    }
-
-    const writeText = globalThis?.navigator?.clipboard?.writeText;
-    if (typeof writeText !== 'function') {
-      setSeedControlStatus('Clipboard is unavailable.');
-      return;
-    }
-
-    try {
-      const shareUrl = buildDeterministicShareUrl({
-        origin: window.location.origin,
-        pathname: window.location.pathname,
-        seed: resolvedSeed,
-        parameters: activeConfigRef.current
-      });
-      await writeText(shareUrl);
-      setSeedControlStatus('Share link copied.');
-    } catch {
-      setSeedControlStatus('Failed to copy share link.');
-    }
   };
 
   const onShareSimulation = async () => {
@@ -2735,7 +2689,7 @@ function App() {
           <div className="simulation-area">
             {resolvedSeed ? <p className="seed-banner">Resolved seed: {resolvedSeed}</p> : null}
 
-            <section className="controls control-surface" aria-label="simulation controls">
+            <section className="controls action-surface" aria-label="simulation controls">
               {hasUrlSeedMismatch ? (
                 <div className="seed-mismatch-banner" role="status" aria-live="polite">
                   <p>
@@ -2746,37 +2700,7 @@ function App() {
                   </button>
                 </div>
               ) : null}
-              <div className="control-cluster control-summary">
-                <p className="control-heading">Run controls</p>
-                <p>Active seed: {resolvedSeed || 'No active simulation'}</p>
-                <p role="status" aria-live="polite" data-tick-counter>
-                  Tick: {tickDisplay} | {replayActive ? 'Replay active' : paused ? 'runtime state: paused' : `runtime state: running at ${speedMultiplier}x`}
-                </p>
-                {hasSimulation ? (
-                  <>
-                    <p
-                      className={`save-status-badge ${hasUnsavedRunChanges ? 'is-unsaved' : 'is-saved'}`}
-                      role="status"
-                      aria-live="polite"
-                    >
-                      Save status: {runSaveStatusLabel}
-                    </p>
-                    <p>Last saved tick: {persistedRunMetadata?.lastSavedTick ?? 0}</p>
-                    <p>Last saved at: {formatSimulationTimestamp(persistedRunMetadata?.lastSavedAt)}</p>
-                  </>
-                ) : null}
-                {seedControlStatus ? <p aria-live="polite">{seedControlStatus}</p> : null}
-                {spectatorMode ? (
-                  <p className="spectator-banner"><strong>Spectator Mode</strong> - You are viewing a shared simulation. Changes cannot be saved.</p>
-                ) : null}
-              </div>
-              <div className="control-cluster">
-                <ControlButtonWithHint name="copy-seed-controls" onClick={onCopyActiveSeed} reason={controlDisableReasons.copySeed}>
-                  Copy seed
-                </ControlButtonWithHint>
-                <ControlButtonWithHint name="copy-share-link" onClick={onCopyShareLink} reason={controlDisableReasons.copyShareLink}>
-                  Copy share link
-                </ControlButtonWithHint>
+              <div className="control-cluster action-cluster">
                 <ControlButtonWithHint name="regenerate-seed" onClick={onRegenerateSeed} reason={controlDisableReasons.regenerateSeed}>
                   Regenerate seed + restart
                 </ControlButtonWithHint>
@@ -2826,46 +2750,6 @@ function App() {
                   Keyboard Shortcuts
                 </button>
               </div>
-              <div className="control-cluster control-speed">
-                <p className="control-heading">Playback speed</p>
-                <div className="speed-presets" role="group" aria-label="speed presets">
-                  {SPEED_OPTIONS.map((multiplier) => {
-                    const isActivePreset = !paused && !replayActive && speedMultiplier === multiplier;
-
-                    return (
-                      <ControlButtonWithHint
-                        key={multiplier}
-                        name={`speed-${multiplier}`}
-                        onClick={() => onSpeedSelect(multiplier)}
-                        reason={controlDisableReasons.speed}
-                        className={`speed-preset-button${isActivePreset ? ' is-active' : ''}`}
-                        aria-pressed={isActivePreset}
-                      >
-                        {multiplier}x
-                      </ControlButtonWithHint>
-                    );
-                  })}
-                </div>
-                <label>
-                  Save As
-                  <input
-                    type="text"
-                    value={saveAsDraftName}
-                    onChange={(event) => {
-                      setSaveAsDraftName(event.target.value);
-                      if (saveAsValidationError) {
-                        setSaveAsValidationError('');
-                      }
-                      if (saveConflictResolution) {
-                        setSaveConflictResolution(null);
-                      }
-                    }}
-                    placeholder={activeConfigRef.current?.name ?? 'New Simulation copy'}
-                  />
-                </label>
-                {saveAsValidationError ? <p aria-live="polite">{saveAsValidationError}</p> : null}
-                <p className="shortcut-hints">Shortcuts: Space pause/play · . single-step (paused) · 1/2/3/4 set speed (1x/2x/5x/10x)</p>
-              </div>
             </section>
 
             <section className="simulation-stage" aria-label="simulation stage">
@@ -2905,6 +2789,66 @@ function App() {
                     <p>Tick budget clamp: {schedulerClampState.active ? `Active (dropped ${schedulerClampState.droppedTicks} ticks this frame)` : 'Inactive'}</p>
                   ) : null}
                 </div>
+                <div className="hud-runtime-row">
+                  <div className="hud-playback-controls">
+                    <strong>Playback speed</strong>
+                    <div className="speed-presets" role="group" aria-label="speed presets">
+                      {SPEED_OPTIONS.map((multiplier) => {
+                        const isActivePreset = !paused && !replayActive && speedMultiplier === multiplier;
+
+                        return (
+                          <ControlButtonWithHint
+                            key={multiplier}
+                            name={`speed-${multiplier}`}
+                            onClick={() => onSpeedSelect(multiplier)}
+                            reason={controlDisableReasons.speed}
+                            className={`speed-preset-button${isActivePreset ? ' is-active' : ''}`}
+                            aria-pressed={isActivePreset}
+                          >
+                            {multiplier}x
+                          </ControlButtonWithHint>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="hud-runtime-copy">
+                    <p role="status" aria-live="polite" data-tick-counter>
+                      Tick: {tickDisplay} | {replayActive ? 'Replay active' : paused ? 'runtime state: paused' : `runtime state: running at ${speedMultiplier}x`}
+                    </p>
+                    {hasSimulation ? (
+                      <p
+                        className={`save-status-badge ${hasUnsavedRunChanges ? 'is-unsaved' : 'is-saved'}`}
+                        role="status"
+                        aria-live="polite"
+                      >
+                        Save status: {runSaveStatusLabel}
+                      </p>
+                    ) : null}
+                    {seedControlStatus ? <p aria-live="polite">{seedControlStatus}</p> : null}
+                    {spectatorMode ? (
+                      <p className="spectator-banner"><strong>Spectator Mode</strong> - You are viewing a shared simulation. Changes cannot be saved.</p>
+                    ) : null}
+                  </div>
+                </div>
+                <label className="hud-save-as-field">
+                  Save As
+                  <input
+                    type="text"
+                    value={saveAsDraftName}
+                    onChange={(event) => {
+                      setSaveAsDraftName(event.target.value);
+                      if (saveAsValidationError) {
+                        setSaveAsValidationError('');
+                      }
+                      if (saveConflictResolution) {
+                        setSaveConflictResolution(null);
+                      }
+                    }}
+                    placeholder={activeConfigRef.current?.name ?? 'New Simulation copy'}
+                  />
+                </label>
+                {saveAsValidationError ? <p aria-live="polite">{saveAsValidationError}</p> : null}
+                <p className="shortcut-hints">Shortcuts: Space pause/play · . single-step (paused) · 1/2/3/4 set speed (1x/2x/5x/10x)</p>
                 {formattedStats.energyDeathWarning ? (
                   <p className="warning-banner">Warning: Low energy - organisms at risk of dying</p>
                 ) : null}

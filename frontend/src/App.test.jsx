@@ -36,16 +36,16 @@ function ensureWritableLocalStorage() {
   });
 }
 
-function getSimulationControlsRegion() {
-  return screen.getByRole('region', { name: /simulation controls/i });
+function getSimulationStatsHud() {
+  return screen.getByRole('region', { name: /simulation stats hud/i });
 }
 
 function queryRunControlSaveStatus() {
-  return within(getSimulationControlsRegion()).queryByText(/^save status:/i);
+  return within(getSimulationStatsHud()).queryByText(/^save status:/i);
 }
 
 function getRunControlSaveStatus(label) {
-  return within(getSimulationControlsRegion()).getByText(new RegExp(`^save status: ${label}$`, 'i'));
+  return within(getSimulationStatsHud()).getByText(new RegExp(`^save status: ${label}$`, 'i'));
 }
 
 describe('App', () => {
@@ -214,7 +214,7 @@ describe('App', () => {
 
     await waitFor(() => {
       expect(screen.queryByText(/start a simulation to populate the world/i)).not.toBeInTheDocument();
-      expect(screen.getByText(/^active seed:/i)).not.toHaveTextContent('No active simulation');
+      expect(within(getSimulationStatsHud()).getByText(/^seed:/i)).not.toHaveTextContent('Seed unavailable');
     });
 
     expect(screen.getByLabelText(/simulation name/i)).toHaveValue('New Simulation');
@@ -255,7 +255,7 @@ describe('App', () => {
     expect(screen.getByLabelText(/world height/i)).toHaveValue(640);
     expect(screen.getByLabelText(/initial population/i)).toHaveValue(33);
     expect(screen.getByLabelText(/minimum population/i)).toHaveValue(21);
-    expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: No active simulation');
+    expect(within(getSimulationStatsHud()).getByText(/^seed:/i)).toHaveTextContent('Seed: Seed unavailable');
 
     window.history.replaceState({}, '', '/');
   });
@@ -298,7 +298,7 @@ describe('App', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /use url seed/i }));
 
-    expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: shared-seed-42');
+    expect(within(getSimulationStatsHud()).getByText(/^seed:/i)).toHaveTextContent('Seed: shared-seed-42');
     expect(screen.queryByRole('button', { name: /use url seed/i })).not.toBeInTheDocument();
 
     window.history.replaceState({}, '', '/');
@@ -418,7 +418,6 @@ describe('App', () => {
 
     await waitFor(() => {
       expect(getRunControlSaveStatus('saved')).toBeInTheDocument();
-      expect(screen.getByText(/^last saved tick:/i)).toHaveTextContent(/\d+/i);
     });
   });
 
@@ -430,8 +429,6 @@ describe('App', () => {
 
     await waitFor(() => {
       expect(getRunControlSaveStatus('saved')).toBeInTheDocument();
-      expect(screen.getByText(/^last saved tick: 0$/i)).toBeInTheDocument();
-      expect(screen.getByText(/^last saved at:/i)).toBeInTheDocument();
     });
 
 
@@ -718,7 +715,7 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
 
     expect(screen.getByText(/resolved seed:/i)).toHaveTextContent('explicit-seed-77');
-    expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: explicit-seed-77');
+    expect(within(getSimulationStatsHud()).getByText(/^seed:/i)).toHaveTextContent('Seed: explicit-seed-77');
 
     await waitFor(() => {
       const saved = loadSimulationConfig();
@@ -734,7 +731,7 @@ describe('App', () => {
     });
   });
 
-  it('shows active seed controls and supports copy/regenerate/restart interactions', async () => {
+  it('supports regenerate and restart interactions from the simplified action strip', async () => {
     let regenerateCounter = 0;
 
     vi.spyOn(globalThis.crypto, 'getRandomValues').mockImplementation((array) => {
@@ -747,33 +744,20 @@ describe('App', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
 
-    expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: 1b207');
-    const controlsRegion = screen.getByRole('region', { name: /simulation controls/i });
-    expect(within(controlsRegion).getByRole('button', { name: /copy seed/i })).toBeInTheDocument();
+    expect(within(getSimulationStatsHud()).getByText(/^seed:/i)).toHaveTextContent('Seed: 1b207');
+    expect(screen.queryByRole('button', { name: /copy seed/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /copy share link/i })).not.toBeInTheDocument();
 
     const tickNode = screen.getByText(/^tick count:/i);
     await waitFor(() => {
       expect(Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(0);
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /copy seed/i }));
-
-    await waitFor(() => {
-      expect(clipboardWriteText).toHaveBeenCalledWith('1b207');
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: /copy share link/i }));
-    await waitFor(() => {
-      expect(clipboardWriteText).toHaveBeenCalledWith(
-        expect.stringContaining('?seed=1b207&worldWidth=1920&worldHeight=1080&initialPopulation=20&minimumPopulation=20&initialFoodCount=30&foodSpawnChance=0.1&foodEnergyValue=10&maxFood=450&mutationRate=0.05&mutationStrength=0.1&reproductionThreshold=42&reproductionCost=20&offspringStartEnergy=15&reproductionMinimumAge=25&reproductionRefractoryPeriod=120&maximumOrganismAge=1000')
-      );
-    });
-
     fireEvent.click(screen.getByRole('button', { name: /new run with same seed/i }));
     expect(window.confirm).toHaveBeenCalledWith(
       'You have unsaved simulation progress. Restarting now will reset to tick 0 and keep the current seed. Continue?'
     );
-    expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: 1b207');
+    expect(within(getSimulationStatsHud()).getByText(/^seed:/i)).toHaveTextContent('Seed: 1b207');
     expect(tickNode).toHaveTextContent('Tick count: 0');
 
     await waitFor(() => {
@@ -784,21 +768,8 @@ describe('App', () => {
     expect(window.confirm).toHaveBeenCalledWith(
       'You have unsaved simulation progress. Regenerating will create a new seed and reset to tick 0. Continue?'
     );
-    expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: 3640e');
+    expect(within(getSimulationStatsHud()).getByText(/^seed:/i)).toHaveTextContent('Seed: 3640e');
     expect(tickNode).toHaveTextContent('Tick count: 0');
-  });
-
-  it('shows recoverable feedback when copy seed clipboard write fails', async () => {
-    clipboardWriteText.mockRejectedValueOnce(new Error('clipboard denied'));
-
-    render(<App />);
-
-    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
-    fireEvent.click(screen.getByRole('button', { name: /copy seed/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/failed to copy seed\./i)).toBeInTheDocument();
-    });
   });
 
   it('cancels restart and regenerate flows when unsaved-progress confirmation is declined', async () => {
@@ -822,12 +793,12 @@ describe('App', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: /new run with same seed/i }));
-    expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: 51615');
+    expect(within(getSimulationStatsHud()).getByText(/^seed:/i)).toHaveTextContent('Seed: 51615');
     expect(Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(0);
     expect(screen.getByText(/new run cancelled\./i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /regenerate seed \+ restart/i }));
-    expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: 51615');
+    expect(within(getSimulationStatsHud()).getByText(/^seed:/i)).toHaveTextContent('Seed: 51615');
     expect(Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(0);
     expect(screen.getByText(/seed regeneration cancelled\./i)).toBeInTheDocument();
   });
@@ -2611,13 +2582,8 @@ describe('App', () => {
     expect(screen.getByText(/^tick budget clamp:/i)).toHaveTextContent('Tick budget clamp: Inactive');
   });
 
-  it('renders deterministic seed/tick in stats HUD and reports copy feedback', async () => {
+  it('renders deterministic seed, playback speed, and tick state in the stats HUD', async () => {
     vi.useFakeTimers();
-    const clipboardWriteText = vi.fn().mockResolvedValue();
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: { writeText: clipboardWriteText }
-    });
 
     render(<App />);
     fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'hud-seed' } });
@@ -2631,11 +2597,8 @@ describe('App', () => {
       vi.advanceTimersByTime(110);
     });
     expect(Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(0);
-
-    fireEvent.click(screen.getByRole('button', { name: /copy seed/i }));
-    await act(async () => {});
-    expect(clipboardWriteText).toHaveBeenCalledWith('hud-seed');
-    expect(screen.getByText(/seed copied\./i)).toBeInTheDocument();
+    expect(within(statsHud).getByRole('group', { name: /speed presets/i })).toBeInTheDocument();
+    expect(within(statsHud).getByText(/^tick:/i)).toHaveTextContent('runtime state: running at 1x');
 
     vi.useRealTimers();
   });
