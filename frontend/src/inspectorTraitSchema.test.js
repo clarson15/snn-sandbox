@@ -23,7 +23,13 @@ describe('deriveInspectorTraitSections', () => {
       nearestFoodDistance: '9.000',
       metabolism: '0.100',
       neuronCount: '5',
+      inputNeuronCount: '2',
+      hiddenNeuronCount: '1',
+      outputNeuronCount: '2',
       synapseCount: '8'
+      ,
+      inputBindings: 'Energy sensor, Food distance sensor',
+      outputBindings: 'Forward movement actuator, Turn left actuator'
     };
 
     const first = deriveInspectorTraitSections(formattedInspector);
@@ -44,7 +50,7 @@ describe('deriveInspectorTraitSections', () => {
     expect(first.map((section) => section.fields.map((field) => field.key))).toEqual([
       ['id', 'lifeStage', 'parentId', 'offspringCount', 'generation', 'age', 'incubationAge', 'energy'],
       ['position', 'size', 'speed', 'adolescenceAge', 'eggHatchTime', 'turnRate', 'visionRange', 'nearestFoodDistance', 'metabolism'],
-      ['neuronCount', 'synapseCount']
+      ['neuronCount', 'inputNeuronCount', 'hiddenNeuronCount', 'outputNeuronCount', 'synapseCount', 'inputBindings', 'outputBindings']
     ]);
   });
 
