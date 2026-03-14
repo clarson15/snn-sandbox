@@ -984,6 +984,20 @@ function App() {
     return new Map(brainGraphModel.nodes.map((node) => [node.id, node]));
   }, [brainGraphModel]);
 
+  const hoveredBrainNeuron = hoveredBrainNeuronId
+    ? brainGraphNodeById.get(hoveredBrainNeuronId) ?? null
+    : null;
+  const hoveredBrainNeuronTooltip = hoveredBrainNeuron
+    ? {
+        width: 156,
+        height: 20,
+        xOffset: hoveredBrainNeuron.type === 'output' ? -168 : 12,
+        yOffset: -6,
+        textAnchor: hoveredBrainNeuron.type === 'output' ? 'start' : 'middle',
+        textX: hoveredBrainNeuron.type === 'output' ? 8 : 78
+      }
+    : null;
+
   const activeBrainNeuronDetailNeuronId = pinnedBrainNeuronId ?? hoveredBrainNeuronId ?? selectedBrainNeuronId;
 
   const selectedSynapseHighlightId = useMemo(() => {
@@ -2824,11 +2838,18 @@ function App() {
                                 aria-label={`Neuron ${node.id}, type: ${node.type}`}
                               />
                             ))}
-                            {hoveredBrainNeuronId && brainGraphNodeById.get(hoveredBrainNeuronId) ? (
-                              <g transform={`translate(${brainGraphNodeById.get(hoveredBrainNeuronId).x + 12}, ${brainGraphNodeById.get(hoveredBrainNeuronId).y - 6})`}>
-                                <rect x="0" y="-10" width="156" height="20" rx="4" fill="#1e293b" opacity="0.95" />
-                                <text x="78" y="4" textAnchor="middle" fill="#f8fafc" fontSize="11" fontFamily="system-ui">
-                                  {brainGraphNodeById.get(hoveredBrainNeuronId).displayLabel}
+                            {hoveredBrainNeuron && hoveredBrainNeuronTooltip ? (
+                              <g transform={`translate(${hoveredBrainNeuron.x + hoveredBrainNeuronTooltip.xOffset}, ${hoveredBrainNeuron.y + hoveredBrainNeuronTooltip.yOffset})`}>
+                                <rect x="0" y="-10" width={hoveredBrainNeuronTooltip.width} height={hoveredBrainNeuronTooltip.height} rx="4" fill="#1e293b" opacity="0.95" />
+                                <text
+                                  x={hoveredBrainNeuronTooltip.textX}
+                                  y="4"
+                                  textAnchor={hoveredBrainNeuronTooltip.textAnchor}
+                                  fill="#f8fafc"
+                                  fontSize="11"
+                                  fontFamily="system-ui"
+                                >
+                                  {hoveredBrainNeuron.displayLabel}
                                 </text>
                               </g>
                             ) : null}

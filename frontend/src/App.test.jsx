@@ -2892,6 +2892,60 @@ describe('App', () => {
     expect(screen.getByLabelText(/brain graph emphasis checksum/i)).toHaveTextContent(expectedChecksum);
   });
 
+  it('renders output neuron tooltips to the left of the node', () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/seed/i), { target: { value: 'fixture-seed' } });
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    const fixtureConfig = normalizeSimulationConfig(
+      {
+        name: 'Fixture',
+        seed: 'fixture-seed',
+        worldWidth: 800,
+        worldHeight: 480,
+        initialPopulation: 12,
+        initialFoodCount: 30,
+        foodSpawnChance: 0.04,
+        foodEnergyValue: 5,
+        maxFood: 120
+      },
+      'fixture-seed'
+    );
+    const fixtureWorld = createInitialWorldFromConfig(fixtureConfig);
+    const firstTarget = fixtureWorld.organisms[0];
+    const mappedBrain = mapBrainToVisualizerModel(firstTarget.brain);
+    const outputNeuron = mappedBrain.nodes.find((node) => node.type === 'output');
+
+    expect(outputNeuron).toBeTruthy();
+
+    const canvas = screen.getByLabelText(/simulation world/i);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 800,
+      height: 480,
+      right: 800,
+      bottom: 480,
+      toJSON: () => ({})
+    });
+
+    fireEvent.click(canvas, { clientX: firstTarget.x, clientY: firstTarget.y });
+
+    const outputNeuronCircle = screen.getByLabelText(`Neuron ${outputNeuron.id}, type: output`);
+    fireEvent.mouseEnter(outputNeuronCircle);
+
+    const tooltipText = screen.getByText(outputNeuron.displayLabel);
+
+    expect(tooltipText).toHaveAttribute('text-anchor', 'start');
+    expect(tooltipText.parentElement).toHaveAttribute(
+      'transform',
+      `translate(${outputNeuron.x - 168}, ${outputNeuron.y - 6})`
+    );
+  });
+
   it.skip('supports deterministic neuron filters and pinned path metadata in brain visualizer', () => {
     render(<App />);
 
