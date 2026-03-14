@@ -66,6 +66,12 @@ function sortEdgesForRendering(edges, nodeById) {
   return [...edges].sort((left, right) => compareEdgesForRendering(left, right, nodeById));
 }
 
+function hashEdgePhaseSeed(edgeId) {
+  return [...String(edgeId ?? '')].reduce((accumulator, character, index) => {
+    return (accumulator + (character.charCodeAt(0) * (index + 1))) % 997;
+  }, 0);
+}
+
 function resolveNeuronValue(neuron) {
   for (const key of NEURON_VALUE_KEYS) {
     const candidate = Number(neuron?.[key]);
@@ -456,6 +462,51 @@ export function mapBrainEmphasisChecksum(model, settings = {}) {
     .join('|');
 
   return `${settingsKey}::${edgeKey}`;
+}
+
+export function deriveBrainSignalPulseModel(model, tick = 0) {
+  if (!model || !Array.isArray(model.nodes) || !Array.isArray(model.edges)) {
+    return [];
+  }
+
+  const nodeById = new Map(model.nodes.map((node) => [node.id, node]));
+  const numericTick = Number.isFinite(Number(tick)) ? Number(tick) : 0;
+
+  return model.edges
+    .map((edge) => {
+      const source = nodeById.get(edge.sourceId);
+      const target = nodeById.get(edge.targetId);
+      if (!source || !target) {
+        return null;
+      }
+
+      const sourceSignal = Math.abs(Number(source.signal ?? source.activation ?? source.value ?? 0));
+      const targetSignal = Math.abs(Number(target.signal ?? target.activation ?? target.value ?? 0));
+      const signalStrength = Number((Math.max(sourceSignal, targetSignal) * Math.abs(Number(edge.weight) || 0)).toFixed(3));
+      if (signalStrength < 0.08) {
+        return null;
+      }
+
+      const phaseOffset = hashEdgePhaseSeed(edge.id) / 997;
+      const progress = (numericTick * 0.35 + phaseOffset) % 1;
+      const x = Number((source.x + ((target.x - source.x) * progress)).toFixed(3));
+      const y = Number((source.y + ((target.y - source.y) * progress)).toFixed(3));
+
+      return {
+        edgeId: edge.id,
+        sourceId: edge.sourceId,
+        targetId: edge.targetId,
+        progress: Number(progress.toFixed(3)),
+        x,
+        y,
+        signalStrength,
+        pulseRadius: Number((2.4 + signalStrength * 2.8).toFixed(3)),
+        pulseOpacity: Number(Math.min(1, 0.3 + signalStrength * 0.9).toFixed(3)),
+        edgeOpacityBoost: Number(Math.min(1, 0.2 + signalStrength * 0.75).toFixed(3))
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.edgeId.localeCompare(right.edgeId));
 }
 
 function normalizeNeuronFilterSettings(settings = {}) {

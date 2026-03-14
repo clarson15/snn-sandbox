@@ -27,6 +27,7 @@ import {
   deriveBrainVisualizerLegend,
   deriveEmphasizedBrainGraphModel,
   deriveFilteredBrainGraphModel,
+  deriveBrainSignalPulseModel,
   mapBrainEmphasisChecksum,
   mapBrainLayoutChecksum,
   mapBrainToVisualizerModel
@@ -983,6 +984,14 @@ function App() {
     }
     return new Map(brainGraphModel.nodes.map((node) => [node.id, node]));
   }, [brainGraphModel]);
+  const brainGraphSignalPulses = useMemo(
+    () => deriveBrainSignalPulseModel(brainGraphModel, tickDisplay),
+    [brainGraphModel, tickDisplay]
+  );
+  const brainGraphSignalPulseByEdgeId = useMemo(
+    () => new Map(brainGraphSignalPulses.map((pulse) => [pulse.edgeId, pulse])),
+    [brainGraphSignalPulses]
+  );
 
   const hoveredBrainNeuron = hoveredBrainNeuronId
     ? brainGraphNodeById.get(hoveredBrainNeuronId) ?? null
@@ -2809,16 +2818,40 @@ function App() {
                         >
                           <g transform={`translate(${brainGraphTransform.translateX}, ${brainGraphTransform.translateY}) scale(${brainGraphTransform.scale})`}>
                             {brainGraphModel.edges.map((edge) => (
-                              <line
-                                key={edge.id}
-                                className="brain-graph-synapse-edge"
-                                x1={brainGraphNodeById.get(edge.sourceId)?.x ?? 0}
-                                y1={brainGraphNodeById.get(edge.sourceId)?.y ?? 0}
-                                x2={brainGraphNodeById.get(edge.targetId)?.x ?? 0}
-                                y2={brainGraphNodeById.get(edge.targetId)?.y ?? 0}
-                                stroke={edge.color}
-                                strokeWidth={edge.strokeWidth}
-                                opacity={edge.emphasisOpacity}
+                              <g key={edge.id}>
+                                <line
+                                  className="brain-graph-synapse-edge"
+                                  x1={brainGraphNodeById.get(edge.sourceId)?.x ?? 0}
+                                  y1={brainGraphNodeById.get(edge.sourceId)?.y ?? 0}
+                                  x2={brainGraphNodeById.get(edge.targetId)?.x ?? 0}
+                                  y2={brainGraphNodeById.get(edge.targetId)?.y ?? 0}
+                                  stroke={edge.color}
+                                  strokeWidth={edge.strokeWidth}
+                                  opacity={edge.emphasisOpacity}
+                                />
+                                {brainGraphSignalPulseByEdgeId.get(edge.id) ? (
+                                  <line
+                                    className="brain-graph-synapse-signal"
+                                    x1={brainGraphNodeById.get(edge.sourceId)?.x ?? 0}
+                                    y1={brainGraphNodeById.get(edge.sourceId)?.y ?? 0}
+                                    x2={brainGraphNodeById.get(edge.targetId)?.x ?? 0}
+                                    y2={brainGraphNodeById.get(edge.targetId)?.y ?? 0}
+                                    stroke={edge.color}
+                                    strokeWidth={Number((edge.strokeWidth + 1).toFixed(3))}
+                                    opacity={Math.min(1, edge.emphasisOpacity * brainGraphSignalPulseByEdgeId.get(edge.id).edgeOpacityBoost)}
+                                  />
+                                ) : null}
+                              </g>
+                            ))}
+                            {brainGraphSignalPulses.map((pulse) => (
+                              <circle
+                                key={`pulse-${pulse.edgeId}`}
+                                className="brain-graph-signal-pulse"
+                                cx={pulse.x}
+                                cy={pulse.y}
+                                r={pulse.pulseRadius}
+                                opacity={pulse.pulseOpacity}
+                                fill="#f8fafc"
                               />
                             ))}
                             {brainGraphModel.nodes.map((node) => (

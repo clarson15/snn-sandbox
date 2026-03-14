@@ -454,6 +454,22 @@ canvas {
   background: rgba(8, 18, 34, 0.72);
 }
 
+.brain-graph-synapse-edge {
+  transition: opacity 120ms linear, stroke-width 120ms linear;
+}
+
+.brain-graph-synapse-signal {
+  pointer-events: none;
+  stroke-linecap: round;
+  stroke-dasharray: 7 9;
+  filter: drop-shadow(0 0 5px rgba(248, 250, 252, 0.28));
+}
+
+.brain-graph-signal-pulse {
+  pointer-events: none;
+  filter: drop-shadow(0 0 8px rgba(248, 250, 252, 0.55));
+}
+
 .brain-graph-legend {
   display: grid;
   gap: 0.75rem;

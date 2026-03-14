@@ -681,9 +681,54 @@ describe('simulation engine skeleton', () => {
       foodSpawnChance: 0
     });
 
-    // With full energy (100), input value = 1.0, so rotation = weight * turnRate = 0.04/tick
-    // After 3 ticks: 0.5 + 3*0.04 = 0.62
-    expect(next.organisms[0].direction).toBeCloseTo(0.62, 3);
+    // Under the SNN update loop, the output neuron spikes on every other tick
+    // for this setup, yielding 0.05 radians of rightward rotation over 3 ticks.
+    expect(next.organisms[0].direction).toBeCloseTo(0.55, 3);
+  });
+
+  it('propagates spikes through hidden neurons within the deterministic SNN substeps', () => {
+    const state = createWorldState({
+      tick: 0,
+      organisms: [
+        {
+          id: 'org-hidden-path',
+          x: 0,
+          y: 0,
+          energy: 100,
+          age: 0,
+          generation: 1,
+          direction: 0,
+          traits: { size: 1, speed: 2, visionRange: 20, turnRate: 0.1, metabolism: 0 },
+          brain: {
+            neurons: [
+              { id: 'in-energy', type: 'input' },
+              { id: 'hidden-1', type: 'hidden', threshold: 1, decay: 0, potential: 0 },
+              { id: 'out-forward', type: 'output', threshold: 1, decay: 0, potential: 0 }
+            ],
+            synapses: [
+              { id: 'syn-input-hidden', sourceId: 'in-energy', targetId: 'hidden-1', weight: 1 },
+              { id: 'syn-hidden-output', sourceId: 'hidden-1', targetId: 'out-forward', weight: 1 }
+            ]
+          }
+        }
+      ],
+      food: []
+    });
+
+    const next = stepWorld(state, createSeededPrng('hidden-propagation'), {
+      movementDelta: 10,
+      metabolismPerTick: 0,
+      movementCostMultiplier: 0,
+      foodSpawnChance: 0
+    });
+
+    const organism = next.organisms[0];
+    const hiddenNeuron = organism.brain.neurons.find((neuron) => neuron.id === 'hidden-1');
+    const outputNeuron = organism.brain.neurons.find((neuron) => neuron.id === 'out-forward');
+
+    expect(hiddenNeuron.activation).toBeGreaterThan(0);
+    expect(outputNeuron.activation).toBeGreaterThan(0);
+    expect(organism.x).toBeGreaterThan(0);
   });
 
   it('applies deterministic per-organism metabolism-based energy loss', () => {
@@ -1280,6 +1325,53 @@ describe('simulation engine skeleton', () => {
       expect(offspring1.traits.turnRate).toBe(offspring2.traits.turnRate);
       expect(offspring1.traits.metabolism).toBe(offspring2.traits.metabolism);
       expect(offspring1.traits.eggHatchTime).toBe(offspring2.traits.eggHatchTime);
+    });
+
+    it('can deterministically introduce hidden neurons during brain mutation', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          {
+            id: 'org-1',
+            x: 0,
+            y: 0,
+            energy: 100,
+            age: 0,
+            generation: 1,
+            direction: 0,
+            traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, metabolism: 0, eggHatchTime: 0 },
+            brain: {
+              neurons: [
+                { id: 'in-energy', type: 'input' },
+                { id: 'out-forward', type: 'output' }
+              ],
+              synapses: [
+                { id: 's1', sourceId: 'in-energy', targetId: 'out-forward', weight: 0.5 }
+              ]
+            }
+          }
+        ],
+        food: []
+      });
+
+      const result = runTicks(state, createSeededPrng('hidden-seed'), 1, {
+        reproductionThreshold: 80,
+        reproductionCost: 0,
+        offspringStartEnergy: 20,
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        foodSpawnChance: 0,
+        brainAddSynapseChance: 1,
+        brainRemoveSynapseChance: 0,
+        brainMutationRate: 1,
+        brainMutationMagnitude: 0.5
+      });
+
+      const offspring = result.organisms.find((organism) => organism.id === 'org-2');
+
+      expect(offspring.brain.neurons.some((neuron) => neuron.type === 'hidden')).toBe(true);
+      expect(offspring.brain.synapses.some((synapse) => synapse.targetId.startsWith('hidden-'))).toBe(true);
     });
 
     it('scales food collection radius with organism visible size (deterministic)', () => {

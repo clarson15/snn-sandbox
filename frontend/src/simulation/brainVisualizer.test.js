@@ -7,6 +7,7 @@ import {
   deriveBrainVisualizerLegend,
   deriveEmphasizedBrainGraphModel,
   deriveFilteredBrainGraphModel,
+  deriveBrainSignalPulseModel,
   mapBrainEmphasisChecksum,
   mapBrainLayoutChecksum,
   mapBrainToVisualizerModel,
@@ -435,6 +436,50 @@ describe('deriveFilteredBrainGraphModel', () => {
       sourceNeuronCount: 2
     });
     expect(mapBrainLayoutChecksum(first)).toBe(mapBrainLayoutChecksum(second));
+  });
+});
+
+describe('deriveBrainSignalPulseModel', () => {
+  it('derives deterministic pulse positions for active synapses', () => {
+    const model = mapBrainToVisualizerModel({
+      neurons: [
+        { id: 'in-energy', type: 'input', signal: 1 },
+        { id: 'hidden-1', type: 'hidden', activation: 0.5, signal: 0.5 },
+        { id: 'out-forward', type: 'output', activation: 0.5, signal: 0.5 }
+      ],
+      synapses: [
+        { id: 'syn-a', sourceId: 'in-energy', targetId: 'hidden-1', weight: 1 },
+        { id: 'syn-b', sourceId: 'hidden-1', targetId: 'out-forward', weight: 0.75 }
+      ]
+    });
+
+    const first = deriveBrainSignalPulseModel(model, 12);
+    const second = deriveBrainSignalPulseModel(structuredClone(model), 12);
+
+    expect(first).toEqual(second);
+    expect(first).toHaveLength(2);
+    expect(first[0]).toMatchObject({
+      edgeId: 'syn-a',
+      sourceId: 'in-energy',
+      targetId: 'hidden-1'
+    });
+    expect(first[0].x).toBeGreaterThan(120);
+    expect(first[0].x).toBeLessThan(300);
+    expect(first[0].signalStrength).toBeGreaterThan(0.08);
+  });
+
+  it('skips inactive synapses', () => {
+    const model = mapBrainToVisualizerModel({
+      neurons: [
+        { id: 'in-energy', type: 'input', signal: 0.01 },
+        { id: 'out-forward', type: 'output', activation: 0 }
+      ],
+      synapses: [
+        { id: 'syn-a', sourceId: 'in-energy', targetId: 'out-forward', weight: 0.5 }
+      ]
+    });
+
+    expect(deriveBrainSignalPulseModel(model, 4)).toEqual([]);
   });
 });
 

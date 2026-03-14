@@ -1,4 +1,5 @@
 import { createWorldState } from './engine.js';
+import { createNeuronDefinition, INPUT_NEURON_IDS, OUTPUT_NEURON_IDS } from './brainSchema.js';
 import { createSeededPrng } from './prng.js';
 
 export const STORAGE_KEY = 'snn-sandbox.latest-simulation-config';
@@ -356,26 +357,35 @@ export function normalizeSimulationConfig(input, resolvedSeed) {
 }
 
 function createInitialBrain(rng) {
+  const hiddenCount = rng.nextInt(0, 3);
+  const hiddenNeurons = Array.from({ length: hiddenCount }, (_, index) => createNeuronDefinition(
+    `hidden-${index + 1}`,
+    'hidden',
+    {
+      threshold: Number((0.7 + (rng.nextFloat() * 0.8)).toFixed(3)),
+      decay: Number((0.65 + (rng.nextFloat() * 0.25)).toFixed(3))
+    }
+  ));
   const neurons = [
-    { id: 'in-energy', type: 'input' },
-    { id: 'in-food-distance', type: 'input' },
-    { id: 'in-food-direction', type: 'input' },
-    { id: 'in-speed', type: 'input' },
-    { id: 'out-forward', type: 'output' },
-    { id: 'out-turn-left', type: 'output' },
-    { id: 'out-turn-right', type: 'output' }
+    ...INPUT_NEURON_IDS.map((id) => createNeuronDefinition(id, 'input')),
+    ...hiddenNeurons,
+    ...OUTPUT_NEURON_IDS.map((id) => createNeuronDefinition(id, 'output'))
   ];
 
-  const inputIds = neurons.filter((neuron) => neuron.type === 'input').map((neuron) => neuron.id);
-  const outputIds = neurons.filter((neuron) => neuron.type === 'output').map((neuron) => neuron.id);
-
-  const synapseCount = 1 + rng.nextInt(0, 3);
+  const inputIds = INPUT_NEURON_IDS;
+  const hiddenIds = hiddenNeurons.map((neuron) => neuron.id);
+  const targetIds = hiddenIds.length > 0 ? [...hiddenIds, ...OUTPUT_NEURON_IDS] : [...OUTPUT_NEURON_IDS];
+  const candidateSources = hiddenIds.length > 0 ? [...inputIds, ...hiddenIds] : [...inputIds];
+  const synapseCount = 2 + rng.nextInt(0, 5);
   const synapses = [];
   const usedPairs = new Set();
 
   while (synapses.length < synapseCount) {
-    const sourceId = inputIds[rng.nextInt(0, inputIds.length)];
-    const targetId = outputIds[rng.nextInt(0, outputIds.length)];
+    const sourceId = candidateSources[rng.nextInt(0, candidateSources.length)];
+    const targetId = targetIds[rng.nextInt(0, targetIds.length)];
+    if (sourceId === targetId) {
+      continue;
+    }
     const pairKey = `${sourceId}->${targetId}`;
 
     if (usedPairs.has(pairKey)) {
@@ -392,6 +402,8 @@ function createInitialBrain(rng) {
   }
 
   return {
+    schemaVersion: 2,
+    signalSubsteps: 2,
     neurons,
     synapses
   };

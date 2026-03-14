@@ -7,6 +7,8 @@
  * - No ambient randomness (Math.random / Date.now)
  */
 
+import { createNeuronDefinition, INPUT_NEURON_IDS, isInputNeuronId, isOutputNeuronId, OUTPUT_NEURON_IDS } from './brainSchema.js';
+
 /**
  * @typedef {object} WorldOrganism
  * @property {string} id
@@ -105,10 +107,290 @@
 export function createWorldState(initial = {}) {
   return {
     tick: initial.tick ?? 0,
-    organisms: initial.organisms ? initial.organisms.map((o) => ({ ...o })) : [],
+    organisms: initial.organisms ? initial.organisms.map((o) => ({
+      ...o,
+      traits: o?.traits ? { ...o.traits } : undefined,
+      genome: o?.genome ? { ...o.genome } : undefined,
+      brain: cloneBrain(o?.brain)
+    })) : [],
     food: initial.food ? initial.food.map((f) => ({ ...f })) : [],
     obstacles: initial.obstacles ? initial.obstacles.map((o) => ({ ...o })) : [],
     dangerZones: initial.dangerZones ? initial.dangerZones.map((d) => ({ ...d })) : []
+  };
+}
+
+const BRAIN_LAYER_ORDER = ['input', 'hidden', 'output'];
+const BRAIN_SIGNAL_SUBSTEPS = 2;
+const BRAIN_POTENTIAL_MIN = -4;
+const BRAIN_POTENTIAL_MAX = 4;
+const LEGACY_CONSTANT_INPUT_ID = 'in-constant';
+const NORMALIZED_BRAIN_VERSION = 2;
+const INCOMING_SYNAPSE_CACHE = new WeakMap();
+
+function cloneBrain(brain) {
+  if (!brain || typeof brain !== 'object') {
+    return brain;
+  }
+
+  return {
+    ...brain,
+    neurons: Array.isArray(brain.neurons) ? brain.neurons.map((neuron) => ({ ...neuron })) : [],
+    synapses: Array.isArray(brain.synapses) ? brain.synapses.map((synapse) => ({ ...synapse })) : []
+  };
+}
+
+function layerRank(type) {
+  const rank = BRAIN_LAYER_ORDER.indexOf(type);
+  return rank === -1 ? BRAIN_LAYER_ORDER.length : rank;
+}
+
+function compareNeurons(left, right) {
+  const rankDelta = layerRank(left.type) - layerRank(right.type);
+  if (rankDelta !== 0) {
+    return rankDelta;
+  }
+
+  return left.id.localeCompare(right.id);
+}
+
+function clampBrainPotential(value) {
+  return clamp(value, BRAIN_POTENTIAL_MIN, BRAIN_POTENTIAL_MAX);
+}
+
+function normalizeNeuronType(id, explicitType) {
+  if (explicitType === 'input' || explicitType === 'hidden' || explicitType === 'output') {
+    return explicitType;
+  }
+
+  if (id === LEGACY_CONSTANT_INPUT_ID) {
+    return 'input';
+  }
+
+  if (isInputNeuronId(id)) {
+    return 'input';
+  }
+
+  if (isOutputNeuronId(id)) {
+    return 'output';
+  }
+
+  return 'hidden';
+}
+
+function createNormalizedNeuron(source = {}) {
+  const id = String(source.id ?? '').trim();
+  const type = normalizeNeuronType(id, typeof source.type === 'string' ? source.type : undefined);
+  const base = createNeuronDefinition(id, type);
+  const threshold = Number(source.threshold);
+  const decay = Number(source.decay);
+  const resetPotential = Number(source.resetPotential);
+  const bias = Number(source.bias);
+  const potentialCandidate = Number(source.potential ?? source.value ?? source.state ?? 0);
+  const activationCandidate = Number(source.activation ?? source.signal ?? 0);
+  const explicitSpiked = source.spiked ?? source.isSpiking ?? source.fired;
+
+  return {
+    ...base,
+    ...source,
+    id,
+    type,
+    threshold: Number.isFinite(threshold) ? threshold : base.threshold,
+    decay: Number.isFinite(decay) ? decay : base.decay,
+    resetPotential: Number.isFinite(resetPotential) ? resetPotential : base.resetPotential,
+    bias: Number.isFinite(bias) ? bias : base.bias,
+    potential: Number.isFinite(potentialCandidate) ? clampBrainPotential(potentialCandidate) : 0,
+    value: Number.isFinite(potentialCandidate) ? clampBrainPotential(potentialCandidate) : 0,
+    activation: Number.isFinite(activationCandidate) ? activationCandidate : 0,
+    signal: Number.isFinite(activationCandidate) ? activationCandidate : 0,
+    spiked: typeof explicitSpiked === 'boolean' ? explicitSpiked : false
+  };
+}
+
+function normalizeBrain(organismBrain) {
+  if (
+    organismBrain?.schemaVersion === NORMALIZED_BRAIN_VERSION
+    && Array.isArray(organismBrain.neurons)
+    && Array.isArray(organismBrain.synapses)
+  ) {
+    return organismBrain;
+  }
+
+  const brain = organismBrain && typeof organismBrain === 'object' ? organismBrain : {};
+  const neurons = Array.isArray(brain.neurons) ? brain.neurons : [];
+  const synapses = Array.isArray(brain.synapses) ? brain.synapses : [];
+  const neuronById = new Map();
+
+  for (const inputId of INPUT_NEURON_IDS) {
+    neuronById.set(inputId, createNeuronDefinition(inputId, 'input'));
+  }
+
+  for (const outputId of OUTPUT_NEURON_IDS) {
+    neuronById.set(outputId, createNeuronDefinition(outputId, 'output'));
+  }
+
+  for (const neuron of neurons) {
+    if (!neuron || typeof neuron.id !== 'string' || neuron.id.trim().length === 0) {
+      continue;
+    }
+    neuronById.set(neuron.id, createNormalizedNeuron(neuron));
+  }
+
+  for (const synapse of synapses) {
+    const sourceId = typeof synapse?.sourceId === 'string' && synapse.sourceId.length > 0 ? synapse.sourceId : LEGACY_CONSTANT_INPUT_ID;
+    const targetId = typeof synapse?.targetId === 'string' ? synapse.targetId : null;
+    if (!targetId) {
+      continue;
+    }
+
+    if (!neuronById.has(sourceId)) {
+      neuronById.set(sourceId, createNeuronDefinition(sourceId, normalizeNeuronType(sourceId)));
+    }
+    if (!neuronById.has(targetId)) {
+      neuronById.set(targetId, createNeuronDefinition(targetId, normalizeNeuronType(targetId)));
+    }
+  }
+
+  const normalizedNeurons = [...neuronById.values()].sort(compareNeurons);
+  const normalizedSynapses = synapses
+    .filter((synapse) => synapse && typeof synapse.targetId === 'string')
+    .map((synapse, index) => ({
+      ...synapse,
+      sourceId: typeof synapse.sourceId === 'string' && synapse.sourceId.length > 0 ? synapse.sourceId : LEGACY_CONSTANT_INPUT_ID,
+      id: typeof synapse.id === 'string' && synapse.id.length > 0 ? synapse.id : `synapse-${index + 1}`,
+      weight: Number.isFinite(Number(synapse.weight)) ? Number(synapse.weight) : 0
+    }))
+    .filter((synapse) => neuronById.has(synapse.sourceId) && neuronById.has(synapse.targetId))
+    .sort((left, right) => left.id.localeCompare(right.id));
+
+  return {
+    ...brain,
+    schemaVersion: NORMALIZED_BRAIN_VERSION,
+    signalSubsteps: Number.isInteger(brain.signalSubsteps) && brain.signalSubsteps > 0 ? brain.signalSubsteps : BRAIN_SIGNAL_SUBSTEPS,
+    neurons: normalizedNeurons,
+    synapses: normalizedSynapses
+  };
+}
+
+function buildIncomingSynapseMap(synapses) {
+  if (INCOMING_SYNAPSE_CACHE.has(synapses)) {
+    return INCOMING_SYNAPSE_CACHE.get(synapses);
+  }
+
+  const incoming = new Map();
+
+  for (const synapse of synapses) {
+    if (!incoming.has(synapse.targetId)) {
+      incoming.set(synapse.targetId, []);
+    }
+    incoming.get(synapse.targetId).push(synapse);
+  }
+
+  INCOMING_SYNAPSE_CACHE.set(synapses, incoming);
+  return incoming;
+}
+
+function evaluateBrain(organism, food, worldWidth, worldHeight) {
+  const normalizedBrain = normalizeBrain(organism?.brain);
+  const inputValues = computeInputNeuronValues(organism, food, worldWidth, worldHeight);
+  const incomingSynapses = buildIncomingSynapseMap(normalizedBrain.synapses);
+  const dynamicNeurons = normalizedBrain.neurons.filter((neuron) => neuron.type !== 'input');
+  const nextNeuronById = new Map();
+  const dynamicSpikeState = new Map();
+  const outputSignals = new Map();
+  const spikeCounts = new Map();
+
+  for (const neuron of normalizedBrain.neurons) {
+    const inputValue = inputValues.get(neuron.id);
+    if (neuron.type === 'input') {
+      const resolvedInput = neuron.id === LEGACY_CONSTANT_INPUT_ID
+        ? 1
+        : Number.isFinite(inputValue) ? inputValue : 0;
+      nextNeuronById.set(neuron.id, {
+        ...neuron,
+        potential: resolvedInput,
+        value: resolvedInput,
+        activation: resolvedInput,
+        signal: resolvedInput,
+        spiked: resolvedInput >= neuron.threshold
+      });
+    } else {
+      nextNeuronById.set(neuron.id, {
+        ...neuron,
+        activation: 0,
+        signal: 0
+      });
+      dynamicSpikeState.set(neuron.id, neuron.spiked ? 1 : 0);
+      spikeCounts.set(neuron.id, 0);
+    }
+  }
+
+  for (const outputId of OUTPUT_NEURON_IDS) {
+    outputSignals.set(outputId, 0);
+  }
+
+  for (let substep = 0; substep < normalizedBrain.signalSubsteps; substep += 1) {
+    const sourceSignals = new Map();
+    for (const neuron of normalizedBrain.neurons) {
+      if (neuron.type === 'input') {
+        sourceSignals.set(neuron.id, nextNeuronById.get(neuron.id)?.signal ?? 0);
+        continue;
+      }
+
+      sourceSignals.set(neuron.id, dynamicSpikeState.get(neuron.id) ?? 0);
+    }
+
+    const nextSpikeState = new Map();
+    for (const neuron of dynamicNeurons) {
+      const currentNeuron = nextNeuronById.get(neuron.id);
+      const synapseInputs = incomingSynapses.get(neuron.id) ?? [];
+      const incomingCurrent = synapseInputs.reduce((sum, synapse) => {
+        return sum + (sourceSignals.get(synapse.sourceId) ?? 0) * synapse.weight;
+      }, 0);
+      const integratedPotential = clampBrainPotential(
+        (currentNeuron.potential * currentNeuron.decay) + currentNeuron.bias + incomingCurrent
+      );
+      const didSpike = integratedPotential >= currentNeuron.threshold;
+      const nextPotential = didSpike ? currentNeuron.resetPotential : integratedPotential;
+      const count = (spikeCounts.get(neuron.id) ?? 0) + (didSpike ? 1 : 0);
+
+      spikeCounts.set(neuron.id, count);
+      nextSpikeState.set(neuron.id, didSpike ? 1 : 0);
+      nextNeuronById.set(neuron.id, {
+        ...currentNeuron,
+        potential: nextPotential,
+        value: nextPotential,
+        spiked: didSpike
+      });
+    }
+
+    for (const [neuronId, spikeValue] of nextSpikeState.entries()) {
+      dynamicSpikeState.set(neuronId, spikeValue);
+    }
+  }
+
+  for (const neuron of dynamicNeurons) {
+    const currentNeuron = nextNeuronById.get(neuron.id);
+    const activation = (spikeCounts.get(neuron.id) ?? 0) / normalizedBrain.signalSubsteps;
+    const nextNeuron = {
+      ...currentNeuron,
+      activation,
+      signal: activation
+    };
+    nextNeuronById.set(neuron.id, nextNeuron);
+
+    if (neuron.type === 'output') {
+      outputSignals.set(neuron.id, activation);
+    }
+  }
+
+  return {
+    brain: {
+      ...normalizedBrain,
+      schemaVersion: NORMALIZED_BRAIN_VERSION,
+      neurons: normalizedBrain.neurons.map((neuron) => nextNeuronById.get(neuron.id))
+    },
+    outputs: outputSignals,
+    inputs: inputValues
   };
 }
 
@@ -271,10 +553,16 @@ function computeInputNeuronValues(organism, food, worldWidth, worldHeight) {
   return inputs;
 }
 
-function deriveRotationDelta(organism, inputValues = null) {
+function deriveRotationDelta(organism, outputSignals = null, inputValues = null) {
   const turnRate = Number(organism?.traits?.turnRate ?? 0);
   if (!Number.isFinite(turnRate) || turnRate === 0) {
     return 0;
+  }
+
+  if (outputSignals instanceof Map) {
+    const leftSignal = Number(outputSignals.get('out-turn-left') ?? 0);
+    const rightSignal = Number(outputSignals.get('out-turn-right') ?? 0);
+    return (rightSignal - leftSignal) * turnRate;
   }
 
   const synapses = Array.isArray(organism?.brain?.synapses) ? organism.brain.synapses : [];
@@ -309,10 +597,20 @@ function deriveRotationDelta(organism, inputValues = null) {
   return (rightSignal - leftSignal) * turnRate;
 }
 
-function deriveForwardDelta(organism, inputValues = null) {
+function deriveForwardDelta(organism, outputSignals = null, inputValues = null) {
   const speed = Number(resolveExpressedTraits(organism).speed ?? 1);
   if (!Number.isFinite(speed) || speed === 0) {
     return 0;
+  }
+
+  if (outputSignals instanceof Map) {
+    const forwardSignal = Number(
+      outputSignals.get('out-forward')
+      ?? outputSignals.get('out-move-forward')
+      ?? outputSignals.get('out-move')
+      ?? 0
+    );
+    return Math.max(0, Math.min(1, forwardSignal)) * speed;
   }
 
   const synapses = Array.isArray(organism?.brain?.synapses) ? organism.brain.synapses : [];
@@ -346,7 +644,7 @@ function deriveForwardDelta(organism, inputValues = null) {
   return Math.max(-1, Math.min(1, forwardSignal)) * speed;
 }
 
-function moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMultiplier, inputValues = null) {
+function moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMultiplier, outputSignals = null, inputValues = null) {
   const expressedTraits = resolveExpressedTraits(organism);
   // Use organism's metabolism trait for deterministic energy loss, fallback to param for backward compatibility
   const organismMetabolism = Number.isFinite(expressedTraits.metabolism)
@@ -356,7 +654,7 @@ function moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMul
   const movementCostScale = Number.isFinite(expressedTraits.movementCostScale) ? expressedTraits.movementCostScale : 1;
   const energySpent = organismMetabolism + movementDistance * movementCostMultiplier * movementCostScale;
   const baseDirection = organism.direction ?? 0;
-  const rotationDelta = deriveRotationDelta(organism, inputValues);
+  const rotationDelta = deriveRotationDelta(organism, outputSignals, inputValues);
   const direction = normalizeAngle(baseDirection + rotationDelta);
 
   return {
@@ -633,6 +931,31 @@ function mutateTraits(parentTraits, rng, mutationRate, mutationMagnitude) {
   return mutatedTraits;
 }
 
+function createBrainSynapseId(synapses) {
+  let nextId = synapses.length + 1;
+  let candidate = `syn-${nextId}`;
+
+  while (synapses.some((synapse) => synapse.id === candidate)) {
+    nextId += 1;
+    candidate = `syn-${nextId}`;
+  }
+
+  return candidate;
+}
+
+function createHiddenNeuronId(neurons) {
+  let nextId = 1;
+  const usedIds = new Set(neurons.map((neuron) => neuron.id));
+  let candidate = `hidden-${nextId}`;
+
+  while (usedIds.has(candidate)) {
+    nextId += 1;
+    candidate = `hidden-${nextId}`;
+  }
+
+  return candidate;
+}
+
 /**
  * Apply deterministic mutations to offspring brain (synapses).
  * @param {object} parentBrain - brain object from parent organism
@@ -644,51 +967,119 @@ function mutateTraits(parentTraits, rng, mutationRate, mutationMagnitude) {
  * @returns {object} mutated brain
  */
 function mutateBrain(parentBrain, rng, mutationRate, mutationMagnitude, addSynapseChance, removeSynapseChance) {
-  if (!parentBrain || !parentBrain.synapses) {
-    // Create empty brain with possibility of adding initial synapses
-    const brain = { synapses: [] };
-    // Chance to add initial synapse
-    if (rng.nextFloat() < addSynapseChance * 3) {
-      brain.synapses.push({
-        sourceId: 'in-energy',
-        targetId: 'out-turn-left',
-        weight: (rng.nextFloat() * 2 - 1) * mutationMagnitude
-      });
+  const baseBrain = normalizeBrain(parentBrain);
+  const neurons = baseBrain.neurons.map((neuron) => ({ ...neuron }));
+  let synapses = baseBrain.synapses.map((synapse) => ({ ...synapse }));
+
+  const hiddenNeurons = () => neurons.filter((neuron) => neuron.type === 'hidden');
+
+  for (const neuron of neurons) {
+    if (neuron.type === 'input') {
+      continue;
     }
-    return brain;
+
+    if (rng.nextFloat() < mutationRate) {
+      neuron.threshold = Math.max(0.2, Number((neuron.threshold + ((rng.nextFloat() * 2 - 1) * mutationMagnitude)).toFixed(3)));
+    }
+    if (rng.nextFloat() < mutationRate) {
+      neuron.decay = clamp(Number((neuron.decay + ((rng.nextFloat() * 2 - 1) * mutationMagnitude * 0.5)).toFixed(3)), 0, 0.99);
+    }
+    if (rng.nextFloat() < mutationRate) {
+      neuron.bias = clampBrainPotential(Number((neuron.bias + ((rng.nextFloat() * 2 - 1) * mutationMagnitude * 0.35)).toFixed(3)));
+    }
   }
 
-  // Copy synapses
-  let synapses = parentBrain.synapses.map((s) => ({ ...s }));
+  const addHiddenChance = Math.min(1, addSynapseChance * 0.8);
+  if (rng.nextFloat() < addHiddenChance) {
+    const hiddenId = createHiddenNeuronId(neurons);
+    const hiddenNeuron = createNeuronDefinition(hiddenId, 'hidden', {
+      threshold: Number((0.6 + (rng.nextFloat() * 0.9)).toFixed(3)),
+      decay: Number((0.55 + (rng.nextFloat() * 0.35)).toFixed(3))
+    });
+    neurons.push(hiddenNeuron);
 
-  // Remove synapses with probability
+    const sourceCandidates = neurons
+      .filter((neuron) => neuron.id !== hiddenId && neuron.type !== 'output')
+      .map((neuron) => neuron.id);
+    const targetCandidates = neurons
+      .filter((neuron) => neuron.id !== hiddenId && neuron.type !== 'input')
+      .map((neuron) => neuron.id);
+
+    if (sourceCandidates.length > 0) {
+      synapses.push({
+        id: createBrainSynapseId(synapses),
+        sourceId: sourceCandidates[rng.nextInt(0, sourceCandidates.length)],
+        targetId: hiddenId,
+        weight: Number((((rng.nextFloat() * 2) - 1) * Math.max(0.25, mutationMagnitude)).toFixed(3))
+      });
+    }
+
+    if (targetCandidates.length > 0) {
+      synapses.push({
+        id: createBrainSynapseId(synapses),
+        sourceId: hiddenId,
+        targetId: targetCandidates[rng.nextInt(0, targetCandidates.length)],
+        weight: Number((((rng.nextFloat() * 2) - 1) * Math.max(0.25, mutationMagnitude)).toFixed(3))
+      });
+    }
+  }
+
+  const removableHiddenNeurons = hiddenNeurons();
+  const removeHiddenChance = Math.min(1, removeSynapseChance * 0.6);
+  if (removableHiddenNeurons.length > 0 && rng.nextFloat() < removeHiddenChance) {
+    const neuronToRemove = removableHiddenNeurons[rng.nextInt(0, removableHiddenNeurons.length)];
+    const neuronIndex = neurons.findIndex((neuron) => neuron.id === neuronToRemove.id);
+    if (neuronIndex >= 0) {
+      neurons.splice(neuronIndex, 1);
+      synapses = synapses.filter((synapse) => synapse.sourceId !== neuronToRemove.id && synapse.targetId !== neuronToRemove.id);
+    }
+  }
+
   if (removeSynapseChance > 0 && synapses.length > 0) {
     synapses = synapses.filter(() => rng.nextFloat() >= removeSynapseChance);
   }
 
-  // Mutate existing synapse weights
   for (const synapse of synapses) {
     if (rng.nextFloat() < mutationRate) {
       const weightMutation = (rng.nextFloat() * 2 - 1) * mutationMagnitude;
-      synapse.weight += weightMutation;
+      synapse.weight = Number((synapse.weight + weightMutation).toFixed(3));
     }
   }
 
-  // Add new synapses with probability
   if (rng.nextFloat() < addSynapseChance) {
-    // Add a new synapse with random source/target
-    const possibleSources = ['in-energy', 'in-age', 'in-x', 'in-y', 'in-direction', 'in-size', 'in-speed'];
-    const possibleTargets = ['out-turn-left', 'out-turn-right', 'out-forward'];
-    const sourceId = possibleSources[Math.floor(rng.nextFloat() * possibleSources.length)];
-    const targetId = possibleTargets[Math.floor(rng.nextFloat() * possibleTargets.length)];
-    synapses.push({
-      sourceId,
-      targetId,
-      weight: (rng.nextFloat() * 2 - 1) * mutationMagnitude
-    });
+    const possibleSources = neurons.filter((neuron) => neuron.type !== 'output').map((neuron) => neuron.id);
+    const possibleTargets = neurons.filter((neuron) => neuron.type !== 'input').map((neuron) => neuron.id);
+    if (possibleSources.length > 0 && possibleTargets.length > 0) {
+      let attempts = 0;
+      while (attempts < 12) {
+        const sourceId = possibleSources[rng.nextInt(0, possibleSources.length)];
+        const targetId = possibleTargets[rng.nextInt(0, possibleTargets.length)];
+        const pairExists = synapses.some((synapse) => synapse.sourceId === sourceId && synapse.targetId === targetId);
+        attempts += 1;
+
+        if (sourceId === targetId || pairExists) {
+          continue;
+        }
+
+        synapses.push({
+          id: createBrainSynapseId(synapses),
+          sourceId,
+          targetId,
+          weight: Number((((rng.nextFloat() * 2) - 1) * Math.max(0.25, mutationMagnitude)).toFixed(3))
+        });
+        break;
+      }
+    }
   }
 
-  return { ...parentBrain, synapses };
+  const nextBrain = normalizeBrain({
+    ...baseBrain,
+    signalSubsteps: baseBrain.signalSubsteps,
+    neurons,
+    synapses
+  });
+
+  return nextBrain;
 }
 
 /**
@@ -740,18 +1131,38 @@ export function stepWorld(state, rng, params = {}) {
   }
 
   const movedOrganisms = activeOrganisms.map((organism) => {
-    // Compute input neuron values based on organism state and environment
-    const inputValues = computeInputNeuronValues(organism, state.food, worldWidth, worldHeight);
+    if (!organism?.brain) {
+      return moveAndSpendEnergy(
+        { ...organism, direction: organism.direction ?? 0 },
+        0,
+        0,
+        metabolismPerTick,
+        movementCostMultiplier
+      );
+    }
 
+    const brainEvaluation = evaluateBrain(organism, state.food, worldWidth, worldHeight);
     const baseDirection = organism.direction ?? 0;
-    const rotationDelta = deriveRotationDelta(organism, inputValues);
+    const rotationDelta = deriveRotationDelta(organism, brainEvaluation.outputs, brainEvaluation.inputs);
     const direction = normalizeAngle(baseDirection + rotationDelta);
-    const forwardDelta = deriveForwardDelta(organism, inputValues);
+    const forwardDelta = deriveForwardDelta(organism, brainEvaluation.outputs, brainEvaluation.inputs);
     const boundedForwardDelta = Math.max(-movementDelta, Math.min(movementDelta, forwardDelta));
     const dx = Math.cos(direction) * boundedForwardDelta;
     const dy = Math.sin(direction) * boundedForwardDelta;
 
-    return moveAndSpendEnergy({ ...organism, direction: baseDirection }, dx, dy, metabolismPerTick, movementCostMultiplier, inputValues);
+    return moveAndSpendEnergy(
+      {
+        ...organism,
+        brain: brainEvaluation.brain,
+        direction: baseDirection
+      },
+      dx,
+      dy,
+      metabolismPerTick,
+      movementCostMultiplier,
+      brainEvaluation.outputs,
+      brainEvaluation.inputs
+    );
   });
 
   // Stable iteration ordering for deterministic food consumption.
@@ -1347,7 +1758,7 @@ export function createTickSnapshot(state, params = {}) {
       incubationAge: o.incubationAge,
       traits: { ...o.traits },
       genome: o.genome ? { ...o.genome } : undefined,
-      brain: o.brain ? { ...o.brain } : undefined
+      brain: cloneBrain(o.brain)
     })),
     food: state.food.map((f) => ({
       id: f.id,
