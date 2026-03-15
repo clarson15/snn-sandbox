@@ -8,7 +8,13 @@ const DETERMINISTIC_PARAMETER_KEYS = [
   'initialFoodCount',
   'foodSpawnChance',
   'foodEnergyValue',
-  'maxFood'
+  'maxFood',
+  'reproductionThreshold',
+  'reproductionCost',
+  'offspringStartEnergy',
+  'reproductionMinimumAge',
+  'reproductionRefractoryPeriod',
+  'maximumOrganismAge'
 ];
 
 function toPositiveNumber(value) {
@@ -34,10 +40,21 @@ function normalizeParameters(parameters) {
     initialFoodCount: toPositiveNumber(parameters.initialFoodCount),
     foodSpawnChance: toProbability(parameters.foodSpawnChance),
     foodEnergyValue: toPositiveNumber(parameters.foodEnergyValue),
-    maxFood: toPositiveNumber(parameters.maxFood)
+    maxFood: toPositiveNumber(parameters.maxFood),
+    reproductionThreshold: toPositiveNumber(parameters.reproductionThreshold),
+    reproductionCost: toNonNegativeNumber(parameters.reproductionCost),
+    offspringStartEnergy: toNonNegativeNumber(parameters.offspringStartEnergy),
+    reproductionMinimumAge: toNonNegativeNumber(parameters.reproductionMinimumAge),
+    reproductionRefractoryPeriod: toNonNegativeNumber(parameters.reproductionRefractoryPeriod),
+    maximumOrganismAge: toPositiveNumber(parameters.maximumOrganismAge)
   };
 
   return Object.values(normalized).some((value) => value === null) ? null : normalized;
+}
+
+function toNonNegativeNumber(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric >= 0 ? numeric : null;
 }
 
 export function validateReplayComparisonPreset(payload) {

@@ -10,7 +10,13 @@ const DETERMINISTIC_PARAM_RULES = [
   ['foodEnergyValue', 1, 100],
   ['maxFood', 1, 2000],
   ['mutationRate', 0, 1],
-  ['mutationStrength', 0, 1]
+  ['mutationStrength', 0, 1],
+  ['reproductionThreshold', 1, 200],
+  ['reproductionCost', 0, 200],
+  ['offspringStartEnergy', 0, 200],
+  ['reproductionMinimumAge', 0, 5000],
+  ['reproductionRefractoryPeriod', 0, 5000],
+  ['maximumOrganismAge', 1, 10000]
 ];
 
 export const SHARE_QUERY_PARAM_ORDER = ['seed', ...DETERMINISTIC_PARAM_RULES.map(([key]) => key)];

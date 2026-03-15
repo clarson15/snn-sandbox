@@ -6,20 +6,32 @@ describe('deriveInspectorTraitSections', () => {
   it('returns deterministic section composition and trait ordering', () => {
     const formattedInspector = {
       id: 'org-7',
+      lifeStage: 'egg',
       parentId: 'org-3',
       offspringCount: '2',
       generation: '7',
       age: '14',
+      incubationAge: '3.000',
       energy: '10.000',
       position: '(12.000, 8.000)',
       size: '1.100',
       speed: '2.200',
+      adolescenceAge: '48.000',
+      eggHatchTime: '6.000',
+      birthMode: 'Egg-laying',
+      maturationPeriod: '48.000',
       turnRate: '0.300',
       visionRange: '42.000',
       nearestFoodDistance: '9.000',
       metabolism: '0.100',
       neuronCount: '5',
+      inputNeuronCount: '2',
+      hiddenNeuronCount: '1',
+      outputNeuronCount: '2',
       synapseCount: '8'
+      ,
+      inputBindings: 'Energy sensor, Food distance sensor',
+      outputBindings: 'Forward movement actuator, Turn left actuator'
     };
 
     const first = deriveInspectorTraitSections(formattedInspector);
@@ -38,9 +50,9 @@ describe('deriveInspectorTraitSections', () => {
     ]);
 
     expect(first.map((section) => section.fields.map((field) => field.key))).toEqual([
-      ['id', 'parentId', 'offspringCount', 'generation', 'age', 'energy'],
-      ['position', 'size', 'speed', 'turnRate', 'visionRange', 'nearestFoodDistance', 'metabolism'],
-      ['neuronCount', 'synapseCount']
+      ['id', 'lifeStage', 'parentId', 'offspringCount', 'generation', 'age', 'incubationAge', 'energy'],
+      ['position', 'size', 'speed', 'adolescenceAge', 'eggHatchTime', 'turnRate', 'visionRange', 'nearestFoodDistance', 'metabolism'],
+      ['birthMode', 'maturationPeriod', 'eggHatchTime', 'neuronCount', 'inputNeuronCount', 'hiddenNeuronCount', 'outputNeuronCount', 'synapseCount', 'inputBindings', 'outputBindings']
     ]);
   });
 

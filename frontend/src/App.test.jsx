@@ -36,6 +36,18 @@ function ensureWritableLocalStorage() {
   });
 }
 
+function getSimulationStatsHud() {
+  return screen.getByRole('region', { name: /simulation stats hud/i });
+}
+
+function queryRunControlSaveStatus() {
+  return within(getSimulationStatsHud()).queryByText(/^save status:/i);
+}
+
+function getRunControlSaveStatus(label) {
+  return within(getSimulationStatsHud()).getByText(new RegExp(`^save status: ${label}$`, 'i'));
+}
+
 describe('App', () => {
   let clipboardWriteText;
 
@@ -66,6 +78,14 @@ describe('App', () => {
     });
 
     vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
+      if (url === '/api/status' && (!options.method || options.method === 'GET')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ version: 'test-version', environment: 'test' })
+        };
+      }
+
       if (url === '/api/simulations/snapshots' && (!options.method || options.method === 'GET')) {
         return {
           ok: true,
@@ -168,7 +188,39 @@ describe('App', () => {
     ).toBeInTheDocument();
 
     expect(screen.getByRole('button', { name: /start simulation/i })).toBeInTheDocument();
+    expect(screen.getByText(/artificial life sandbox/i)).toBeInTheDocument();
+    expect(screen.getByText(/grow strange ecosystems, watch them adapt, and shape what happens next/i)).toBeInTheDocument();
+    expect(screen.getByText(/start a simulation to populate the world/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /quick start defaults/i })).toBeInTheDocument();
     expect(screen.getByText(/leave blank to generate a seed once at start/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/max life \(ticks\)/i)).toHaveValue(1000);
+  });
+
+  it('uses the resolved app version in the about dialog', async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: /about/i }));
+
+    const aboutDialog = screen.getByRole('dialog', { name: /about/i });
+    await waitFor(() => {
+      expect(within(aboutDialog).getByText(/version: test-version/i)).toBeInTheDocument();
+    });
+  });
+
+  it('quick starts a default simulation from the empty state', async () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/simulation name/i), { target: { value: 'Custom setup' } });
+    fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '1200' } });
+    fireEvent.click(screen.getByRole('button', { name: /quick start defaults/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText(/start a simulation to populate the world/i)).not.toBeInTheDocument();
+      expect(within(getSimulationStatsHud()).getByText(/^seed:/i)).not.toHaveTextContent('Seed unavailable');
+    });
+
+    expect(screen.getByLabelText(/simulation name/i)).toHaveValue('New Simulation');
+    expect(screen.getByLabelText(/world width/i)).toHaveValue(1920);
   });
 
   it('prefills seed from URL query parameter when provided', () => {
@@ -205,7 +257,7 @@ describe('App', () => {
     expect(screen.getByLabelText(/world height/i)).toHaveValue(640);
     expect(screen.getByLabelText(/initial population/i)).toHaveValue(33);
     expect(screen.getByLabelText(/minimum population/i)).toHaveValue(21);
-    expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: No active simulation');
+    expect(within(getSimulationStatsHud()).getByText(/^seed:/i)).toHaveTextContent('Seed: Seed unavailable');
 
     window.history.replaceState({}, '', '/');
   });
@@ -216,7 +268,7 @@ describe('App', () => {
     render(<App />);
 
     expect(screen.getByText(/some shared link values were missing or invalid/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/world width/i)).toHaveValue(800);
+    expect(screen.getByLabelText(/world width/i)).toHaveValue(1920);
 
     fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '900' } });
     expect(screen.queryByText(/some shared link values were missing or invalid/i)).not.toBeInTheDocument();
@@ -248,7 +300,7 @@ describe('App', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /use url seed/i }));
 
-    expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: shared-seed-42');
+    expect(within(getSimulationStatsHud()).getByText(/^seed:/i)).toHaveTextContent('Seed: shared-seed-42');
     expect(screen.queryByRole('button', { name: /use url seed/i })).not.toBeInTheDocument();
 
     window.history.replaceState({}, '', '/');
@@ -266,7 +318,7 @@ describe('App', () => {
 
     expect(screen.getByLabelText(/simulation name/i)).toHaveValue('New Simulation');
     expect(screen.getByLabelText(/^seed \(optional\)$/i)).toHaveValue('');
-    expect(screen.getByLabelText(/world width/i)).toHaveValue(800);
+    expect(screen.getByLabelText(/world width/i)).toHaveValue(1920);
     expect(screen.getByLabelText(/mutation rate/i)).toHaveValue(0.05);
   });
 
@@ -306,7 +358,7 @@ describe('App', () => {
     fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '900' } });
     expect(screen.getByText(/unsaved setup changes in: worldWidth\./i)).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '800' } });
+    fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '1920' } });
     expect(screen.queryByText(/unsaved setup changes in:/i)).not.toBeInTheDocument();
   });
 
@@ -348,27 +400,26 @@ describe('App', () => {
   it('shows deterministic save-status badge transitions and hides badge with no active run', async () => {
     render(<App />);
 
-    expect(screen.queryByText(/^save status:/i)).not.toBeInTheDocument();
+    expect(queryRunControlSaveStatus()).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'status-seed' } });
     fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/^save status: saved$/i)).toBeInTheDocument();
+      expect(getRunControlSaveStatus('saved')).toBeInTheDocument();
     });
 
     await waitFor(() => {
       expect(Number.parseInt(screen.getByText(/^tick count:/i).textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(0);
     });
 
-    expect(screen.getByText(/^save status: unsaved$/i)).toBeInTheDocument();
+    expect(getRunControlSaveStatus('unsaved')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
     fireEvent.click(screen.getByRole('button', { name: /save snapshot/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/^save status: saved$/i)).toBeInTheDocument();
-      expect(screen.getByText(/^last saved tick:/i)).toHaveTextContent(/\d+/i);
+      expect(getRunControlSaveStatus('saved')).toBeInTheDocument();
     });
   });
 
@@ -379,9 +430,7 @@ describe('App', () => {
     fireEvent.click(within(savedRegion).getByRole('button', { name: /^resume$/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/^save status: saved$/i)).toBeInTheDocument();
-      expect(screen.getByText(/^last saved tick: 0$/i)).toBeInTheDocument();
-      expect(screen.getByText(/^last saved at:/i)).toBeInTheDocument();
+      expect(getRunControlSaveStatus('saved')).toBeInTheDocument();
     });
 
 
@@ -485,7 +534,7 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/^save status: unsaved$/i)).toBeInTheDocument();
+      expect(getRunControlSaveStatus('unsaved')).toBeInTheDocument();
     });
 
     fireEvent.change(screen.getByLabelText(/^save as$/i), { target: { value: 'Branch snapshot' } });
@@ -493,7 +542,7 @@ describe('App', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/^active snapshot: branch snapshot/i)).toBeInTheDocument();
-      expect(screen.getByText(/^save status: saved$/i)).toBeInTheDocument();
+      expect(getRunControlSaveStatus('saved')).toBeInTheDocument();
     });
 
     const saveAsPostCall = global.fetch.mock.calls.find(
@@ -511,7 +560,7 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/^save status: unsaved$/i)).toBeInTheDocument();
+      expect(getRunControlSaveStatus('unsaved')).toBeInTheDocument();
     });
 
     fireEvent.change(screen.getByLabelText(/^save as$/i), { target: { value: 'Fixture snapshot' } });
@@ -589,7 +638,7 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/^save status: unsaved$/i)).toBeInTheDocument();
+      expect(getRunControlSaveStatus('unsaved')).toBeInTheDocument();
       expect(screen.getByText(/fixture snapshot \(copy 1\)/i)).toBeInTheDocument();
     });
 
@@ -668,7 +717,7 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
 
     expect(screen.getByText(/resolved seed:/i)).toHaveTextContent('explicit-seed-77');
-    expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: explicit-seed-77');
+    expect(within(getSimulationStatsHud()).getByText(/^seed:/i)).toHaveTextContent('Seed: explicit-seed-77');
 
     await waitFor(() => {
       const saved = loadSimulationConfig();
@@ -684,7 +733,7 @@ describe('App', () => {
     });
   });
 
-  it('shows active seed controls and supports copy/regenerate/restart interactions', async () => {
+  it('supports regenerate and restart interactions from the simplified action strip', async () => {
     let regenerateCounter = 0;
 
     vi.spyOn(globalThis.crypto, 'getRandomValues').mockImplementation((array) => {
@@ -697,33 +746,20 @@ describe('App', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
 
-    expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: 1b207');
-    const controlsRegion = screen.getByRole('region', { name: /simulation controls/i });
-    expect(within(controlsRegion).getByRole('button', { name: /copy seed/i })).toBeInTheDocument();
+    expect(within(getSimulationStatsHud()).getByText(/^seed:/i)).toHaveTextContent('Seed: 1b207');
+    expect(screen.queryByRole('button', { name: /copy seed/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /copy share link/i })).not.toBeInTheDocument();
 
     const tickNode = screen.getByText(/^tick count:/i);
     await waitFor(() => {
       expect(Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(0);
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /copy seed/i }));
-
-    await waitFor(() => {
-      expect(clipboardWriteText).toHaveBeenCalledWith('1b207');
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: /copy share link/i }));
-    await waitFor(() => {
-      expect(clipboardWriteText).toHaveBeenCalledWith(
-        expect.stringContaining('?seed=1b207&worldWidth=800&worldHeight=480&initialPopulation=12&minimumPopulation=12&initialFoodCount=30&foodSpawnChance=0.04&foodEnergyValue=5&maxFood=120&mutationRate=0.05&mutationStrength=0.1')
-      );
-    });
-
     fireEvent.click(screen.getByRole('button', { name: /new run with same seed/i }));
     expect(window.confirm).toHaveBeenCalledWith(
       'You have unsaved simulation progress. Restarting now will reset to tick 0 and keep the current seed. Continue?'
     );
-    expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: 1b207');
+    expect(within(getSimulationStatsHud()).getByText(/^seed:/i)).toHaveTextContent('Seed: 1b207');
     expect(tickNode).toHaveTextContent('Tick count: 0');
 
     await waitFor(() => {
@@ -734,21 +770,8 @@ describe('App', () => {
     expect(window.confirm).toHaveBeenCalledWith(
       'You have unsaved simulation progress. Regenerating will create a new seed and reset to tick 0. Continue?'
     );
-    expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: 3640e');
+    expect(within(getSimulationStatsHud()).getByText(/^seed:/i)).toHaveTextContent('Seed: 3640e');
     expect(tickNode).toHaveTextContent('Tick count: 0');
-  });
-
-  it('shows recoverable feedback when copy seed clipboard write fails', async () => {
-    clipboardWriteText.mockRejectedValueOnce(new Error('clipboard denied'));
-
-    render(<App />);
-
-    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
-    fireEvent.click(screen.getByRole('button', { name: /copy seed/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/failed to copy seed\./i)).toBeInTheDocument();
-    });
   });
 
   it('cancels restart and regenerate flows when unsaved-progress confirmation is declined', async () => {
@@ -772,12 +795,12 @@ describe('App', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: /new run with same seed/i }));
-    expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: 51615');
+    expect(within(getSimulationStatsHud()).getByText(/^seed:/i)).toHaveTextContent('Seed: 51615');
     expect(Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(0);
     expect(screen.getByText(/new run cancelled\./i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /regenerate seed \+ restart/i }));
-    expect(screen.getByText(/^active seed:/i)).toHaveTextContent('Active seed: 51615');
+    expect(within(getSimulationStatsHud()).getByText(/^seed:/i)).toHaveTextContent('Seed: 51615');
     expect(Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(0);
     expect(screen.getByText(/seed regeneration cancelled\./i)).toBeInTheDocument();
   });
@@ -2561,13 +2584,8 @@ describe('App', () => {
     expect(screen.getByText(/^tick budget clamp:/i)).toHaveTextContent('Tick budget clamp: Inactive');
   });
 
-  it('renders deterministic seed/tick in stats HUD and reports copy feedback', async () => {
+  it('renders deterministic seed, playback speed, and tick state in the stats HUD', async () => {
     vi.useFakeTimers();
-    const clipboardWriteText = vi.fn().mockResolvedValue();
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: { writeText: clipboardWriteText }
-    });
 
     render(<App />);
     fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'hud-seed' } });
@@ -2581,11 +2599,8 @@ describe('App', () => {
       vi.advanceTimersByTime(110);
     });
     expect(Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10)).toBeGreaterThan(0);
-
-    fireEvent.click(screen.getByRole('button', { name: /copy seed/i }));
-    await act(async () => {});
-    expect(clipboardWriteText).toHaveBeenCalledWith('hud-seed');
-    expect(screen.getByText(/seed copied\./i)).toBeInTheDocument();
+    expect(within(statsHud).getByRole('group', { name: /speed presets/i })).toBeInTheDocument();
+    expect(within(statsHud).getByText(/^tick:/i)).toHaveTextContent('runtime state: running at 1x');
 
     vi.useRealTimers();
   });
@@ -2875,6 +2890,60 @@ describe('App', () => {
     fireEvent.change(screen.getByLabelText(/highlight strongest synapse count/i), { target: { value: '2' } });
 
     expect(screen.getByLabelText(/brain graph emphasis checksum/i)).toHaveTextContent(expectedChecksum);
+  });
+
+  it('renders output neuron tooltips to the left of the node', () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/seed/i), { target: { value: 'fixture-seed' } });
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    const fixtureConfig = normalizeSimulationConfig(
+      {
+        name: 'Fixture',
+        seed: 'fixture-seed',
+        worldWidth: 800,
+        worldHeight: 480,
+        initialPopulation: 12,
+        initialFoodCount: 30,
+        foodSpawnChance: 0.04,
+        foodEnergyValue: 5,
+        maxFood: 120
+      },
+      'fixture-seed'
+    );
+    const fixtureWorld = createInitialWorldFromConfig(fixtureConfig);
+    const firstTarget = fixtureWorld.organisms[0];
+    const mappedBrain = mapBrainToVisualizerModel(firstTarget.brain);
+    const outputNeuron = mappedBrain.nodes.find((node) => node.type === 'output');
+
+    expect(outputNeuron).toBeTruthy();
+
+    const canvas = screen.getByLabelText(/simulation world/i);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 800,
+      height: 480,
+      right: 800,
+      bottom: 480,
+      toJSON: () => ({})
+    });
+
+    fireEvent.click(canvas, { clientX: firstTarget.x, clientY: firstTarget.y });
+
+    const outputNeuronCircle = screen.getByLabelText(`Neuron ${outputNeuron.id}, type: output`);
+    fireEvent.mouseEnter(outputNeuronCircle);
+
+    const tooltipText = screen.getByText(outputNeuron.displayLabel);
+
+    expect(tooltipText).toHaveAttribute('text-anchor', 'start');
+    expect(tooltipText.parentElement).toHaveAttribute(
+      'transform',
+      `translate(${outputNeuron.x - 168}, ${outputNeuron.y - 6})`
+    );
   });
 
   it.skip('supports deterministic neuron filters and pinned path metadata in brain visualizer', () => {

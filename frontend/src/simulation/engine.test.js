@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createSeededPrng } from './prng';
-import { createWorldState, runTickSchedule, runTicks, stepWorld } from './engine';
+import { createWorldState, resolveExpressedTraits, runTickSchedule, runTicks, stepWorld } from './engine';
 
 const baseState = createWorldState({
   tick: 0,
@@ -116,7 +116,7 @@ function stepWorldWithLegacyFoodLookup(state, rng, params = {}) {
       ...organism,
       x: organism.x + dx,
       y: organism.y + dy,
-      age: organism.age + 1,
+      age: (organism.age ?? 0) + 1,
       direction,
       energy: Math.max(0, organism.energy - energySpent)
     };
@@ -660,7 +660,7 @@ describe('simulation engine skeleton', () => {
           id: 'org-rotate-right',
           x: 10,
           y: 10,
-          energy: 20,
+          energy: 100, // Full energy = input value of 1.0
           age: 0,
           generation: 1,
           direction: 0.5,
@@ -681,7 +681,54 @@ describe('simulation engine skeleton', () => {
       foodSpawnChance: 0
     });
 
-    expect(next.organisms[0].direction).toBeCloseTo(0.62, 10);
+    // Under the SNN update loop, the output neuron spikes on every other tick
+    // for this setup, yielding 0.05 radians of rightward rotation over 3 ticks.
+    expect(next.organisms[0].direction).toBeCloseTo(0.55, 3);
+  });
+
+  it('propagates spikes through hidden neurons within the deterministic SNN substeps', () => {
+    const state = createWorldState({
+      tick: 0,
+      organisms: [
+        {
+          id: 'org-hidden-path',
+          x: 0,
+          y: 0,
+          energy: 100,
+          age: 0,
+          generation: 1,
+          direction: 0,
+          traits: { size: 1, speed: 2, visionRange: 20, turnRate: 0.1, metabolism: 0 },
+          brain: {
+            neurons: [
+              { id: 'in-energy', type: 'input' },
+              { id: 'hidden-1', type: 'hidden', threshold: 1, decay: 0, potential: 0 },
+              { id: 'out-forward', type: 'output', threshold: 1, decay: 0, potential: 0 }
+            ],
+            synapses: [
+              { id: 'syn-input-hidden', sourceId: 'in-energy', targetId: 'hidden-1', weight: 1 },
+              { id: 'syn-hidden-output', sourceId: 'hidden-1', targetId: 'out-forward', weight: 1 }
+            ]
+          }
+        }
+      ],
+      food: []
+    });
+
+    const next = stepWorld(state, createSeededPrng('hidden-propagation'), {
+      movementDelta: 10,
+      metabolismPerTick: 0,
+      movementCostMultiplier: 0,
+      foodSpawnChance: 0
+    });
+
+    const organism = next.organisms[0];
+    const hiddenNeuron = organism.brain.neurons.find((neuron) => neuron.id === 'hidden-1');
+    const outputNeuron = organism.brain.neurons.find((neuron) => neuron.id === 'out-forward');
+
+    expect(hiddenNeuron.activation).toBeGreaterThan(0);
+    expect(outputNeuron.activation).toBeGreaterThan(0);
+    expect(organism.x).toBeGreaterThan(0);
   });
 
   it('applies deterministic per-organism metabolism-based energy loss', () => {
@@ -802,12 +849,68 @@ describe('simulation engine skeleton', () => {
     expect(result.organisms[0].energy).toBeCloseTo(48.5, 1); // 50 - (0.15 * 10) = 48.5
   });
 
+  it('scales juvenile size, speed, and energy use until adolescence age', () => {
+    const juvenile = {
+      id: 'org-juvenile',
+      x: 0,
+      y: 0,
+      energy: 20,
+      age: 0,
+      generation: 1,
+      direction: 0,
+      traits: {
+        size: 2,
+        speed: 4,
+        visionRange: 10,
+        turnRate: 0.05,
+        metabolism: 1,
+        adolescenceAge: 10
+      },
+      brain: { synapses: [{ targetId: 'out-forward', weight: 1 }] }
+    };
+    const adult = {
+      ...juvenile,
+      id: 'org-adult',
+      age: 10
+    };
+
+    expect(resolveExpressedTraits(juvenile)).toMatchObject({
+      size: 1.1,
+      speed: 5,
+      metabolism: 0.6
+    });
+    expect(resolveExpressedTraits(adult)).toMatchObject({
+      size: 2,
+      speed: 4,
+      metabolism: 1
+    });
+
+    const result = stepWorld(createWorldState({
+      tick: 0,
+      organisms: [juvenile, adult],
+      food: []
+    }), createSeededPrng('adolescence-traits'), {
+      movementDelta: 10,
+      metabolismPerTick: 0,
+      movementCostMultiplier: 1,
+      foodSpawnChance: 0
+    });
+
+    const nextJuvenile = result.organisms.find((organism) => organism.id === 'org-juvenile');
+    const nextAdult = result.organisms.find((organism) => organism.id === 'org-adult');
+
+    expect(nextJuvenile.x).toBeCloseTo(5);
+    expect(nextAdult.x).toBeCloseTo(4);
+    expect(nextJuvenile.energy).toBeCloseTo(15.65);
+    expect(nextAdult.energy).toBeCloseTo(15);
+  });
+
   describe('deterministic reproduction', () => {
     it('reproduces when energy exceeds threshold', () => {
       const state = createWorldState({
         tick: 0,
         organisms: [
-          { id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05 }, brain: { synapses: [] } }
+          { id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, eggHatchTime: 0 }, brain: { synapses: [] } }
         ],
         food: []
       });
@@ -836,6 +939,112 @@ describe('simulation engine skeleton', () => {
       const offspring = result.organisms.find(o => o.id === 'org-2');
       expect(offspring.generation).toBe(2);
       expect(offspring.energy).toBe(20);
+      expect(offspring.lifeStage).toBeUndefined();
+    });
+
+    it('lays eggs that hatch after the inherited hatch time', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          {
+            id: 'org-1',
+            x: 50,
+            y: 50,
+            energy: 100,
+            age: 10,
+            generation: 1,
+            direction: 0,
+            traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, metabolism: 0, eggHatchTime: 2 },
+            brain: { synapses: [] }
+          }
+        ],
+        food: []
+      });
+
+      const params = {
+        reproductionThreshold: 80,
+        reproductionCost: 30,
+        offspringStartEnergy: 20,
+        reproductionMinimumAge: 0,
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        foodSpawnChance: 0,
+        traitMutationRate: 0
+      };
+
+      const afterLay = runTicks(state, createSeededPrng('egg-lay'), 1, params);
+      const egg = afterLay.organisms.find((organism) => organism.id === 'org-2');
+      expect(egg.lifeStage).toBe('egg');
+      expect(egg.incubationAge).toBe(0);
+      expect(afterLay.organisms.find((organism) => organism.id === 'org-1').energy).toBe(69);
+
+      const afterOneMoreTick = runTicks(afterLay, createSeededPrng('egg-lay-hatch'), 1, {
+        ...params,
+        reproductionThreshold: Infinity
+      });
+      expect(afterOneMoreTick.organisms.find((organism) => organism.id === 'org-2').lifeStage).toBe('egg');
+      expect(afterOneMoreTick.organisms.find((organism) => organism.id === 'org-2').incubationAge).toBe(1);
+
+      const afterHatch = runTicks(afterOneMoreTick, createSeededPrng('egg-lay-hatch-2'), 1, {
+        ...params,
+        reproductionThreshold: Infinity
+      });
+      const hatchling = afterHatch.organisms.find((organism) => organism.id === 'org-2');
+      expect(hatchling.lifeStage).toBeUndefined();
+      expect(hatchling.incubationAge).toBeUndefined();
+      expect(hatchling.age).toBe(0);
+      expect(hatchling.energy).toBe(20);
+    });
+
+    it('charges more energy for longer egg incubation than live birth', () => {
+      const baseOrganism = {
+        id: 'org-1',
+        x: 50,
+        y: 50,
+        energy: 100,
+        age: 10,
+        generation: 1,
+        direction: 0,
+        brain: { synapses: [] }
+      };
+
+      const params = {
+        reproductionThreshold: 80,
+        reproductionCost: 30,
+        offspringStartEnergy: 20,
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        foodSpawnChance: 0,
+        traitMutationRate: 0
+      };
+
+      const liveBirth = runTicks(createWorldState({
+        tick: 0,
+        organisms: [
+          {
+            ...baseOrganism,
+            traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, metabolism: 0, eggHatchTime: 0 }
+          }
+        ],
+        food: []
+      }), createSeededPrng('live-birth-cost'), 1, params);
+
+      const eggBirth = runTicks(createWorldState({
+        tick: 0,
+        organisms: [
+          {
+            ...baseOrganism,
+            traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, metabolism: 0, eggHatchTime: 4 }
+          }
+        ],
+        food: []
+      }), createSeededPrng('egg-birth-cost'), 1, params);
+
+      expect(liveBirth.organisms.find((organism) => organism.id === 'org-1').energy).toBe(70);
+      expect(eggBirth.organisms.find((organism) => organism.id === 'org-1').energy).toBe(68);
+      expect(eggBirth.organisms.find((organism) => organism.id === 'org-2').lifeStage).toBe('egg');
     });
 
     it('does not reproduce when energy is below threshold', () => {
@@ -863,6 +1072,108 @@ describe('simulation engine skeleton', () => {
       // Should still have only 1 organism
       expect(result.organisms).toHaveLength(1);
       expect(result.organisms[0].energy).toBe(50);
+    });
+
+    it('does not reproduce before the minimum reproduction age', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 50, y: 50, energy: 100, age: 4, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05 }, brain: { synapses: [] } }
+        ],
+        food: []
+      });
+
+      const params = {
+        reproductionThreshold: 80,
+        reproductionCost: 30,
+        offspringStartEnergy: 20,
+        reproductionMinimumAge: 10,
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        foodSpawnChance: 0
+      };
+
+      const result = runTicks(state, createSeededPrng('repro-age-gate'), 1, params);
+
+      expect(result.organisms).toHaveLength(1);
+      expect(result.organisms[0].age).toBe(5);
+    });
+
+    it('enforces a refractory period between reproduction events', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          {
+            id: 'org-1',
+            x: 50,
+            y: 50,
+            energy: 100,
+            age: 30,
+            generation: 1,
+            direction: 0,
+            lastReproductionTick: 0,
+            traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, metabolism: 0 },
+            brain: { synapses: [] }
+          }
+        ],
+        food: []
+      });
+
+      const params = {
+        reproductionThreshold: 80,
+        reproductionCost: 0,
+        offspringStartEnergy: 20,
+        reproductionMinimumAge: 10,
+        reproductionRefractoryPeriod: 3,
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        foodSpawnChance: 0
+      };
+
+      const result = runTicks(state, createSeededPrng('repro-refractory'), 2, params);
+
+      expect(result.organisms).toHaveLength(1);
+
+      const afterCooldown = runTicks(result, createSeededPrng('repro-refractory-2'), 1, params);
+      expect(afterCooldown.organisms).toHaveLength(2);
+      expect(afterCooldown.organisms.find((organism) => organism.id === 'org-1').lastReproductionTick).toBe(3);
+    });
+
+    it('removes organisms that exceed the maximum age before reproduction', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          {
+            id: 'org-1',
+            x: 50,
+            y: 50,
+            energy: 100,
+            age: 4,
+            generation: 1,
+            direction: 0,
+            traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, metabolism: 0 },
+            brain: { synapses: [] }
+          }
+        ],
+        food: []
+      });
+
+      const params = {
+        reproductionThreshold: 80,
+        reproductionCost: 0,
+        offspringStartEnergy: 20,
+        maximumOrganismAge: 4,
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        foodSpawnChance: 0
+      };
+
+      const result = runTicks(state, createSeededPrng('max-age-death'), 1, params);
+
+      expect(result.organisms).toHaveLength(0);
     });
 
     it('produces deterministic reproduction with same seed', () => {
@@ -899,8 +1210,8 @@ describe('simulation engine skeleton', () => {
         tick: 0,
         organisms: [
           { 
-            id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1, direction: 0, 
-            traits: { size: 2, speed: 3, visionRange: 15, turnRate: 0.1, metabolism: 0.2 }, 
+            id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1, direction: 0, color: '#3366cc',
+            traits: { size: 2, speed: 3, visionRange: 15, turnRate: 0.1, metabolism: 0.2, eggHatchTime: 0 },
             brain: { synapses: [{ sourceId: 'in-energy', targetId: 'out-turn-left', weight: 0.5 }] } 
           }
         ],
@@ -925,6 +1236,8 @@ describe('simulation engine skeleton', () => {
       // Traits should be inherited
       expect(offspring.traits.size).toBe(2);
       expect(offspring.traits.speed).toBe(3);
+      expect(offspring.traits.eggHatchTime).toBe(0);
+      expect(offspring.color).toBe('#3366cc');
       
       // Brain should be inherited
       expect(offspring.brain.synapses).toHaveLength(1);
@@ -937,7 +1250,7 @@ describe('simulation engine skeleton', () => {
         organisms: [
           { 
             id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1, direction: 0, 
-            traits: { size: 2, speed: 3, visionRange: 15, turnRate: 0.1, metabolism: 0.2 }, 
+            traits: { size: 2, speed: 3, visionRange: 15, turnRate: 0.1, metabolism: 0.2, eggHatchTime: 3 },
             brain: { synapses: [] } 
           }
         ],
@@ -969,6 +1282,8 @@ describe('simulation engine skeleton', () => {
       expect(offspring.traits.size).toBeLessThanOrEqual(2.5);
       expect(offspring.traits.speed).toBeGreaterThanOrEqual(2.5);
       expect(offspring.traits.speed).toBeLessThanOrEqual(3.5);
+      expect(offspring.traits.eggHatchTime).toBeGreaterThanOrEqual(2.5);
+      expect(offspring.traits.eggHatchTime).toBeLessThanOrEqual(3.5);
     });
 
     it('produces deterministic trait mutation with same seed', () => {
@@ -977,7 +1292,7 @@ describe('simulation engine skeleton', () => {
         organisms: [
           { 
             id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1, direction: 0, 
-            traits: { size: 2, speed: 3, visionRange: 15, turnRate: 0.1, metabolism: 0.2 }, 
+            traits: { size: 2, speed: 3, visionRange: 15, turnRate: 0.1, metabolism: 0.2, eggHatchTime: 3 },
             brain: { synapses: [] } 
           }
         ],
@@ -1009,6 +1324,54 @@ describe('simulation engine skeleton', () => {
       expect(offspring1.traits.visionRange).toBe(offspring2.traits.visionRange);
       expect(offspring1.traits.turnRate).toBe(offspring2.traits.turnRate);
       expect(offspring1.traits.metabolism).toBe(offspring2.traits.metabolism);
+      expect(offspring1.traits.eggHatchTime).toBe(offspring2.traits.eggHatchTime);
+    });
+
+    it('can deterministically introduce hidden neurons during brain mutation', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          {
+            id: 'org-1',
+            x: 0,
+            y: 0,
+            energy: 100,
+            age: 0,
+            generation: 1,
+            direction: 0,
+            traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, metabolism: 0, eggHatchTime: 0 },
+            brain: {
+              neurons: [
+                { id: 'in-energy', type: 'input' },
+                { id: 'out-forward', type: 'output' }
+              ],
+              synapses: [
+                { id: 's1', sourceId: 'in-energy', targetId: 'out-forward', weight: 0.5 }
+              ]
+            }
+          }
+        ],
+        food: []
+      });
+
+      const result = runTicks(state, createSeededPrng('hidden-seed'), 1, {
+        reproductionThreshold: 80,
+        reproductionCost: 0,
+        offspringStartEnergy: 20,
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        foodSpawnChance: 0,
+        brainAddSynapseChance: 1,
+        brainRemoveSynapseChance: 0,
+        brainMutationRate: 1,
+        brainMutationMagnitude: 0.5
+      });
+
+      const offspring = result.organisms.find((organism) => organism.id === 'org-2');
+
+      expect(offspring.brain.neurons.some((neuron) => neuron.type === 'hidden')).toBe(true);
+      expect(offspring.brain.synapses.some((synapse) => synapse.targetId.startsWith('hidden-'))).toBe(true);
     });
 
     it('scales food collection radius with organism visible size (deterministic)', () => {
@@ -1183,6 +1546,74 @@ describe('simulation engine skeleton', () => {
       expect(next).toHaveProperty('obstacles');
       expect(Array.isArray(next.dangerZones)).toBe(true);
       expect(Array.isArray(next.obstacles)).toBe(true);
+    });
+
+    it('removes organisms when energy reaches zero from hazard damage', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 50, y: 50, energy: 3, age: 0, generation: 1, direction: 0 }
+        ],
+        dangerZones: [
+          { x: 50, y: 50, radius: 10, damagePerTick: 2 }
+        ]
+      });
+
+      const rng = createSeededPrng('hazard-death-test');
+      let currentState = state;
+
+      // First tick: energy 3 - 2 = 1
+      currentState = stepWorld(currentState, rng, {
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0
+      });
+      expect(currentState.organisms.length).toBe(1);
+      expect(currentState.organisms[0].energy).toBe(1);
+
+      // Second tick: energy 1 - 2 = -1, organism dies and is removed
+      currentState = stepWorld(currentState, rng, {
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0
+      });
+      expect(currentState.organisms.length).toBe(0);
+    });
+
+    it('applies deterministic damage with same seed', () => {
+      const createState = () => createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1, direction: 0 }
+        ],
+        dangerZones: [
+          { x: 50, y: 50, radius: 10, damagePerTick: 1 }
+        ]
+      });
+
+      const rng1 = createSeededPrng('deterministic-hazard-seed');
+      let result1 = createState();
+      for (let i = 0; i < 10; i++) {
+        result1 = stepWorld(result1, rng1, {
+          movementDelta: 0,
+          metabolismPerTick: 0,
+          movementCostMultiplier: 0
+        });
+      }
+
+      const rng2 = createSeededPrng('deterministic-hazard-seed');
+      let result2 = createState();
+      for (let i = 0; i < 10; i++) {
+        result2 = stepWorld(result2, rng2, {
+          movementDelta: 0,
+          metabolismPerTick: 0,
+          movementCostMultiplier: 0
+        });
+      }
+
+      // Same seed + same params = identical results
+      expect(result1.organisms[0].energy).toBe(result2.organisms[0].energy);
+      expect(result1.organisms[0].energy).toBe(90); // 100 - (10 * 1)
     });
   });
 

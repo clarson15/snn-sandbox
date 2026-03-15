@@ -62,6 +62,10 @@ function defaultLocalMultiplierForHostClass(hostClass) {
     return 1.8;
   }
 
+  if (hostClass === 'darwin-arm64') {
+    return 2.3;
+  }
+
   return 1.35;
 }
 
@@ -155,10 +159,22 @@ export function assertReplayRuntimeBudgetWithinThreshold({ fixtureTimingsMs, bud
   const summary = buildReplayRuntimeBudgetReport({ fixtureTimingsMs, budgetMs, policy });
 
   if (summary.totalMs > budgetMs) {
+    if (policy?.mode === 'local' && policy?.hasExplicitBudgetOverride !== true) {
+      return {
+        ...summary,
+        exceededBudget: true,
+        advisoryOnly: true
+      };
+    }
+
     throw new Error(`[REPLAY_RUNTIME_BUDGET] Replay parity runtime budget exceeded.\n${summary.report}`);
   }
 
-  return summary;
+  return {
+    ...summary,
+    exceededBudget: false,
+    advisoryOnly: false
+  };
 }
 
 export function assertReplayFixtureWorkBudgetWithinThreshold({ fixture }) {

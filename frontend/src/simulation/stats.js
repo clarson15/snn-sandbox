@@ -17,15 +17,15 @@ function toNonNegativeInteger(value) {
 /**
  * Calculate genetic distance between two organisms based on trait differences.
  * Uses normalized Euclidean distance across all physical traits.
- * @param {object} o1 - First organism with traits {size, speed, visionRange, turnRate, metabolism}
+ * @param {object} o1 - First organism with traits {size, speed, adolescenceAge, eggHatchTime, visionRange, turnRate, metabolism}
  * @param {object} o2 - Second organism with traits
  * @returns {number} Distance between 0 and 1 (1 = max different)
  */
 function calculateGeneticDistance(o1, o2) {
-  const traits = ['size', 'speed', 'visionRange', 'turnRate', 'metabolism'];
+  const traits = ['size', 'speed', 'adolescenceAge', 'eggHatchTime', 'visionRange', 'turnRate', 'metabolism'];
 
   // Get trait ranges from typical values to normalize
-  const maxValues = { size: 5, speed: 5, visionRange: 20, turnRate: 1, metabolism: 1 };
+  const maxValues = { size: 5, speed: 5, adolescenceAge: 500, eggHatchTime: 10, visionRange: 20, turnRate: 1, metabolism: 1 };
 
   let squaredSum = 0;
   for (const trait of traits) {
@@ -102,6 +102,10 @@ export const STATS_TREND_DIRECTIONS = {
 const POPULATION_TREND_EPSILON = 0;
 const AVERAGE_ENERGY_TREND_EPSILON = 0.1;
 
+// Warning threshold for average organism energy
+// Below this level, organisms are at risk of dying from energy exhaustion
+const ENERGY_DEATH_WARNING_THRESHOLD = 5;
+
 export function deriveSimulationStats(worldState) {
   const organisms = Array.isArray(worldState?.organisms) ? worldState.organisms : [];
   const food = Array.isArray(worldState?.food) ? worldState.food : [];
@@ -117,6 +121,10 @@ export function deriveSimulationStats(worldState) {
   const tickCount = toNonNegativeInteger(worldState?.tick);
   const population = organisms.length;
   const speciesCount = countSpecies(organisms);
+  const averageEnergy = population ? totals.energy / population : 0;
+
+  // Warn when average energy is critically low - organisms at risk of dying
+  const energyDeathWarning = averageEnergy > 0 && averageEnergy < ENERGY_DEATH_WARNING_THRESHOLD;
 
   return {
     tickCount,
@@ -124,8 +132,9 @@ export function deriveSimulationStats(worldState) {
     population,
     foodCount: food.length,
     averageGeneration: population ? totals.generation / population : 0,
-    averageEnergy: population ? totals.energy / population : 0,
-    speciesCount
+    averageEnergy,
+    speciesCount,
+    energyDeathWarning
   };
 }
 
@@ -137,15 +146,17 @@ export function formatSimulationStats(stats) {
   const averageGeneration = toFiniteNumber(stats?.averageGeneration);
   const averageEnergy = toFiniteNumber(stats?.averageEnergy);
   const speciesCount = toNonNegativeInteger(stats?.speciesCount);
+  const energyDeathWarning = Boolean(stats?.energyDeathWarning);
 
   return {
-    tickCount: String(tickCount),
+    tickCount: String(tickCount).padStart(7, '\u00A0'),
     elapsedTime: `${elapsedSeconds.toFixed(1)}s`,
     population: String(population),
     foodCount: String(foodCount),
     averageGeneration: averageGeneration.toFixed(1),
     averageEnergy: averageEnergy.toFixed(1),
-    speciesCount: String(speciesCount)
+    speciesCount: String(speciesCount),
+    energyDeathWarning
   };
 }
 

@@ -18,6 +18,7 @@ describe('deriveNeuronDetailPanel', () => {
 
     expect(panel?.incomingSynapses.map((edge) => edge.id)).toEqual(['e-1', 'e-2']);
     expect(panel?.outgoingSynapses.map((edge) => edge.id)).toEqual(['e-3', 'e-4']);
+    expect(panel?.roleLabel).toBe('Hidden neuron n-2');
     expect(panel?.thresholdLabel).toBe('0.750');
     expect(panel?.currentPotentialLabel).toBe('0.800');
     expect(panel?.spikeStateLabel).toBe('Spiking');

@@ -7,6 +7,7 @@ import {
   deriveBrainVisualizerLegend,
   deriveEmphasizedBrainGraphModel,
   deriveFilteredBrainGraphModel,
+  deriveBrainSignalPulseModel,
   mapBrainEmphasisChecksum,
   mapBrainLayoutChecksum,
   mapBrainToVisualizerModel,
@@ -95,6 +96,12 @@ describe('mapBrainToVisualizerModel', () => {
     expect(mapped).not.toBeNull();
     expect(mapped.nodes.map((node) => node.id)).toEqual(['in-1', 'in-2', 'out-1', 'out-2']);
     expect(mapped.nodes.map((node) => node.value)).toEqual([0.5, -0.9, 0, -0.3]);
+    expect(mapped.nodes.map((node) => node.displayLabel)).toEqual([
+      'Input sensor (in-1)',
+      'Input sensor (in-2)',
+      'Output actuator (out-1)',
+      'Output actuator (out-2)'
+    ]);
     expect(mapped.nodes.map((node) => node.fillColor)).toEqual([
       mapNeuronValueToColor(0.5).cssColor,
       mapNeuronValueToColor(-0.9).cssColor,
@@ -213,6 +220,23 @@ describe('mapBrainToVisualizerModel', () => {
     expect(mapped).not.toBeNull();
     expect(mapped.nodes[0].value).toBe(0);
     expect(mapped.nodes[0].fillColor).toBe(mapNeuronValueToColor(0).cssColor);
+  });
+
+  it('preserves sensor and actuator binding labels for known neuron ids', () => {
+    const mapped = mapBrainToVisualizerModel({
+      neurons: [
+        { id: 'in-energy', type: 'input', value: 0.4 },
+        { id: 'out-turn-left', type: 'output', value: 0.2 }
+      ],
+      synapses: [
+        { id: 's-1', sourceId: 'in-energy', targetId: 'out-turn-left', weight: 0.5 }
+      ]
+    });
+
+    expect(mapped?.nodes.map((node) => node.displayLabel)).toEqual([
+      'Energy sensor',
+      'Turn left actuator'
+    ]);
   });
 
   it('returns null for empty or invalid brain data', () => {
@@ -412,6 +436,50 @@ describe('deriveFilteredBrainGraphModel', () => {
       sourceNeuronCount: 2
     });
     expect(mapBrainLayoutChecksum(first)).toBe(mapBrainLayoutChecksum(second));
+  });
+});
+
+describe('deriveBrainSignalPulseModel', () => {
+  it('derives deterministic pulse positions for active synapses', () => {
+    const model = mapBrainToVisualizerModel({
+      neurons: [
+        { id: 'in-energy', type: 'input', signal: 1 },
+        { id: 'hidden-1', type: 'hidden', activation: 0.5, signal: 0.5 },
+        { id: 'out-forward', type: 'output', activation: 0.5, signal: 0.5 }
+      ],
+      synapses: [
+        { id: 'syn-a', sourceId: 'in-energy', targetId: 'hidden-1', weight: 1 },
+        { id: 'syn-b', sourceId: 'hidden-1', targetId: 'out-forward', weight: 0.75 }
+      ]
+    });
+
+    const first = deriveBrainSignalPulseModel(model, 12);
+    const second = deriveBrainSignalPulseModel(structuredClone(model), 12);
+
+    expect(first).toEqual(second);
+    expect(first).toHaveLength(2);
+    expect(first[0]).toMatchObject({
+      edgeId: 'syn-a',
+      sourceId: 'in-energy',
+      targetId: 'hidden-1'
+    });
+    expect(first[0].x).toBeGreaterThan(120);
+    expect(first[0].x).toBeLessThan(300);
+    expect(first[0].signalStrength).toBeGreaterThan(0.08);
+  });
+
+  it('skips inactive synapses', () => {
+    const model = mapBrainToVisualizerModel({
+      neurons: [
+        { id: 'in-energy', type: 'input', signal: 0.01 },
+        { id: 'out-forward', type: 'output', activation: 0 }
+      ],
+      synapses: [
+        { id: 'syn-a', sourceId: 'in-energy', targetId: 'out-forward', weight: 0.5 }
+      ]
+    });
+
+    expect(deriveBrainSignalPulseModel(model, 4)).toEqual([]);
   });
 });
 

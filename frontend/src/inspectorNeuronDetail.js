@@ -1,3 +1,5 @@
+import { formatNeuronBindingLabel } from './neuronLabels';
+
 function compareSynapses(left, right) {
   const sourceDelta = left.sourceId.localeCompare(right.sourceId);
   if (sourceDelta !== 0) {
@@ -55,6 +57,7 @@ export function deriveNeuronDetailPanel(model, rawBrain, neuronId) {
   return {
     neuronId,
     role: neuron.type,
+    roleLabel: formatNeuronBindingLabel(neuron.id, neuron.type),
     incomingCount: incomingSynapses.length,
     outgoingCount: outgoingSynapses.length,
     thresholdLabel: formatMetricValue(thresholdValue),

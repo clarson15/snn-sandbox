@@ -1,8 +1,105 @@
 import { createWorldState } from './engine.js';
+import { createNeuronDefinition, INPUT_NEURON_IDS, OUTPUT_NEURON_IDS } from './brainSchema.js';
 import { createSeededPrng } from './prng.js';
 
 export const STORAGE_KEY = 'snn-sandbox.latest-simulation-config';
 export const SEED_FALLBACK_COUNTER_KEY = 'snn-sandbox.seed-fallback-counter';
+export const CUSTOM_PRESETS_KEY = 'snn-sandbox.custom-presets';
+
+/**
+ * Get all custom presets from localStorage
+ * @returns {Array} Array of custom preset objects
+ */
+export function getCustomPresets() {
+  const storage = getStorage();
+  if (!storage) {
+    return [];
+  }
+
+  try {
+    const raw = storage.getItem(CUSTOM_PRESETS_KEY);
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Save a custom preset to localStorage
+ * @param {string} name - Preset name
+ * @param {object} config - Configuration object
+ * @returns {boolean} Success status
+ */
+export function saveCustomPreset(name, config) {
+  const storage = getStorage();
+  if (!storage) {
+    return false;
+  }
+
+  const presets = getCustomPresets();
+  const now = Date.now();
+  
+  // Create preset object with required fields
+  const preset = {
+    id: `custom-${now}`,
+    name: name.trim(),
+    description: `Custom preset: ${name}`,
+    config: {
+      worldWidth: config.worldWidth,
+      worldHeight: config.worldHeight,
+      initialPopulation: config.initialPopulation,
+      minimumPopulation: config.minimumPopulation,
+      initialFoodCount: config.initialFoodCount,
+      foodSpawnChance: config.foodSpawnChance,
+      foodEnergyValue: config.foodEnergyValue,
+      maxFood: config.maxFood,
+      mutationRate: config.mutationRate,
+      mutationStrength: config.mutationStrength,
+      reproductionThreshold: config.reproductionThreshold,
+      reproductionCost: config.reproductionCost,
+      offspringStartEnergy: config.offspringStartEnergy,
+      reproductionMinimumAge: config.reproductionMinimumAge,
+      reproductionRefractoryPeriod: config.reproductionRefractoryPeriod,
+      maximumOrganismAge: config.maximumOrganismAge
+    },
+    createdAt: now
+  };
+
+  presets.push(preset);
+  
+  try {
+    storage.setItem(CUSTOM_PRESETS_KEY, JSON.stringify(presets));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Delete a custom preset by ID
+ * @param {string} presetId - ID of preset to delete
+ * @returns {boolean} Success status
+ */
+export function deleteCustomPreset(presetId) {
+  const storage = getStorage();
+  if (!storage) {
+    return false;
+  }
+
+  const presets = getCustomPresets();
+  const filtered = presets.filter(p => p.id !== presetId);
+  
+  try {
+    storage.setItem(CUSTOM_PRESETS_KEY, JSON.stringify(filtered));
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 // Simulation quick-start presets
 export const SIMULATION_PRESETS = [
@@ -124,16 +221,23 @@ export function applyPreset(presetId, baseConfig = {}) {
 export const DEFAULT_CONFIG = {
   name: 'New Simulation',
   seed: '',
-  worldWidth: 800,
-  worldHeight: 480,
-  initialPopulation: 12,
-  minimumPopulation: 12,
+  worldWidth: 1920,
+  worldHeight: 1080,
+  initialPopulation: 20,
+  minimumPopulation: 20,
   initialFoodCount: 30,
-  foodSpawnChance: 0.04,
-  foodEnergyValue: 5,
-  maxFood: 120,
+  foodSpawnChance: 0.1,
+  foodEnergyValue: 10,
+  maxFood: 450,
   mutationRate: 0.05,
   mutationStrength: 0.1,
+  // Reproduction settings
+  reproductionThreshold: 42,
+  reproductionCost: 20,
+  offspringStartEnergy: 15,
+  reproductionMinimumAge: 25,
+  reproductionRefractoryPeriod: 120,
+  maximumOrganismAge: 1000,
   // Environmental hazards
   enableObstacles: false,
   obstacleCount: 3,
@@ -186,6 +290,12 @@ export function validateSimulationConfig(input) {
     ['maxFood', 1, 2000, 'Max food must be between 1 and 2000.'],
     ['mutationRate', 0, 1, 'Mutation rate must be between 0 and 1.'],
     ['mutationStrength', 0, 1, 'Mutation strength must be between 0 and 1.'],
+    ['reproductionThreshold', 1, 200, 'Reproduction threshold must be between 1 and 200.'],
+    ['reproductionCost', 0, 200, 'Reproduction cost must be between 0 and 200.'],
+    ['offspringStartEnergy', 0, 200, 'Offspring start energy must be between 0 and 200.'],
+    ['reproductionMinimumAge', 0, 5000, 'Reproduction age must be between 0 and 5000.'],
+    ['reproductionRefractoryPeriod', 0, 5000, 'Reproduction refractory period must be between 0 and 5000.'],
+    ['maximumOrganismAge', 1, 10000, 'Maximum organism age must be between 1 and 10000.'],
     // Hazard validation
     ['obstacleCount', 0, 20, 'Obstacle count must be between 0 and 20.'],
     ['obstacleMinSize', 10, 200, 'Obstacle min size must be between 10 and 200.'],
@@ -228,6 +338,12 @@ export function normalizeSimulationConfig(input, resolvedSeed) {
     maxFood: Number(input.maxFood ?? DEFAULT_CONFIG.maxFood),
     mutationRate: Number(input.mutationRate ?? DEFAULT_CONFIG.mutationRate),
     mutationStrength: Number(input.mutationStrength ?? DEFAULT_CONFIG.mutationStrength),
+    reproductionThreshold: Number(input.reproductionThreshold ?? DEFAULT_CONFIG.reproductionThreshold),
+    reproductionCost: Number(input.reproductionCost ?? DEFAULT_CONFIG.reproductionCost),
+    offspringStartEnergy: Number(input.offspringStartEnergy ?? DEFAULT_CONFIG.offspringStartEnergy),
+    reproductionMinimumAge: Number(input.reproductionMinimumAge ?? DEFAULT_CONFIG.reproductionMinimumAge),
+    reproductionRefractoryPeriod: Number(input.reproductionRefractoryPeriod ?? DEFAULT_CONFIG.reproductionRefractoryPeriod),
+    maximumOrganismAge: Number(input.maximumOrganismAge ?? DEFAULT_CONFIG.maximumOrganismAge),
     // Environmental hazards
     enableObstacles: Boolean(input.enableObstacles ?? DEFAULT_CONFIG.enableObstacles),
     obstacleCount: Number(input.obstacleCount ?? DEFAULT_CONFIG.obstacleCount),
@@ -241,26 +357,35 @@ export function normalizeSimulationConfig(input, resolvedSeed) {
 }
 
 function createInitialBrain(rng) {
+  const hiddenCount = rng.nextInt(0, 3);
+  const hiddenNeurons = Array.from({ length: hiddenCount }, (_, index) => createNeuronDefinition(
+    `hidden-${index + 1}`,
+    'hidden',
+    {
+      threshold: Number((0.7 + (rng.nextFloat() * 0.8)).toFixed(3)),
+      decay: Number((0.65 + (rng.nextFloat() * 0.25)).toFixed(3))
+    }
+  ));
   const neurons = [
-    { id: 'in-energy', type: 'input' },
-    { id: 'in-food-distance', type: 'input' },
-    { id: 'in-food-direction', type: 'input' },
-    { id: 'in-speed', type: 'input' },
-    { id: 'out-forward', type: 'output' },
-    { id: 'out-turn-left', type: 'output' },
-    { id: 'out-turn-right', type: 'output' }
+    ...INPUT_NEURON_IDS.map((id) => createNeuronDefinition(id, 'input')),
+    ...hiddenNeurons,
+    ...OUTPUT_NEURON_IDS.map((id) => createNeuronDefinition(id, 'output'))
   ];
 
-  const inputIds = neurons.filter((neuron) => neuron.type === 'input').map((neuron) => neuron.id);
-  const outputIds = neurons.filter((neuron) => neuron.type === 'output').map((neuron) => neuron.id);
-
-  const synapseCount = 1 + rng.nextInt(0, 3);
+  const inputIds = INPUT_NEURON_IDS;
+  const hiddenIds = hiddenNeurons.map((neuron) => neuron.id);
+  const targetIds = hiddenIds.length > 0 ? [...hiddenIds, ...OUTPUT_NEURON_IDS] : [...OUTPUT_NEURON_IDS];
+  const candidateSources = hiddenIds.length > 0 ? [...inputIds, ...hiddenIds] : [...inputIds];
+  const synapseCount = 2 + rng.nextInt(0, 5);
   const synapses = [];
   const usedPairs = new Set();
 
   while (synapses.length < synapseCount) {
-    const sourceId = inputIds[rng.nextInt(0, inputIds.length)];
-    const targetId = outputIds[rng.nextInt(0, outputIds.length)];
+    const sourceId = candidateSources[rng.nextInt(0, candidateSources.length)];
+    const targetId = targetIds[rng.nextInt(0, targetIds.length)];
+    if (sourceId === targetId) {
+      continue;
+    }
     const pairKey = `${sourceId}->${targetId}`;
 
     if (usedPairs.has(pairKey)) {
@@ -277,17 +402,114 @@ function createInitialBrain(rng) {
   }
 
   return {
+    schemaVersion: 2,
+    signalSubsteps: 2,
     neurons,
     synapses
   };
 }
 
-function createRandomizedOrganism({ id, rng, worldWidth, worldHeight }) {
+function colorToRgb(color) {
+  const normalized = String(color ?? '').trim();
+  const match = /^#?([0-9a-f]{6})$/i.exec(normalized);
+  if (!match) {
+    return null;
+  }
+
+  const hex = match[1];
+  return {
+    r: Number.parseInt(hex.slice(0, 2), 16),
+    g: Number.parseInt(hex.slice(2, 4), 16),
+    b: Number.parseInt(hex.slice(4, 6), 16)
+  };
+}
+
+function rgbDistance(colorA, colorB) {
+  const rgbA = colorToRgb(colorA);
+  const rgbB = colorToRgb(colorB);
+  if (!rgbA || !rgbB) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  const dr = rgbA.r - rgbB.r;
+  const dg = rgbA.g - rgbB.g;
+  const db = rgbA.b - rgbB.b;
+  return Math.sqrt((dr * dr) + (dg * dg) + (db * db));
+}
+
+function hslToHex(hue, saturation, lightness) {
+  const normalizedHue = ((hue % 360) + 360) % 360;
+  const s = Math.max(0, Math.min(1, saturation));
+  const l = Math.max(0, Math.min(1, lightness));
+  const chroma = (1 - Math.abs((2 * l) - 1)) * s;
+  const segment = normalizedHue / 60;
+  const x = chroma * (1 - Math.abs((segment % 2) - 1));
+
+  let r1 = 0;
+  let g1 = 0;
+  let b1 = 0;
+
+  if (segment >= 0 && segment < 1) {
+    r1 = chroma;
+    g1 = x;
+  } else if (segment < 2) {
+    r1 = x;
+    g1 = chroma;
+  } else if (segment < 3) {
+    g1 = chroma;
+    b1 = x;
+  } else if (segment < 4) {
+    g1 = x;
+    b1 = chroma;
+  } else if (segment < 5) {
+    r1 = x;
+    b1 = chroma;
+  } else {
+    r1 = chroma;
+    b1 = x;
+  }
+
+  const matchLightness = l - (chroma / 2);
+  const toHexChannel = (value) => Math.round((value + matchLightness) * 255).toString(16).padStart(2, '0');
+  return `#${toHexChannel(r1)}${toHexChannel(g1)}${toHexChannel(b1)}`;
+}
+
+function createDistinctColorGenerator(seedOffset = 0, initialColors = []) {
+  const assignedColors = [...initialColors];
+  let sequenceIndex = 0;
+  const goldenAngle = 137.50776405003785;
+  const minDistance = 90;
+
+  return () => {
+    for (let attempt = 0; attempt < 256; attempt += 1) {
+      const hue = (seedOffset + ((sequenceIndex + attempt) * goldenAngle)) % 360;
+      const saturation = 0.68 + (((sequenceIndex + attempt) % 4) * 0.06);
+      const lightness = 0.48 + (((sequenceIndex + attempt) % 3) * 0.08);
+      const candidate = hslToHex(hue, Math.min(saturation, 0.9), Math.min(lightness, 0.72));
+      const isDistinct = assignedColors.every((existingColor) => rgbDistance(existingColor, candidate) >= minDistance);
+      if (!isDistinct) {
+        continue;
+      }
+
+      sequenceIndex += attempt + 1;
+      assignedColors.push(candidate);
+      return candidate;
+    }
+
+    const fallback = hslToHex((seedOffset + (sequenceIndex * goldenAngle)) % 360, 0.75, 0.58);
+    sequenceIndex += 1;
+    assignedColors.push(fallback);
+    return fallback;
+  };
+}
+
+function createRandomizedOrganism({ id, rng, worldWidth, worldHeight, color }) {
   return {
     id,
     x: rng.nextFloat() * worldWidth,
     y: rng.nextFloat() * worldHeight,
-    energy: 20,
+    color,
+    energy: 40,
     age: 0,
     generation: 1,
     direction: Number((rng.nextFloat() * Math.PI * 2).toFixed(6)),
@@ -296,7 +518,11 @@ function createRandomizedOrganism({ id, rng, worldWidth, worldHeight }) {
       speed: Number((0.8 + rng.nextFloat() * 1.6).toFixed(3)),
       visionRange: Number((25 + rng.nextFloat() * 90).toFixed(3)),
       turnRate: Number((0.03 + rng.nextFloat() * 0.09).toFixed(3)),
-      metabolism: Number((0.02 + rng.nextFloat() * 0.1).toFixed(3))
+      metabolism: Number((0.02 + rng.nextFloat() * 0.1).toFixed(3)),
+      adolescenceAge: Number((20 + rng.nextFloat() * 180).toFixed(3)),
+      eggHatchTime: rng.nextFloat() < 0.25
+        ? 0
+        : Number((1 + rng.nextFloat() * 7).toFixed(3))
     },
     brain: createInitialBrain(rng)
   };
@@ -304,12 +530,15 @@ function createRandomizedOrganism({ id, rng, worldWidth, worldHeight }) {
 
 export function createInitialWorldFromConfig(config) {
   const rng = createSeededPrng(`${config.resolvedSeed}:initial-world`);
+  const founderColorOffset = rng.nextFloat() * 360;
+  const nextFounderColor = createDistinctColorGenerator(founderColorOffset);
 
   const organisms = Array.from({ length: config.initialPopulation }, (_, index) => createRandomizedOrganism({
     id: `org-${index + 1}`,
     rng,
     worldWidth: config.worldWidth,
-    worldHeight: config.worldHeight
+    worldHeight: config.worldHeight,
+    color: nextFounderColor()
   }));
 
   const food = Array.from({ length: config.initialFoodCount }, (_, index) => ({
@@ -339,16 +568,20 @@ export function createInitialWorldFromConfig(config) {
 
   // Generate danger zones if enabled
   const dangerZones = [];
+  const hazardTypes = ['lava', 'acid', 'radiation'];
   if (config.enableDangerZones && config.dangerZoneCount > 0) {
     for (let i = 0; i < config.dangerZoneCount; i++) {
       const x = config.dangerZoneRadius + rng.nextFloat() * (config.worldWidth - 2 * config.dangerZoneRadius);
       const y = config.dangerZoneRadius + rng.nextFloat() * (config.worldHeight - 2 * config.dangerZoneRadius);
+      // Rotate through hazard types for visual variety
+      const type = hazardTypes[i % hazardTypes.length];
       dangerZones.push({
         id: `dangerzone-${i}`,
         x,
         y,
         radius: config.dangerZoneRadius,
-        damagePerTick: config.dangerZoneDamage
+        damagePerTick: config.dangerZoneDamage,
+        type
       });
     }
   }
@@ -363,7 +596,14 @@ export function createInitialWorldFromConfig(config) {
   });
 }
 
-export function toEngineStepParams(config) {
+export function toEngineStepParams(config, options = {}) {
+  const initialColors = Array.isArray(options.initialColors) ? options.initialColors : [];
+  const floorSpawnSeed = createSeededPrng(`${config.resolvedSeed}:floor-spawn-colors`);
+  const nextFloorSpawnColor = createDistinctColorGenerator(
+    floorSpawnSeed.nextFloat() * 360,
+    initialColors
+  );
+
   return {
     movementDelta: 1.5,
     metabolismPerTick: 0.05,
@@ -375,20 +615,30 @@ export function toEngineStepParams(config) {
     minimumPopulation: config.minimumPopulation,
     mutationRate: config.mutationRate,
     mutationStrength: config.mutationStrength,
+    reproductionThreshold: config.reproductionThreshold,
+    reproductionCost: config.reproductionCost,
+    offspringStartEnergy: config.offspringStartEnergy,
+    reproductionMinimumAge: config.reproductionMinimumAge,
+    reproductionRefractoryPeriod: config.reproductionRefractoryPeriod,
+    maximumOrganismAge: config.maximumOrganismAge,
     createFloorSpawnOrganism: (id, rng) => createRandomizedOrganism({
       id,
       rng,
       worldWidth: config.worldWidth,
-      worldHeight: config.worldHeight
+      worldHeight: config.worldHeight,
+      color: nextFloorSpawnColor()
     })
   };
 }
 
 export function createDeterministicRunBootstrap(config) {
+  const initialWorld = createInitialWorldFromConfig(config);
   return {
-    initialWorld: createInitialWorldFromConfig(config),
+    initialWorld,
     rng: createSeededPrng(config.resolvedSeed),
-    stepParams: toEngineStepParams(config)
+    stepParams: toEngineStepParams(config, {
+      initialColors: initialWorld.organisms.map((organism) => organism.color).filter(Boolean)
+    })
   };
 }
 
@@ -426,7 +676,13 @@ function sanitizeLoadedConfigDraft(parsed) {
     foodEnergyValue: [1, 100],
     maxFood: [1, 2000],
     mutationRate: [0, 1],
-    mutationStrength: [0, 1]
+    mutationStrength: [0, 1],
+    reproductionThreshold: [1, 200],
+    reproductionCost: [0, 200],
+    offspringStartEnergy: [0, 200],
+    reproductionMinimumAge: [0, 5000],
+    reproductionRefractoryPeriod: [0, 5000],
+    maximumOrganismAge: [1, 10000]
   };
 
   const resolvedSeed = typeof source.resolvedSeed === 'string' ? source.resolvedSeed.trim() : '';

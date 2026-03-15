@@ -3,6 +3,8 @@ import { formatFixed, INSPECTOR_PLACEHOLDER } from './inspectorFormatting';
 const TRAIT_DELTA_FIELDS = Object.freeze([
   Object.freeze({ key: 'size', label: 'size' }),
   Object.freeze({ key: 'speed', label: 'speed' }),
+  Object.freeze({ key: 'adolescenceAge', label: 'adolescence_age' }),
+  Object.freeze({ key: 'eggHatchTime', label: 'egg_hatch_time' }),
   Object.freeze({ key: 'turnRate', label: 'turn_rate' }),
   Object.freeze({ key: 'visionRange', label: 'vision_range' }),
   Object.freeze({ key: 'metabolism', label: 'metabolism' })

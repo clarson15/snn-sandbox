@@ -30,7 +30,8 @@ describe('simulation stats', () => {
       foodCount: 3,
       averageGeneration: 3,
       averageEnergy: 15.5555,
-      speciesCount: 1
+      speciesCount: 1,
+      energyDeathWarning: false
     });
 
     // Guard against accidental render-path mutation.
@@ -48,13 +49,14 @@ describe('simulation stats', () => {
     );
 
     expect(formatted).toEqual({
-      tickCount: '0',
+      tickCount: '\u00A0\u00A0\u00A0\u00A0\u00A0\u00A00',
       elapsedTime: '0.0s',
       population: '0',
       foodCount: '0',
       averageGeneration: '0.0',
       averageEnergy: '0.0',
-      speciesCount: '0'
+      speciesCount: '0',
+      energyDeathWarning: false
     });
   });
 
@@ -75,7 +77,8 @@ describe('simulation stats', () => {
       foodCount: 1,
       averageGeneration: 2.45,
       averageEnergy: -1.6,
-      speciesCount: 1
+      speciesCount: 1,
+      energyDeathWarning: false
     });
 
     expect(formatSimulationStats({
@@ -85,15 +88,17 @@ describe('simulation stats', () => {
       foodCount: 1.9,
       averageGeneration: Number.POSITIVE_INFINITY,
       averageEnergy: Number.NEGATIVE_INFINITY,
-      speciesCount: -1
+      speciesCount: -1,
+      energyDeathWarning: false
     })).toEqual({
-      tickCount: '0',
+      tickCount: '\u00A0\u00A0\u00A0\u00A0\u00A0\u00A00',
       elapsedTime: '0.0s',
       population: '0',
       foodCount: '1',
       averageGeneration: '0.0',
       averageEnergy: '0.0',
-      speciesCount: '0'
+      speciesCount: '0',
+      energyDeathWarning: false
     });
   });
 
@@ -160,8 +165,8 @@ describe('simulation stats', () => {
     const identicalOrganisms = {
       tick: 10,
       organisms: [
-        { id: 'o-1', traits: { size: 1, speed: 1, visionRange: 5, turnRate: 0.5, metabolism: 0.1 } },
-        { id: 'o-2', traits: { size: 1, speed: 1, visionRange: 5, turnRate: 0.5, metabolism: 0.1 } }
+        { id: 'o-1', traits: { size: 1, speed: 1, adolescenceAge: 40, visionRange: 5, turnRate: 0.5, metabolism: 0.1 } },
+        { id: 'o-2', traits: { size: 1, speed: 1, adolescenceAge: 40, eggHatchTime: 0, visionRange: 5, turnRate: 0.5, metabolism: 0.1 } }
       ],
       food: []
     };
@@ -171,8 +176,8 @@ describe('simulation stats', () => {
     const differentOrganisms = {
       tick: 10,
       organisms: [
-        { id: 'o-1', traits: { size: 1, speed: 1, visionRange: 5, turnRate: 0.5, metabolism: 0.1 } },
-        { id: 'o-2', traits: { size: 5, speed: 5, visionRange: 20, turnRate: 1, metabolism: 1 } }
+        { id: 'o-1', traits: { size: 1, speed: 1, adolescenceAge: 20, eggHatchTime: 0, visionRange: 5, turnRate: 0.5, metabolism: 0.1 } },
+        { id: 'o-2', traits: { size: 5, speed: 5, adolescenceAge: 400, eggHatchTime: 9, visionRange: 20, turnRate: 1, metabolism: 1 } }
       ],
       food: []
     };
@@ -182,9 +187,9 @@ describe('simulation stats', () => {
     const chainOrganisms = {
       tick: 10,
       organisms: [
-        { id: 'o-1', traits: { size: 1, speed: 1, visionRange: 5, turnRate: 0.5, metabolism: 0.1 } },
-        { id: 'o-2', traits: { size: 1.1, speed: 1.1, visionRange: 5.1, turnRate: 0.51, metabolism: 0.11 } },
-        { id: 'o-3', traits: { size: 1.2, speed: 1.2, visionRange: 5.2, turnRate: 0.52, metabolism: 0.12 } }
+        { id: 'o-1', traits: { size: 1, speed: 1, adolescenceAge: 40, eggHatchTime: 2, visionRange: 5, turnRate: 0.5, metabolism: 0.1 } },
+        { id: 'o-2', traits: { size: 1.1, speed: 1.1, adolescenceAge: 42, eggHatchTime: 2.2, visionRange: 5.1, turnRate: 0.51, metabolism: 0.11 } },
+        { id: 'o-3', traits: { size: 1.2, speed: 1.2, adolescenceAge: 44, eggHatchTime: 2.4, visionRange: 5.2, turnRate: 0.52, metabolism: 0.12 } }
       ],
       food: []
     };

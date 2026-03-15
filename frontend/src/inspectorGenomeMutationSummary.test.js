@@ -13,7 +13,7 @@ describe('deriveInspectorGenomeMutationSummaryModel', () => {
     const selected = {
       id: 'founder-1',
       generation: 0,
-      traits: { size: 1, speed: 1, visionRange: 1, turnRate: 1, metabolism: 1 },
+      traits: { size: 1, speed: 1, adolescenceAge: 40, eggHatchTime: 0, visionRange: 1, turnRate: 1, metabolism: 1 },
       brain: { neurons: [], synapses: [] }
     };
 
@@ -25,7 +25,7 @@ describe('deriveInspectorGenomeMutationSummaryModel', () => {
   it('returns deterministic sorted changes and remains stable under array permutation', () => {
     const parent = {
       id: 'parent-1',
-      traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.1, metabolism: 0.05 },
+      traits: { size: 1, speed: 1, adolescenceAge: 30, eggHatchTime: 2, visionRange: 10, turnRate: 0.1, metabolism: 0.05 },
       brain: {
         neurons: [
           { id: 'n-hidden-2', type: 'hidden' },
@@ -42,7 +42,7 @@ describe('deriveInspectorGenomeMutationSummaryModel', () => {
     const selected = {
       id: 'child-1',
       lineage: { parentId: 'parent-1' },
-      traits: { size: 1.2, speed: 1, visionRange: 9, turnRate: 0.2, metabolism: 0.05 },
+      traits: { size: 1.2, speed: 1, adolescenceAge: 45, eggHatchTime: 5, visionRange: 9, turnRate: 0.2, metabolism: 0.05 },
       brain: {
         neurons: [
           { id: 'n-hidden-3', type: 'hidden' },
@@ -73,7 +73,7 @@ describe('deriveInspectorGenomeMutationSummaryModel', () => {
     );
 
     expect(modelA).toEqual(modelB);
-    expect(modelA.traitDeltas.map((item) => item.key)).toEqual(['size', 'visionRange', 'turnRate']);
+    expect(modelA.traitDeltas.map((item) => item.key)).toEqual(['size', 'adolescenceAge', 'eggHatchTime', 'visionRange', 'turnRate']);
     expect(modelA.synapseChanges).toEqual([
       { sourceId: 'in-energy', targetId: 'out-turn-right', changeType: 'added' },
       { sourceId: 'in-food-direction', targetId: 'out-turn-left', changeType: 'removed' }
@@ -87,7 +87,7 @@ describe('deriveInspectorGenomeMutationSummaryModel', () => {
   it('returns deterministic empty messages when categories have no changes', () => {
     const parent = {
       id: 'parent-1',
-      traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.1, metabolism: 0.05 },
+      traits: { size: 1, speed: 1, adolescenceAge: 30, eggHatchTime: 2, visionRange: 10, turnRate: 0.1, metabolism: 0.05 },
       brain: {
         neurons: [{ id: 'in-energy', type: 'input' }],
         synapses: [{ sourceId: 'in-energy', targetId: 'out-forward' }]

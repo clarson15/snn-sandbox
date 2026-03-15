@@ -7,17 +7,23 @@
  * - No ambient randomness (Math.random / Date.now)
  */
 
+import { createNeuronDefinition, INPUT_NEURON_IDS, isInputNeuronId, isOutputNeuronId, OUTPUT_NEURON_IDS } from './brainSchema.js';
+
 /**
  * @typedef {object} WorldOrganism
  * @property {string} id
  * @property {number} x
  * @property {number} y
+ * @property {string} [color]
  * @property {number} energy
  * @property {number} age
  * @property {number} generation
  * @property {string} [parentId] id of parent organism (set on reproduction)
+ * @property {number} [lastReproductionTick] most recent tick when organism reproduced
  * @property {number} [direction] heading in radians
- * @property {{size:number,speed:number,visionRange:number,turnRate:number,metabolism:number}} traits
+ * @property {'egg'} [lifeStage]
+ * @property {number} [incubationAge]
+ * @property {{size:number,speed:number,visionRange:number,turnRate:number,metabolism:number,adolescenceAge?:number,eggHatchTime?:number}} traits
  */
 
 /**
@@ -44,6 +50,7 @@
  * @property {number} y
  * @property {number} radius
  * @property {number} damagePerTick
+ * @property {'lava' | 'acid' | 'radiation'} [type] - hazard type for visual differentiation
  */
 
 /**
@@ -80,6 +87,9 @@
  * @property {number} [reproductionThreshold=Infinity] minimum energy required for organism to reproduce
  * @property {number} [reproductionCost=0] energy deducted from parent on reproduction
  * @property {number} [offspringStartEnergy=0] energy given to offspring on creation
+ * @property {number} [reproductionMinimumAge=0] minimum organism age required before reproduction
+ * @property {number} [reproductionRefractoryPeriod=0] minimum ticks between reproduction events
+ * @property {number} [maximumOrganismAge=Infinity] organisms older than this age die before reproduction
  * @property {number} [traitMutationRate=0.1] probability of mutating each trait (0-1)
  * @property {number} [traitMutationMagnitude=0.2] max absolute change to trait values
  * @property {number} [brainMutationRate=0.1] probability of mutating each synapse weight (0-1)
@@ -97,10 +107,290 @@
 export function createWorldState(initial = {}) {
   return {
     tick: initial.tick ?? 0,
-    organisms: initial.organisms ? initial.organisms.map((o) => ({ ...o })) : [],
+    organisms: initial.organisms ? initial.organisms.map((o) => ({
+      ...o,
+      traits: o?.traits ? { ...o.traits } : undefined,
+      genome: o?.genome ? { ...o.genome } : undefined,
+      brain: cloneBrain(o?.brain)
+    })) : [],
     food: initial.food ? initial.food.map((f) => ({ ...f })) : [],
     obstacles: initial.obstacles ? initial.obstacles.map((o) => ({ ...o })) : [],
     dangerZones: initial.dangerZones ? initial.dangerZones.map((d) => ({ ...d })) : []
+  };
+}
+
+const BRAIN_LAYER_ORDER = ['input', 'hidden', 'output'];
+const BRAIN_SIGNAL_SUBSTEPS = 2;
+const BRAIN_POTENTIAL_MIN = -4;
+const BRAIN_POTENTIAL_MAX = 4;
+const LEGACY_CONSTANT_INPUT_ID = 'in-constant';
+const NORMALIZED_BRAIN_VERSION = 2;
+const INCOMING_SYNAPSE_CACHE = new WeakMap();
+
+function cloneBrain(brain) {
+  if (!brain || typeof brain !== 'object') {
+    return brain;
+  }
+
+  return {
+    ...brain,
+    neurons: Array.isArray(brain.neurons) ? brain.neurons.map((neuron) => ({ ...neuron })) : [],
+    synapses: Array.isArray(brain.synapses) ? brain.synapses.map((synapse) => ({ ...synapse })) : []
+  };
+}
+
+function layerRank(type) {
+  const rank = BRAIN_LAYER_ORDER.indexOf(type);
+  return rank === -1 ? BRAIN_LAYER_ORDER.length : rank;
+}
+
+function compareNeurons(left, right) {
+  const rankDelta = layerRank(left.type) - layerRank(right.type);
+  if (rankDelta !== 0) {
+    return rankDelta;
+  }
+
+  return left.id.localeCompare(right.id);
+}
+
+function clampBrainPotential(value) {
+  return clamp(value, BRAIN_POTENTIAL_MIN, BRAIN_POTENTIAL_MAX);
+}
+
+function normalizeNeuronType(id, explicitType) {
+  if (explicitType === 'input' || explicitType === 'hidden' || explicitType === 'output') {
+    return explicitType;
+  }
+
+  if (id === LEGACY_CONSTANT_INPUT_ID) {
+    return 'input';
+  }
+
+  if (isInputNeuronId(id)) {
+    return 'input';
+  }
+
+  if (isOutputNeuronId(id)) {
+    return 'output';
+  }
+
+  return 'hidden';
+}
+
+function createNormalizedNeuron(source = {}) {
+  const id = String(source.id ?? '').trim();
+  const type = normalizeNeuronType(id, typeof source.type === 'string' ? source.type : undefined);
+  const base = createNeuronDefinition(id, type);
+  const threshold = Number(source.threshold);
+  const decay = Number(source.decay);
+  const resetPotential = Number(source.resetPotential);
+  const bias = Number(source.bias);
+  const potentialCandidate = Number(source.potential ?? source.value ?? source.state ?? 0);
+  const activationCandidate = Number(source.activation ?? source.signal ?? 0);
+  const explicitSpiked = source.spiked ?? source.isSpiking ?? source.fired;
+
+  return {
+    ...base,
+    ...source,
+    id,
+    type,
+    threshold: Number.isFinite(threshold) ? threshold : base.threshold,
+    decay: Number.isFinite(decay) ? decay : base.decay,
+    resetPotential: Number.isFinite(resetPotential) ? resetPotential : base.resetPotential,
+    bias: Number.isFinite(bias) ? bias : base.bias,
+    potential: Number.isFinite(potentialCandidate) ? clampBrainPotential(potentialCandidate) : 0,
+    value: Number.isFinite(potentialCandidate) ? clampBrainPotential(potentialCandidate) : 0,
+    activation: Number.isFinite(activationCandidate) ? activationCandidate : 0,
+    signal: Number.isFinite(activationCandidate) ? activationCandidate : 0,
+    spiked: typeof explicitSpiked === 'boolean' ? explicitSpiked : false
+  };
+}
+
+function normalizeBrain(organismBrain) {
+  if (
+    organismBrain?.schemaVersion === NORMALIZED_BRAIN_VERSION
+    && Array.isArray(organismBrain.neurons)
+    && Array.isArray(organismBrain.synapses)
+  ) {
+    return organismBrain;
+  }
+
+  const brain = organismBrain && typeof organismBrain === 'object' ? organismBrain : {};
+  const neurons = Array.isArray(brain.neurons) ? brain.neurons : [];
+  const synapses = Array.isArray(brain.synapses) ? brain.synapses : [];
+  const neuronById = new Map();
+
+  for (const inputId of INPUT_NEURON_IDS) {
+    neuronById.set(inputId, createNeuronDefinition(inputId, 'input'));
+  }
+
+  for (const outputId of OUTPUT_NEURON_IDS) {
+    neuronById.set(outputId, createNeuronDefinition(outputId, 'output'));
+  }
+
+  for (const neuron of neurons) {
+    if (!neuron || typeof neuron.id !== 'string' || neuron.id.trim().length === 0) {
+      continue;
+    }
+    neuronById.set(neuron.id, createNormalizedNeuron(neuron));
+  }
+
+  for (const synapse of synapses) {
+    const sourceId = typeof synapse?.sourceId === 'string' && synapse.sourceId.length > 0 ? synapse.sourceId : LEGACY_CONSTANT_INPUT_ID;
+    const targetId = typeof synapse?.targetId === 'string' ? synapse.targetId : null;
+    if (!targetId) {
+      continue;
+    }
+
+    if (!neuronById.has(sourceId)) {
+      neuronById.set(sourceId, createNeuronDefinition(sourceId, normalizeNeuronType(sourceId)));
+    }
+    if (!neuronById.has(targetId)) {
+      neuronById.set(targetId, createNeuronDefinition(targetId, normalizeNeuronType(targetId)));
+    }
+  }
+
+  const normalizedNeurons = [...neuronById.values()].sort(compareNeurons);
+  const normalizedSynapses = synapses
+    .filter((synapse) => synapse && typeof synapse.targetId === 'string')
+    .map((synapse, index) => ({
+      ...synapse,
+      sourceId: typeof synapse.sourceId === 'string' && synapse.sourceId.length > 0 ? synapse.sourceId : LEGACY_CONSTANT_INPUT_ID,
+      id: typeof synapse.id === 'string' && synapse.id.length > 0 ? synapse.id : `synapse-${index + 1}`,
+      weight: Number.isFinite(Number(synapse.weight)) ? Number(synapse.weight) : 0
+    }))
+    .filter((synapse) => neuronById.has(synapse.sourceId) && neuronById.has(synapse.targetId))
+    .sort((left, right) => left.id.localeCompare(right.id));
+
+  return {
+    ...brain,
+    schemaVersion: NORMALIZED_BRAIN_VERSION,
+    signalSubsteps: Number.isInteger(brain.signalSubsteps) && brain.signalSubsteps > 0 ? brain.signalSubsteps : BRAIN_SIGNAL_SUBSTEPS,
+    neurons: normalizedNeurons,
+    synapses: normalizedSynapses
+  };
+}
+
+function buildIncomingSynapseMap(synapses) {
+  if (INCOMING_SYNAPSE_CACHE.has(synapses)) {
+    return INCOMING_SYNAPSE_CACHE.get(synapses);
+  }
+
+  const incoming = new Map();
+
+  for (const synapse of synapses) {
+    if (!incoming.has(synapse.targetId)) {
+      incoming.set(synapse.targetId, []);
+    }
+    incoming.get(synapse.targetId).push(synapse);
+  }
+
+  INCOMING_SYNAPSE_CACHE.set(synapses, incoming);
+  return incoming;
+}
+
+function evaluateBrain(organism, food, worldWidth, worldHeight) {
+  const normalizedBrain = normalizeBrain(organism?.brain);
+  const inputValues = computeInputNeuronValues(organism, food, worldWidth, worldHeight);
+  const incomingSynapses = buildIncomingSynapseMap(normalizedBrain.synapses);
+  const dynamicNeurons = normalizedBrain.neurons.filter((neuron) => neuron.type !== 'input');
+  const nextNeuronById = new Map();
+  const dynamicSpikeState = new Map();
+  const outputSignals = new Map();
+  const spikeCounts = new Map();
+
+  for (const neuron of normalizedBrain.neurons) {
+    const inputValue = inputValues.get(neuron.id);
+    if (neuron.type === 'input') {
+      const resolvedInput = neuron.id === LEGACY_CONSTANT_INPUT_ID
+        ? 1
+        : Number.isFinite(inputValue) ? inputValue : 0;
+      nextNeuronById.set(neuron.id, {
+        ...neuron,
+        potential: resolvedInput,
+        value: resolvedInput,
+        activation: resolvedInput,
+        signal: resolvedInput,
+        spiked: resolvedInput >= neuron.threshold
+      });
+    } else {
+      nextNeuronById.set(neuron.id, {
+        ...neuron,
+        activation: 0,
+        signal: 0
+      });
+      dynamicSpikeState.set(neuron.id, neuron.spiked ? 1 : 0);
+      spikeCounts.set(neuron.id, 0);
+    }
+  }
+
+  for (const outputId of OUTPUT_NEURON_IDS) {
+    outputSignals.set(outputId, 0);
+  }
+
+  for (let substep = 0; substep < normalizedBrain.signalSubsteps; substep += 1) {
+    const sourceSignals = new Map();
+    for (const neuron of normalizedBrain.neurons) {
+      if (neuron.type === 'input') {
+        sourceSignals.set(neuron.id, nextNeuronById.get(neuron.id)?.signal ?? 0);
+        continue;
+      }
+
+      sourceSignals.set(neuron.id, dynamicSpikeState.get(neuron.id) ?? 0);
+    }
+
+    const nextSpikeState = new Map();
+    for (const neuron of dynamicNeurons) {
+      const currentNeuron = nextNeuronById.get(neuron.id);
+      const synapseInputs = incomingSynapses.get(neuron.id) ?? [];
+      const incomingCurrent = synapseInputs.reduce((sum, synapse) => {
+        return sum + (sourceSignals.get(synapse.sourceId) ?? 0) * synapse.weight;
+      }, 0);
+      const integratedPotential = clampBrainPotential(
+        (currentNeuron.potential * currentNeuron.decay) + currentNeuron.bias + incomingCurrent
+      );
+      const didSpike = integratedPotential >= currentNeuron.threshold;
+      const nextPotential = didSpike ? currentNeuron.resetPotential : integratedPotential;
+      const count = (spikeCounts.get(neuron.id) ?? 0) + (didSpike ? 1 : 0);
+
+      spikeCounts.set(neuron.id, count);
+      nextSpikeState.set(neuron.id, didSpike ? 1 : 0);
+      nextNeuronById.set(neuron.id, {
+        ...currentNeuron,
+        potential: nextPotential,
+        value: nextPotential,
+        spiked: didSpike
+      });
+    }
+
+    for (const [neuronId, spikeValue] of nextSpikeState.entries()) {
+      dynamicSpikeState.set(neuronId, spikeValue);
+    }
+  }
+
+  for (const neuron of dynamicNeurons) {
+    const currentNeuron = nextNeuronById.get(neuron.id);
+    const activation = (spikeCounts.get(neuron.id) ?? 0) / normalizedBrain.signalSubsteps;
+    const nextNeuron = {
+      ...currentNeuron,
+      activation,
+      signal: activation
+    };
+    nextNeuronById.set(neuron.id, nextNeuron);
+
+    if (neuron.type === 'output') {
+      outputSignals.set(neuron.id, activation);
+    }
+  }
+
+  return {
+    brain: {
+      ...normalizedBrain,
+      schemaVersion: NORMALIZED_BRAIN_VERSION,
+      neurons: normalizedBrain.neurons.map((neuron) => nextNeuronById.get(neuron.id))
+    },
+    outputs: outputSignals,
+    inputs: inputValues
   };
 }
 
@@ -118,10 +408,161 @@ function normalizeAngle(angle) {
   return normalized < 0 ? normalized + fullTurn : normalized;
 }
 
-function deriveRotationDelta(organism) {
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function isEggStage(organism) {
+  return organism?.lifeStage === 'egg';
+}
+
+function resolveEggHatchTime(traits) {
+  const rawHatchTime = Number(traits?.eggHatchTime ?? 0);
+  if (!Number.isFinite(rawHatchTime)) {
+    return 0;
+  }
+
+  return Math.max(0, rawHatchTime);
+}
+
+function calculateEggLayCost(hatchTime) {
+  return resolveEggHatchTime({ eggHatchTime: hatchTime }) * 0.5;
+}
+
+function resolveGrowthProgress(organism) {
+  const adolescenceAge = Number(organism?.traits?.adolescenceAge ?? 0);
+  if (!Number.isFinite(adolescenceAge) || adolescenceAge <= 0) {
+    return 1;
+  }
+
+  const age = Number(organism?.age ?? 0);
+  if (!Number.isFinite(age) || age <= 0) {
+    return 0;
+  }
+
+  return clamp(age / adolescenceAge, 0, 1);
+}
+
+function interpolateByGrowth(progress, juvenileValue, adultValue) {
+  return juvenileValue + ((adultValue - juvenileValue) * progress);
+}
+
+export function resolveExpressedTraits(organism) {
+  const traits = organism?.traits ?? {};
+  if (isEggStage(organism)) {
+    return {
+      ...traits,
+      size: (Number.isFinite(traits.size) ? traits.size : 1) * 0.45,
+      speed: 0,
+      metabolism: 0,
+      movementCostScale: 0,
+      adulthoodProgress: 0
+    };
+  }
+
+  const progress = resolveGrowthProgress(organism);
+  const adultSize = Number.isFinite(traits.size) ? traits.size : 1;
+  const adultSpeed = Number.isFinite(traits.speed) ? traits.speed : 1;
+  const hasExplicitMetabolism = Number.isFinite(traits.metabolism);
+  const adultMetabolism = hasExplicitMetabolism ? traits.metabolism : undefined;
+
+  return {
+    ...traits,
+    size: interpolateByGrowth(progress, adultSize * 0.55, adultSize),
+    speed: interpolateByGrowth(progress, adultSpeed * 1.25, adultSpeed),
+    metabolism: hasExplicitMetabolism
+      ? interpolateByGrowth(progress, adultMetabolism * 0.6, adultMetabolism)
+      : undefined,
+    movementCostScale: interpolateByGrowth(progress, 0.75, 1),
+    adulthoodProgress: progress
+  };
+}
+
+/**
+ * Compute input neuron values based on organism state and environment.
+ * @param {WorldOrganism} organism
+ * @param {WorldFood[]} food - all food items in the world
+ * @param {number} worldWidth
+ * @param {number} worldHeight
+ * @returns {Map<string, number>} Map of input neuron ID -> value (typically 0-1 range)
+ */
+function computeInputNeuronValues(organism, food, worldWidth, worldHeight) {
+  const inputs = new Map();
+  const expressedTraits = resolveExpressedTraits(organism);
+
+  // Energy: normalized to reasonable range (0-1 where 1 = 100 energy)
+  inputs.set('in-energy', Math.min(1, (organism.energy ?? 0) / 100));
+
+  // Age: normalized (treating 500 as "old")
+  inputs.set('in-age', Math.min(1, (organism.age ?? 0) / 500));
+
+  // Position: normalized to world bounds
+  inputs.set('in-x', (organism.x ?? 0) / worldWidth);
+  inputs.set('in-y', (organism.y ?? 0) / worldHeight);
+
+  // Direction: encode as sin/cos for smooth transitions
+  const direction = organism.direction ?? 0;
+  inputs.set('in-direction', Math.sin(direction)); // -1 to 1
+  inputs.set('in-direction-cos', Math.cos(direction)); // -1 to 1
+
+  // Traits: normalized
+  inputs.set('in-size', Math.min(1, (expressedTraits.size ?? 1) / 5));
+  inputs.set('in-speed', Math.min(1, (expressedTraits.speed ?? 1) / 5));
+  inputs.set('in-vision-range', Math.min(1, (expressedTraits.visionRange ?? 25) / 100));
+
+  // Food sensors: find nearest food within vision range
+  const visionRange = expressedTraits.visionRange ?? 25;
+  const visionRangeSquared = visionRange * visionRange;
+
+  let nearestFoodDist = Infinity;
+  let nearestFoodDx = 0;
+  let nearestFoodDy = 0;
+
+  for (const f of food) {
+    const dx = f.x - organism.x;
+    const dy = f.y - organism.y;
+    const distSquared = dx * dx + dy * dy;
+
+    if (distSquared < visionRangeSquared && distSquared < nearestFoodDist) {
+      nearestFoodDist = distSquared;
+      nearestFoodDx = dx;
+      nearestFoodDy = dy;
+    }
+  }
+
+  if (nearestFoodDist === Infinity) {
+    // No food in vision range
+    inputs.set('in-food-distance', 1); // "far away" = 1
+    inputs.set('in-food-direction', 0);
+    inputs.set('in-food-detected', 0);
+  } else {
+    const dist = Math.sqrt(nearestFoodDist);
+    // Distance: normalized (0 = directly on top, 1 = at vision edge)
+    inputs.set('in-food-distance', dist / visionRange);
+
+    // Direction to food relative to current heading
+    const foodAngle = Math.atan2(nearestFoodDy, nearestFoodDx);
+    const relativeAngle = normalizeAngle(foodAngle - direction);
+    // Convert to -1 to 1 range: 0 = ahead, PI = behind, negative = left, positive = right
+    // Actually let's make it clearer: -1 = left 180, 0 = ahead, 1 = right 180
+    inputs.set('in-food-direction', (relativeAngle - Math.PI) / Math.PI);
+
+    inputs.set('in-food-detected', 1);
+  }
+
+  return inputs;
+}
+
+function deriveRotationDelta(organism, outputSignals = null, inputValues = null) {
   const turnRate = Number(organism?.traits?.turnRate ?? 0);
   if (!Number.isFinite(turnRate) || turnRate === 0) {
     return 0;
+  }
+
+  if (outputSignals instanceof Map) {
+    const leftSignal = Number(outputSignals.get('out-turn-left') ?? 0);
+    const rightSignal = Number(outputSignals.get('out-turn-right') ?? 0);
+    return (rightSignal - leftSignal) * turnRate;
   }
 
   const synapses = Array.isArray(organism?.brain?.synapses) ? organism.brain.synapses : [];
@@ -137,20 +578,39 @@ function deriveRotationDelta(organism) {
       continue;
     }
 
+    // Get input value: use precomputed inputValues if available,
+    // otherwise fall back to legacy behavior (weight only, for backward compatibility)
+    let inputValue = 1;
+    if (inputValues && synapse.sourceId) {
+      inputValue = inputValues.get(synapse.sourceId) ?? 1;
+    }
+
+    const weightedInput = inputValue * synapse.weight;
+
     if (synapse.targetId === 'out-turn-left') {
-      leftSignal += synapse.weight;
+      leftSignal += weightedInput;
     } else if (synapse.targetId === 'out-turn-right') {
-      rightSignal += synapse.weight;
+      rightSignal += weightedInput;
     }
   }
 
   return (rightSignal - leftSignal) * turnRate;
 }
 
-function deriveForwardDelta(organism) {
-  const speed = Number(organism?.traits?.speed ?? 1);
+function deriveForwardDelta(organism, outputSignals = null, inputValues = null) {
+  const speed = Number(resolveExpressedTraits(organism).speed ?? 1);
   if (!Number.isFinite(speed) || speed === 0) {
     return 0;
+  }
+
+  if (outputSignals instanceof Map) {
+    const forwardSignal = Number(
+      outputSignals.get('out-forward')
+      ?? outputSignals.get('out-move-forward')
+      ?? outputSignals.get('out-move')
+      ?? 0
+    );
+    return Math.max(0, Math.min(1, forwardSignal)) * speed;
   }
 
   const synapses = Array.isArray(organism?.brain?.synapses) ? organism.brain.synapses : [];
@@ -165,34 +625,43 @@ function deriveForwardDelta(organism) {
       continue;
     }
 
+    // Get input value: use precomputed inputValues if available,
+    // otherwise fall back to legacy behavior (weight only, for backward compatibility)
+    let inputValue = 1;
+    if (inputValues && synapse.sourceId) {
+      inputValue = inputValues.get(synapse.sourceId) ?? 1;
+    }
+
     if (
       synapse.targetId === 'out-forward' ||
       synapse.targetId === 'out-move-forward' ||
       synapse.targetId === 'out-move'
     ) {
-      forwardSignal += synapse.weight;
+      forwardSignal += inputValue * synapse.weight;
     }
   }
 
   return Math.max(-1, Math.min(1, forwardSignal)) * speed;
 }
 
-function moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMultiplier) {
+function moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMultiplier, outputSignals = null, inputValues = null) {
+  const expressedTraits = resolveExpressedTraits(organism);
   // Use organism's metabolism trait for deterministic energy loss, fallback to param for backward compatibility
-  const organismMetabolism = Number.isFinite(organism?.traits?.metabolism)
-    ? organism.traits.metabolism
+  const organismMetabolism = Number.isFinite(expressedTraits.metabolism)
+    ? expressedTraits.metabolism
     : metabolismPerTick;
   const movementDistance = Math.hypot(dx, dy);
-  const energySpent = organismMetabolism + movementDistance * movementCostMultiplier;
+  const movementCostScale = Number.isFinite(expressedTraits.movementCostScale) ? expressedTraits.movementCostScale : 1;
+  const energySpent = organismMetabolism + movementDistance * movementCostMultiplier * movementCostScale;
   const baseDirection = organism.direction ?? 0;
-  const rotationDelta = deriveRotationDelta(organism);
+  const rotationDelta = deriveRotationDelta(organism, outputSignals, inputValues);
   const direction = normalizeAngle(baseDirection + rotationDelta);
 
   return {
     ...organism,
     x: organism.x + dx,
     y: organism.y + dy,
-    age: organism.age + 1,
+    age: (organism.age ?? 0) + 1,
     direction,
     energy: Math.max(0, organism.energy - energySpent)
   };
@@ -205,7 +674,7 @@ function moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMul
  * @returns {boolean}
  */
 function isCollidingWithObstacle(organism, obstacle) {
-  const organismRadius = (organism.traits?.size ?? 1) * 3; // Approximate radius
+  const organismRadius = (resolveExpressedTraits(organism).size ?? 1) * 3; // Approximate radius
   // Check if organism's bounding circle overlaps with obstacle rectangle
   const closestX = Math.max(obstacle.x, Math.min(organism.x, obstacle.x + obstacle.width));
   const closestY = Math.max(obstacle.y, Math.min(organism.y, obstacle.y + obstacle.height));
@@ -237,10 +706,17 @@ function applyDangerZoneDamage(organisms, dangerZones) {
     return organisms;
   }
 
+  // Optimized: inline distance check to avoid function call overhead
   return organisms.map((organism) => {
     let totalDamage = 0;
+    const orgX = organism.x;
+    const orgY = organism.y;
+
     for (const zone of dangerZones) {
-      if (isInDangerZone(organism, zone)) {
+      const dx = orgX - zone.x;
+      const dy = orgY - zone.y;
+      // Inline squared distance check (avoids function call to isInDangerZone)
+      if (dx * dx + dy * dy < zone.radius * zone.radius) {
         totalDamage += zone.damagePerTick;
       }
     }
@@ -269,7 +745,7 @@ function handleObstacleCollisions(organisms, obstacles, worldWidth, worldHeight)
   }
 
   return organisms.map((organism) => {
-    const organismRadius = (organism.traits?.size ?? 1) * 3;
+    const organismRadius = (resolveExpressedTraits(organism).size ?? 1) * 3;
     let newX = organism.x;
     let newY = organism.y;
     let collided = false;
@@ -455,6 +931,31 @@ function mutateTraits(parentTraits, rng, mutationRate, mutationMagnitude) {
   return mutatedTraits;
 }
 
+function createBrainSynapseId(synapses) {
+  let nextId = synapses.length + 1;
+  let candidate = `syn-${nextId}`;
+
+  while (synapses.some((synapse) => synapse.id === candidate)) {
+    nextId += 1;
+    candidate = `syn-${nextId}`;
+  }
+
+  return candidate;
+}
+
+function createHiddenNeuronId(neurons) {
+  let nextId = 1;
+  const usedIds = new Set(neurons.map((neuron) => neuron.id));
+  let candidate = `hidden-${nextId}`;
+
+  while (usedIds.has(candidate)) {
+    nextId += 1;
+    candidate = `hidden-${nextId}`;
+  }
+
+  return candidate;
+}
+
 /**
  * Apply deterministic mutations to offspring brain (synapses).
  * @param {object} parentBrain - brain object from parent organism
@@ -466,51 +967,119 @@ function mutateTraits(parentTraits, rng, mutationRate, mutationMagnitude) {
  * @returns {object} mutated brain
  */
 function mutateBrain(parentBrain, rng, mutationRate, mutationMagnitude, addSynapseChance, removeSynapseChance) {
-  if (!parentBrain || !parentBrain.synapses) {
-    // Create empty brain with possibility of adding initial synapses
-    const brain = { synapses: [] };
-    // Chance to add initial synapse
-    if (rng.nextFloat() < addSynapseChance * 3) {
-      brain.synapses.push({
-        sourceId: 'in-energy',
-        targetId: 'out-turn-left',
-        weight: (rng.nextFloat() * 2 - 1) * mutationMagnitude
-      });
+  const baseBrain = normalizeBrain(parentBrain);
+  const neurons = baseBrain.neurons.map((neuron) => ({ ...neuron }));
+  let synapses = baseBrain.synapses.map((synapse) => ({ ...synapse }));
+
+  const hiddenNeurons = () => neurons.filter((neuron) => neuron.type === 'hidden');
+
+  for (const neuron of neurons) {
+    if (neuron.type === 'input') {
+      continue;
     }
-    return brain;
+
+    if (rng.nextFloat() < mutationRate) {
+      neuron.threshold = Math.max(0.2, Number((neuron.threshold + ((rng.nextFloat() * 2 - 1) * mutationMagnitude)).toFixed(3)));
+    }
+    if (rng.nextFloat() < mutationRate) {
+      neuron.decay = clamp(Number((neuron.decay + ((rng.nextFloat() * 2 - 1) * mutationMagnitude * 0.5)).toFixed(3)), 0, 0.99);
+    }
+    if (rng.nextFloat() < mutationRate) {
+      neuron.bias = clampBrainPotential(Number((neuron.bias + ((rng.nextFloat() * 2 - 1) * mutationMagnitude * 0.35)).toFixed(3)));
+    }
   }
 
-  // Copy synapses
-  let synapses = parentBrain.synapses.map((s) => ({ ...s }));
+  const addHiddenChance = Math.min(1, addSynapseChance * 0.8);
+  if (rng.nextFloat() < addHiddenChance) {
+    const hiddenId = createHiddenNeuronId(neurons);
+    const hiddenNeuron = createNeuronDefinition(hiddenId, 'hidden', {
+      threshold: Number((0.6 + (rng.nextFloat() * 0.9)).toFixed(3)),
+      decay: Number((0.55 + (rng.nextFloat() * 0.35)).toFixed(3))
+    });
+    neurons.push(hiddenNeuron);
 
-  // Remove synapses with probability
+    const sourceCandidates = neurons
+      .filter((neuron) => neuron.id !== hiddenId && neuron.type !== 'output')
+      .map((neuron) => neuron.id);
+    const targetCandidates = neurons
+      .filter((neuron) => neuron.id !== hiddenId && neuron.type !== 'input')
+      .map((neuron) => neuron.id);
+
+    if (sourceCandidates.length > 0) {
+      synapses.push({
+        id: createBrainSynapseId(synapses),
+        sourceId: sourceCandidates[rng.nextInt(0, sourceCandidates.length)],
+        targetId: hiddenId,
+        weight: Number((((rng.nextFloat() * 2) - 1) * Math.max(0.25, mutationMagnitude)).toFixed(3))
+      });
+    }
+
+    if (targetCandidates.length > 0) {
+      synapses.push({
+        id: createBrainSynapseId(synapses),
+        sourceId: hiddenId,
+        targetId: targetCandidates[rng.nextInt(0, targetCandidates.length)],
+        weight: Number((((rng.nextFloat() * 2) - 1) * Math.max(0.25, mutationMagnitude)).toFixed(3))
+      });
+    }
+  }
+
+  const removableHiddenNeurons = hiddenNeurons();
+  const removeHiddenChance = Math.min(1, removeSynapseChance * 0.6);
+  if (removableHiddenNeurons.length > 0 && rng.nextFloat() < removeHiddenChance) {
+    const neuronToRemove = removableHiddenNeurons[rng.nextInt(0, removableHiddenNeurons.length)];
+    const neuronIndex = neurons.findIndex((neuron) => neuron.id === neuronToRemove.id);
+    if (neuronIndex >= 0) {
+      neurons.splice(neuronIndex, 1);
+      synapses = synapses.filter((synapse) => synapse.sourceId !== neuronToRemove.id && synapse.targetId !== neuronToRemove.id);
+    }
+  }
+
   if (removeSynapseChance > 0 && synapses.length > 0) {
     synapses = synapses.filter(() => rng.nextFloat() >= removeSynapseChance);
   }
 
-  // Mutate existing synapse weights
   for (const synapse of synapses) {
     if (rng.nextFloat() < mutationRate) {
       const weightMutation = (rng.nextFloat() * 2 - 1) * mutationMagnitude;
-      synapse.weight += weightMutation;
+      synapse.weight = Number((synapse.weight + weightMutation).toFixed(3));
     }
   }
 
-  // Add new synapses with probability
   if (rng.nextFloat() < addSynapseChance) {
-    // Add a new synapse with random source/target
-    const possibleSources = ['in-energy', 'in-age', 'in-x', 'in-y', 'in-direction', 'in-size', 'in-speed'];
-    const possibleTargets = ['out-turn-left', 'out-turn-right', 'out-forward'];
-    const sourceId = possibleSources[Math.floor(rng.nextFloat() * possibleSources.length)];
-    const targetId = possibleTargets[Math.floor(rng.nextFloat() * possibleTargets.length)];
-    synapses.push({
-      sourceId,
-      targetId,
-      weight: (rng.nextFloat() * 2 - 1) * mutationMagnitude
-    });
+    const possibleSources = neurons.filter((neuron) => neuron.type !== 'output').map((neuron) => neuron.id);
+    const possibleTargets = neurons.filter((neuron) => neuron.type !== 'input').map((neuron) => neuron.id);
+    if (possibleSources.length > 0 && possibleTargets.length > 0) {
+      let attempts = 0;
+      while (attempts < 12) {
+        const sourceId = possibleSources[rng.nextInt(0, possibleSources.length)];
+        const targetId = possibleTargets[rng.nextInt(0, possibleTargets.length)];
+        const pairExists = synapses.some((synapse) => synapse.sourceId === sourceId && synapse.targetId === targetId);
+        attempts += 1;
+
+        if (sourceId === targetId || pairExists) {
+          continue;
+        }
+
+        synapses.push({
+          id: createBrainSynapseId(synapses),
+          sourceId,
+          targetId,
+          weight: Number((((rng.nextFloat() * 2) - 1) * Math.max(0.25, mutationMagnitude)).toFixed(3))
+        });
+        break;
+      }
+    }
   }
 
-  return { ...parentBrain, synapses };
+  const nextBrain = normalizeBrain({
+    ...baseBrain,
+    signalSubsteps: baseBrain.signalSubsteps,
+    neurons,
+    synapses
+  });
+
+  return nextBrain;
 }
 
 /**
@@ -540,32 +1109,75 @@ export function stepWorld(state, rng, params = {}) {
   const reproductionThreshold = params.reproductionThreshold ?? Number.POSITIVE_INFINITY;
   const reproductionCost = params.reproductionCost ?? 0;
   const offspringStartEnergy = params.offspringStartEnergy ?? 0;
+  const reproductionMinimumAge = params.reproductionMinimumAge ?? 0;
+  const reproductionRefractoryPeriod = params.reproductionRefractoryPeriod ?? 0;
+  const maximumOrganismAge = params.maximumOrganismAge ?? Number.POSITIVE_INFINITY;
   const traitMutationRate = params.traitMutationRate ?? 0.1;
   const traitMutationMagnitude = params.traitMutationMagnitude ?? 0.2;
   const brainMutationRate = params.brainMutationRate ?? 0.1;
   const brainMutationMagnitude = params.brainMutationMagnitude ?? 0.2;
   const brainAddSynapseChance = params.brainAddSynapseChance ?? 0.05;
   const brainRemoveSynapseChance = params.brainRemoveSynapseChance ?? 0.05;
+  const currentTick = state.tick + 1;
 
-  const movedOrganisms = state.organisms.map((organism) => {
+  const eggs = [];
+  const activeOrganisms = [];
+  for (const organism of state.organisms) {
+    if (isEggStage(organism)) {
+      eggs.push(organism);
+    } else {
+      activeOrganisms.push(organism);
+    }
+  }
+
+  const movedOrganisms = activeOrganisms.map((organism) => {
+    if (!organism?.brain) {
+      return moveAndSpendEnergy(
+        { ...organism, direction: organism.direction ?? 0 },
+        0,
+        0,
+        metabolismPerTick,
+        movementCostMultiplier
+      );
+    }
+
+    const brainEvaluation = evaluateBrain(organism, state.food, worldWidth, worldHeight);
     const baseDirection = organism.direction ?? 0;
-    const rotationDelta = deriveRotationDelta(organism);
+    const rotationDelta = deriveRotationDelta(organism, brainEvaluation.outputs, brainEvaluation.inputs);
     const direction = normalizeAngle(baseDirection + rotationDelta);
-    const forwardDelta = deriveForwardDelta(organism);
+    const forwardDelta = deriveForwardDelta(organism, brainEvaluation.outputs, brainEvaluation.inputs);
     const boundedForwardDelta = Math.max(-movementDelta, Math.min(movementDelta, forwardDelta));
     const dx = Math.cos(direction) * boundedForwardDelta;
     const dy = Math.sin(direction) * boundedForwardDelta;
 
-    return moveAndSpendEnergy({ ...organism, direction: baseDirection }, dx, dy, metabolismPerTick, movementCostMultiplier);
+    return moveAndSpendEnergy(
+      {
+        ...organism,
+        brain: brainEvaluation.brain,
+        direction: baseDirection
+      },
+      dx,
+      dy,
+      metabolismPerTick,
+      movementCostMultiplier,
+      brainEvaluation.outputs,
+      brainEvaluation.inputs
+    );
   });
 
   // Stable iteration ordering for deterministic food consumption.
   // Organisms consume in lexical id order; each organism can consume at most one food per tick.
+  // Optimization: skip sort if already sorted (common case with incrementing IDs)
   const foodById = new Map(state.food.map((item) => [item.id, { ...item }]));
   const baseConsumeRadius = params.consumeRadius ?? 2;
   const consumedEnergyByOrganismId = new Map();
 
-  const organismsByStableOrder = [...movedOrganisms].sort((a, b) => a.id.localeCompare(b.id));
+  let organismsByStableOrder = movedOrganisms;
+  const needsSort = movedOrganisms.length > 1 &&
+    movedOrganisms.some((org, i) => i > 0 && org.id.localeCompare(movedOrganisms[i - 1].id) < 0);
+  if (needsSort) {
+    organismsByStableOrder = [...movedOrganisms].sort((a, b) => a.id.localeCompare(b.id));
+  }
 
   // Pre-compute effective consume radii for all organisms and find max for spatial index.
   // Food collection radius scales with organism's visible size (traits.size).
@@ -576,7 +1188,7 @@ export function stepWorld(state, rng, params = {}) {
   const organismConsumeRadii = new Map();
   let maxConsumeRadius = baseConsumeRadius;
   for (const organism of organismsByStableOrder) {
-    const organismSize = organism.traits?.size ?? 1;
+    const organismSize = resolveExpressedTraits(organism).size ?? 1;
     const effectiveRadius = Math.max(baseConsumeRadius, organismSize + foodRadius);
     organismConsumeRadii.set(organism.id, effectiveRadius);
     if (effectiveRadius > maxConsumeRadius) {
@@ -693,18 +1305,34 @@ export function stepWorld(state, rng, params = {}) {
         energy: Math.max(0, organism.energy - interactionCost)
       };
     })
-    .filter((organism) => organism.energy > 0);
+    .filter((organism) => organism.energy > 0 && (organism.age ?? 0) <= maximumOrganismAge);
 
   // Deterministic reproduction: organisms with energy >= threshold reproduce
   // Organisms are processed in stable id order for reproducibility
+  // Optimization: skip sort if already sorted
   const offspringOrganisms = [];
-  let nextOrganismNumericId = deriveNextOrganismNumericId(organisms);
+  let nextOrganismNumericId = deriveNextOrganismNumericId(state.organisms);
 
-  const organismsForReproduction = [...organisms].sort((a, b) => a.id.localeCompare(b.id));
+  let organismsForReproduction = organisms;
+  const needsReproSort = organisms.length > 1 &&
+    organisms.some((org, i) => i > 0 && org.id.localeCompare(organisms[i - 1].id) < 0);
+  if (needsReproSort) {
+    organismsForReproduction = [...organisms].sort((a, b) => a.id.localeCompare(b.id));
+  }
 
   for (const organism of organismsForReproduction) {
-    if (organism.energy >= reproductionThreshold) {
-      // Create offspring
+    const lastReproductionTick = Number.isFinite(organism.lastReproductionTick)
+      ? organism.lastReproductionTick
+      : Number.NEGATIVE_INFINITY;
+    const organismAge = organism.age ?? 0;
+    const canReproduce = organism.energy >= reproductionThreshold
+      && organismAge >= reproductionMinimumAge
+      && (currentTick - lastReproductionTick) >= reproductionRefractoryPeriod;
+
+    if (canReproduce) {
+      const eggHatchTime = resolveEggHatchTime(organism.traits);
+      const eggLayCost = calculateEggLayCost(eggHatchTime);
+
       const offspringId = `org-${nextOrganismNumericId}`;
       nextOrganismNumericId += 1;
 
@@ -717,27 +1345,59 @@ export function stepWorld(state, rng, params = {}) {
       const mutatedTraits = mutateTraits(organism.traits, rng, traitMutationRate, traitMutationMagnitude);
       const mutatedBrain = mutateBrain(organism.brain, rng, brainMutationRate, brainMutationMagnitude, brainAddSynapseChance, brainRemoveSynapseChance);
 
-      offspringOrganisms.push({
+      const offspringBase = {
         id: offspringId,
         x: Math.max(0, Math.min(worldWidth, offspringX)),
         y: Math.max(0, Math.min(worldHeight, offspringY)),
+        color: organism.color,
         energy: offspringStartEnergy,
         age: 0,
         generation: organism.generation + 1,
         parentId: organism.id,
+        lastReproductionTick: undefined,
         direction: organism.direction,
         traits: mutatedTraits,
         brain: mutatedBrain
-      });
+      };
+
+      offspringOrganisms.push(eggHatchTime > 0
+        ? {
+          ...offspringBase,
+          lifeStage: 'egg',
+          incubationAge: 0
+        }
+        : offspringBase);
 
       // Deduct energy from parent
-      organism.energy -= reproductionCost;
+      organism.energy -= reproductionCost + eggLayCost;
+      organism.lastReproductionTick = currentTick;
     }
   }
 
-  // Add offspring to organisms array
-  if (offspringOrganisms.length > 0) {
-    organisms = organisms.concat(offspringOrganisms);
+  const incubatingEggs = [];
+  const hatchedOrganisms = [];
+  for (const egg of eggs) {
+    const nextIncubationAge = Number(egg.incubationAge ?? 0) + 1;
+    const hatchTime = resolveEggHatchTime(egg.traits);
+
+    if (nextIncubationAge >= hatchTime && hatchTime > 0) {
+      hatchedOrganisms.push({
+        ...egg,
+        age: 0,
+        lifeStage: undefined,
+        incubationAge: undefined
+      });
+      continue;
+    }
+
+    incubatingEggs.push({
+      ...egg,
+      incubationAge: nextIncubationAge
+    });
+  }
+
+  if (offspringOrganisms.length > 0 || incubatingEggs.length > 0 || hatchedOrganisms.length > 0) {
+    organisms = organisms.concat(incubatingEggs, hatchedOrganisms, offspringOrganisms);
   }
 
   if (minimumPopulation > 0 && organisms.length < minimumPopulation && typeof createFloorSpawnOrganism === 'function') {
@@ -771,6 +1431,9 @@ export function stepWorld(state, rng, params = {}) {
 
   // Apply danger zone damage
   let finalOrganisms = applyDangerZoneDamage(organisms, dangerZones);
+
+  // Filter out organisms that died from hazard damage
+  finalOrganisms = finalOrganisms.filter((organism) => organism.energy > 0);
 
   // Handle obstacle collisions
   finalOrganisms = handleObstacleCollisions(finalOrganisms, obstacles, worldWidth, worldHeight);
@@ -842,14 +1505,14 @@ export function runTickSchedule(initialState, rng, schedule, params = {}) {
  */
 function calculateGeneticDistance(a, b) {
   // Trait distance (normalized)
-  const traitNames = ['size', 'speed', 'visionRange', 'turnRate', 'metabolism'];
+  const traitNames = ['size', 'speed', 'visionRange', 'turnRate', 'metabolism', 'adolescenceAge', 'eggHatchTime'];
   let traitDistance = 0;
 
   for (const trait of traitNames) {
     const aVal = Number(a?.traits?.[trait] ?? 0);
     const bVal = Number(b?.traits?.[trait] ?? 0);
     // Normalize by typical range for each trait
-    const maxVals = { size: 5, speed: 5, visionRange: 50, turnRate: 1, metabolism: 1 };
+    const maxVals = { size: 5, speed: 5, visionRange: 50, turnRate: 1, metabolism: 1, adolescenceAge: 500, eggHatchTime: 10 };
     const normalizedDiff = (aVal - bVal) / (maxVals[trait] || 1);
     traitDistance += normalizedDiff * normalizedDiff;
   }
@@ -1048,4 +1711,94 @@ export function getSpeciesColor(speciesId) {
 export function getGenerationColor(generation) {
   const gen = Number.isFinite(generation) && generation >= 0 ? Math.floor(generation) : 0;
   return GENERATION_COLORS[gen % GENERATION_COLORS.length];
+}
+
+/**
+ * Serialize a world state to JSON for storage/replay.
+ * Creates a deep copy suitable for storage.
+ * @param {WorldState} state
+ * @returns {string} JSON string representation
+ */
+export function serializeWorldState(state) {
+  const snapshot = createWorldState(state);
+  return JSON.stringify(snapshot);
+}
+
+/**
+ * Deserialize a world state from JSON.
+ * @param {string} json
+ * @returns {WorldState}
+ */
+export function deserializeWorldState(json) {
+  return JSON.parse(json);
+}
+
+/**
+ * Create a tick snapshot for replay recording.
+ * Includes world state and metadata needed for deterministic replay.
+ * @param {WorldState} state
+ * @param {StepParams} [params] simulation parameters for replay configuration
+ * @returns {object} snapshot object
+ */
+export function createTickSnapshot(state, params = {}) {
+  return {
+    tick: state.tick,
+    organisms: state.organisms.map((o) => ({
+      id: o.id,
+      x: o.x,
+      y: o.y,
+      color: o.color,
+      energy: o.energy,
+      age: o.age,
+      generation: o.generation,
+      parentId: o.parentId,
+      lastReproductionTick: o.lastReproductionTick,
+      direction: o.direction,
+      lifeStage: o.lifeStage,
+      incubationAge: o.incubationAge,
+      traits: { ...o.traits },
+      genome: o.genome ? { ...o.genome } : undefined,
+      brain: cloneBrain(o.brain)
+    })),
+    food: state.food.map((f) => ({
+      id: f.id,
+      x: f.x,
+      y: f.y,
+      energyValue: f.energyValue
+    })),
+    obstacles: state.obstacles,
+    dangerZones: state.dangerZones,
+    // Include params hash for replay verification
+    paramsHash: hashParams(params)
+  };
+}
+
+/**
+ * Simple hash of params for verification (not cryptographic).
+ * @param {StepParams} params
+ * @returns {string}
+ */
+function hashParams(params) {
+  const keys = Object.keys(params).sort();
+  const parts = keys.map((k) => `${k}:${JSON.stringify(params[k])}`);
+  return btoa(parts.join('|')).slice(0, 16);
+}
+
+/**
+ * Create a replay recording containing all snapshots from start to end.
+ * @param {WorldState[]} snapshots array of world states (one per tick)
+ * @param {StepParams} params simulation parameters used
+ * @param {string} [seed] optional seed for deterministic replay
+ * @returns {object} complete replay data
+ */
+export function createReplayRecording(snapshots, params, seed = undefined) {
+  return {
+    version: 1,
+    seed,
+    params,
+    startTick: snapshots.length > 0 ? snapshots[0].tick : 0,
+    endTick: snapshots.length > 0 ? snapshots[snapshots.length - 1].tick : 0,
+    snapshotCount: snapshots.length,
+    snapshots: snapshots.map((s) => createTickSnapshot(s, params))
+  };
 }
