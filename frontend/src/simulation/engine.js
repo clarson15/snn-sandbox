@@ -520,8 +520,7 @@ function buildPreySpatialIndex(organisms, cellSize) {
  * @param {{cellsByKey: Map<string, Set<string>>, preyById: Map<string, WorldOrganism>, cellSize: number}} [organismContext.preyIndex] - pre-built spatial index for prey
  * @returns {Map<string, number>} Map of input neuron ID -> value (typically 0-1 range)
  */
-function computeInputNeuronValues(organism, food, worldWidth, worldHeight, organismContext = {}) {
-  const { organisms = [], preyIndex = null } = organismContext;
+function computeInputNeuronValues(organism, food, worldWidth, worldHeight, organismContext = null) {
   const inputs = new Map();
   const expressedTraits = resolveExpressedTraits(organism);
 
@@ -586,7 +585,9 @@ function computeInputNeuronValues(organism, food, worldWidth, worldHeight, organ
   }
 
   // Predator-specific prey sensors
-  if (organism.type === 'predator' && (preyIndex || organisms.length > 0)) {
+  if (organism.type === 'predator') {
+    const preyIndex = organismContext?.preyIndex ?? null;
+    const organisms = organismContext?.organisms ?? [];
     const visionRange = organism.traits?.visionRange ?? 25;
     const visionRangeSquared = visionRange * visionRange;
 
@@ -671,11 +672,6 @@ function computeInputNeuronValues(organism, food, worldWidth, worldHeight, organ
 
       inputs.set('in-prey-detected', 1);
     }
-  } else {
-    // Default values for non-predators or when no organisms provided
-    inputs.set('in-prey-distance', 1);
-    inputs.set('in-prey-direction', 0);
-    inputs.set('in-prey-detected', 0);
   }
 
   return inputs;
@@ -1259,19 +1255,17 @@ export function stepWorld(state, rng, params = {}) {
   }
 
   const hasPredators = activeOrganisms.some((organism) => organism.type === 'predator');
-  let preyIndex = null;
+  let organismContext = null;
   if (hasPredators) {
     const maxVisionRange = activeOrganisms.reduce((max, organism) => {
       const visionRange = organism.traits?.visionRange ?? 25;
       return visionRange > max ? visionRange : max;
     }, 25);
-    preyIndex = buildPreySpatialIndex(activeOrganisms, maxVisionRange);
+    organismContext = {
+      organisms: activeOrganisms,
+      preyIndex: buildPreySpatialIndex(activeOrganisms, maxVisionRange)
+    };
   }
-
-  const organismContext = {
-    organisms: activeOrganisms,
-    preyIndex
-  };
 
   const movedOrganisms = activeOrganisms.map((organism) => {
     if (!organism?.brain) {
@@ -1427,66 +1421,77 @@ export function stepWorld(state, rng, params = {}) {
   const predatorEnergyGain = params.predatorEnergyGain ?? 30;
   const predatorHuntRadius = params.predatorHuntRadius ?? 50;
   const predatorHuntRadiusSquared = predatorHuntRadius * predatorHuntRadius;
-  const preyCandidates = organisms.filter((organism) => organism.type !== 'predator');
-  const predators = organisms.filter((organism) => organism.type === 'predator');
 
-  if (predators.length > 0 && preyCandidates.length > 0) {
-    const preyById = new Map(preyCandidates.map((prey) => [prey.id, prey]));
-    const preyCellSize = Math.max(predatorHuntRadius, 1);
-    const { cells: preyCellsByKey } = buildFoodSpatialIndex(preyCandidates, preyCellSize);
-    const consumedPreyIds = new Set();
-    const predatorEnergyGains = new Map();
-    const predatorsByStableOrder = [...predators].sort((a, b) => a.id.localeCompare(b.id));
+  const predators = hasPredators ? [] : null;
 
-    for (const predator of predatorsByStableOrder) {
-      let chosenPreyId = null;
-      let chosenDistance = Number.POSITIVE_INFINITY;
-      const minCellX = toCellIndex(predator.x - predatorHuntRadius, preyCellSize);
-      const maxCellX = toCellIndex(predator.x + predatorHuntRadius, preyCellSize);
-      const minCellY = toCellIndex(predator.y - predatorHuntRadius, preyCellSize);
-      const maxCellY = toCellIndex(predator.y + predatorHuntRadius, preyCellSize);
-
-      for (let cellX = minCellX; cellX <= maxCellX; cellX += 1) {
-        for (let cellY = minCellY; cellY <= maxCellY; cellY += 1) {
-          const cellPreyIds = preyCellsByKey.get(toCellKey(cellX, cellY));
-          if (!cellPreyIds || cellPreyIds.size === 0) {
-            continue;
-          }
-
-          for (const preyId of cellPreyIds) {
-            if (consumedPreyIds.has(preyId)) {
-              continue;
-            }
-
-            const prey = preyById.get(preyId);
-            if (!prey) {
-              continue;
-            }
-
-            const distance = squaredDistance(predator, prey);
-            if (distance > predatorHuntRadiusSquared) {
-              continue;
-            }
-
-            if (distance < chosenDistance || (distance === chosenDistance && (chosenPreyId === null || preyId < chosenPreyId))) {
-              chosenDistance = distance;
-              chosenPreyId = preyId;
-            }
-          }
-        }
-      }
-
-      if (chosenPreyId !== null) {
-        consumedPreyIds.add(chosenPreyId);
-        predatorEnergyGains.set(predator.id, (predatorEnergyGains.get(predator.id) ?? 0) + predatorEnergyGain);
+  if (predators) {
+    const preyCandidates = [];
+    for (const organism of organisms) {
+      if (organism.type === 'predator') {
+        predators.push(organism);
+      } else {
+        preyCandidates.push(organism);
       }
     }
 
-    organisms = organisms
-      .filter((organism) => !consumedPreyIds.has(organism.id))
-      .map((organism) => organism.type === 'predator'
-        ? { ...organism, energy: organism.energy + (predatorEnergyGains.get(organism.id) ?? 0) }
-        : organism);
+    if (preyCandidates.length > 0) {
+      const preyById = new Map(preyCandidates.map((prey) => [prey.id, prey]));
+      const preyCellSize = Math.max(predatorHuntRadius, 1);
+      const { cells: preyCellsByKey } = buildFoodSpatialIndex(preyCandidates, preyCellSize);
+      const consumedPreyIds = new Set();
+      const predatorEnergyGains = new Map();
+      const predatorsByStableOrder = [...predators].sort((a, b) => a.id.localeCompare(b.id));
+
+      for (const predator of predatorsByStableOrder) {
+        let chosenPreyId = null;
+        let chosenDistance = Number.POSITIVE_INFINITY;
+        const minCellX = toCellIndex(predator.x - predatorHuntRadius, preyCellSize);
+        const maxCellX = toCellIndex(predator.x + predatorHuntRadius, preyCellSize);
+        const minCellY = toCellIndex(predator.y - predatorHuntRadius, preyCellSize);
+        const maxCellY = toCellIndex(predator.y + predatorHuntRadius, preyCellSize);
+
+        for (let cellX = minCellX; cellX <= maxCellX; cellX += 1) {
+          for (let cellY = minCellY; cellY <= maxCellY; cellY += 1) {
+            const cellPreyIds = preyCellsByKey.get(toCellKey(cellX, cellY));
+            if (!cellPreyIds || cellPreyIds.size === 0) {
+              continue;
+            }
+
+            for (const preyId of cellPreyIds) {
+              if (consumedPreyIds.has(preyId)) {
+                continue;
+              }
+
+              const prey = preyById.get(preyId);
+              if (!prey) {
+                continue;
+              }
+
+              const distance = squaredDistance(predator, prey);
+              if (distance > predatorHuntRadiusSquared) {
+                continue;
+              }
+
+              if (distance < chosenDistance || (distance === chosenDistance && (chosenPreyId === null || preyId < chosenPreyId))) {
+                chosenDistance = distance;
+                chosenPreyId = preyId;
+              }
+            }
+          }
+        }
+
+        if (chosenPreyId !== null) {
+          consumedPreyIds.add(chosenPreyId);
+          predatorEnergyGains.set(predator.id, (predatorEnergyGains.get(predator.id) ?? 0) + predatorEnergyGain);
+        }
+      }
+
+      organisms = organisms
+        .filter((organism) => !consumedPreyIds.has(organism.id))
+        .map((organism) => organism.type === 'predator'
+          ? { ...organism, energy: organism.energy + (predatorEnergyGains.get(organism.id) ?? 0) }
+          : organism);
+    }
   }
 
   organisms = organisms.map((organism) => {
