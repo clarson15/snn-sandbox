@@ -2946,6 +2946,57 @@ describe('App', () => {
     );
   });
 
+  it('shows genome reproduction values in the selected organism HUD summary', () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/seed/i), { target: { value: 'fixture-seed' } });
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    const fixtureConfig = normalizeSimulationConfig(
+      {
+        name: 'Fixture',
+        seed: 'fixture-seed',
+        worldWidth: 800,
+        worldHeight: 480,
+        initialPopulation: 12,
+        initialFoodCount: 30,
+        foodSpawnChance: 0.04,
+        foodEnergyValue: 5,
+        maxFood: 120
+      },
+      'fixture-seed'
+    );
+    const fixtureWorld = createInitialWorldFromConfig(fixtureConfig);
+    const target = fixtureWorld.organisms.find((organism) => Number(organism?.traits?.eggHatchTime) > 0) ?? fixtureWorld.organisms[0];
+
+    const canvas = screen.getByLabelText(/simulation world/i);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 800,
+      height: 480,
+      right: 800,
+      bottom: 480,
+      toJSON: () => ({})
+    });
+
+    fireEvent.click(canvas, { clientX: target.x, clientY: target.y });
+
+    const organismHud = screen.getByRole('region', { name: /organism info/i });
+    const isEggLaying = Number(target?.traits?.eggHatchTime) > 0;
+
+    expect(organismHud).toHaveTextContent(`Birth mode: ${isEggLaying ? 'Egg-laying' : 'Live birth'}`);
+    expect(organismHud).toHaveTextContent(`Maturation period: ${target.traits.adolescenceAge.toFixed(3)}`);
+    if (isEggLaying) {
+      expect(organismHud).toHaveTextContent(`Egg incubation: ${target.traits.eggHatchTime.toFixed(3)}`);
+      return;
+    }
+
+    expect(organismHud).not.toHaveTextContent(/Egg incubation:/i);
+  });
+
   it.skip('supports deterministic neuron filters and pinned path metadata in brain visualizer', () => {
     render(<App />);
 

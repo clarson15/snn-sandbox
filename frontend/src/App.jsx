@@ -917,6 +917,8 @@ function App() {
     () => formatInspectorSnapshot(inspectorOrganism, inspectorNearestFoodDistance),
     [inspectorOrganism, inspectorNearestFoodDistance]
   );
+  const isHudSelectedOrganismEggLaying = Number.isFinite(Number(selectedOrganism?.traits?.eggHatchTime))
+    && Number(selectedOrganism?.traits?.eggHatchTime) > 0;
   const inspectorSummaryParentId = formattedInspector.parentId === INSPECTOR_PLACEHOLDER
     ? 'none'
     : formattedInspector.parentId;
@@ -2799,6 +2801,11 @@ function App() {
                       <p><strong>Generation:</strong> {formattedInspector.generation}</p>
                       <p><strong>Size:</strong> {formattedInspector.size}</p>
                       <p><strong>Energy:</strong> {formattedInspector.energy}</p>
+                      <p><strong>Birth mode:</strong> {formattedInspector.birthMode}</p>
+                      <p><strong>Maturation period:</strong> {formattedInspector.maturationPeriod}</p>
+                      {isHudSelectedOrganismEggLaying ? (
+                        <p><strong>Egg incubation:</strong> {formattedInspector.eggHatchTime}</p>
+                      ) : null}
                       {selectedOrganismSpeciesId ? (
                         <p><strong>Species:</strong> <span style={{ color: getSpeciesColor(selectedOrganismSpeciesId) }}>{selectedOrganismSpeciesId}</span></p>
                       ) : null}
