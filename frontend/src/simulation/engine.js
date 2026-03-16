@@ -7,7 +7,13 @@
  * - No ambient randomness (Math.random / Date.now)
  */
 
-import { createNeuronDefinition, INPUT_NEURON_IDS, isInputNeuronId, isOutputNeuronId, OUTPUT_NEURON_IDS } from './brainSchema.js';
+import {
+  createNeuronDefinition,
+  getInputNeuronIdsForOrganismType,
+  isInputNeuronId,
+  isOutputNeuronId,
+  OUTPUT_NEURON_IDS
+} from './brainSchema.js';
 
 /**
  * @typedef {object} WorldOrganism
@@ -206,7 +212,7 @@ function createNormalizedNeuron(source = {}) {
   };
 }
 
-function normalizeBrain(organismBrain) {
+function normalizeBrain(organismBrain, organismType = 'herbivore') {
   if (
     organismBrain?.schemaVersion === NORMALIZED_BRAIN_VERSION
     && Array.isArray(organismBrain.neurons)
@@ -219,8 +225,9 @@ function normalizeBrain(organismBrain) {
   const neurons = Array.isArray(brain.neurons) ? brain.neurons : [];
   const synapses = Array.isArray(brain.synapses) ? brain.synapses : [];
   const neuronById = new Map();
+  const inputNeuronIds = getInputNeuronIdsForOrganismType(organismType);
 
-  for (const inputId of INPUT_NEURON_IDS) {
+  for (const inputId of inputNeuronIds) {
     neuronById.set(inputId, createNeuronDefinition(inputId, 'input'));
   }
 
@@ -290,7 +297,7 @@ function buildIncomingSynapseMap(synapses) {
 }
 
 function evaluateBrain(organism, food, worldWidth, worldHeight, organismContext = {}) {
-  const normalizedBrain = normalizeBrain(organism?.brain);
+  const normalizedBrain = normalizeBrain(organism?.brain, organism?.type);
   const inputValues = computeInputNeuronValues(organism, food, worldWidth, worldHeight, organismContext);
   const incomingSynapses = buildIncomingSynapseMap(normalizedBrain.synapses);
   const dynamicNeurons = normalizedBrain.neurons.filter((neuron) => neuron.type !== 'input');
@@ -1090,8 +1097,8 @@ function createHiddenNeuronId(neurons) {
  * @param {number} removeSynapseChance - probability of removing a synapse
  * @returns {object} mutated brain
  */
-function mutateBrain(parentBrain, rng, mutationRate, mutationMagnitude, addSynapseChance, removeSynapseChance) {
-  const baseBrain = normalizeBrain(parentBrain);
+function mutateBrain(parentBrain, organismType, rng, mutationRate, mutationMagnitude, addSynapseChance, removeSynapseChance) {
+  const baseBrain = normalizeBrain(parentBrain, organismType);
   const neurons = baseBrain.neurons.map((neuron) => ({ ...neuron }));
   let synapses = baseBrain.synapses.map((synapse) => ({ ...synapse }));
 
@@ -1201,7 +1208,7 @@ function mutateBrain(parentBrain, rng, mutationRate, mutationMagnitude, addSynap
     signalSubsteps: baseBrain.signalSubsteps,
     neurons,
     synapses
-  });
+  }, organismType);
 
   return nextBrain;
 }
@@ -1607,7 +1614,15 @@ export function stepWorld(state, rng, params = {}) {
 
       // Apply deterministic mutations to traits and brain
       const mutatedTraits = mutateTraits(organism.traits, rng, traitMutationRate, traitMutationMagnitude);
-      const mutatedBrain = mutateBrain(organism.brain, rng, brainMutationRate, brainMutationMagnitude, brainAddSynapseChance, brainRemoveSynapseChance);
+      const mutatedBrain = mutateBrain(
+        organism.brain,
+        organism.type,
+        rng,
+        brainMutationRate,
+        brainMutationMagnitude,
+        brainAddSynapseChance,
+        brainRemoveSynapseChance
+      );
 
       const offspringBase = {
         id: offspringId,
