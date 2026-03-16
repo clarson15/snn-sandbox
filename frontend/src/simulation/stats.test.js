@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  deriveOrganismTerrainEffect,
   deriveSimulationStats,
   deriveStatsTrends,
+  formatOrganismTerrainEffect,
   formatSimulationStats,
   formatTrendIndicator,
   reduceStatsTrendHistory,
@@ -292,5 +294,94 @@ describe('simulation stats', () => {
 
     // Single organism
     expect(deriveSimulationStats({ tick: 0, organisms: [{ id: 'o-1' }], food: [] }).speciesCount).toBe(1);
+  });
+});
+
+describe('organism terrain effect', () => {
+  const terrainZones = [
+    { id: 'zone-1', x: 0, y: 0, width: 100, height: 100, type: 'grass' },
+    { id: 'zone-2', x: 100, y: 0, width: 100, height: 100, type: 'forest' },
+    { id: 'zone-3', x: 0, y: 100, width: 100, height: 100, type: 'water' },
+    { id: 'zone-4', x: 100, y: 100, width: 100, height: 100, type: 'rock' }
+  ];
+
+  it('returns null when organism is null', () => {
+    expect(deriveOrganismTerrainEffect(null, terrainZones)).toBeNull();
+  });
+
+  it('returns null when organism has no position', () => {
+    expect(deriveOrganismTerrainEffect({}, terrainZones)).toBeNull();
+    expect(deriveOrganismTerrainEffect({ id: 'o-1' }, terrainZones)).toBeNull();
+  });
+
+  it('returns null when terrain zones are empty', () => {
+    expect(deriveOrganismTerrainEffect({ x: 50, y: 50 }, [])).toBeNull();
+    expect(deriveOrganismTerrainEffect({ x: 50, y: 50 }, null)).toBeNull();
+    expect(deriveOrganismTerrainEffect({ x: 50, y: 50 }, undefined)).toBeNull();
+  });
+
+  it('returns null when organism is not in any terrain zone', () => {
+    expect(deriveOrganismTerrainEffect({ x: 250, y: 250 }, terrainZones)).toBeNull();
+  });
+
+  it('derives terrain effect for organism in grass (plains) zone', () => {
+    const effect = deriveOrganismTerrainEffect({ x: 50, y: 50 }, terrainZones);
+    expect(effect).not.toBeNull();
+    expect(effect.type).toBe('grass');
+    expect(effect.label).toBe('Plains');
+    expect(effect.effect).toBe('normal movement, more food');
+  });
+
+  it('derives terrain effect for organism in forest zone', () => {
+    const effect = deriveOrganismTerrainEffect({ x: 150, y: 50 }, terrainZones);
+    expect(effect).not.toBeNull();
+    expect(effect.type).toBe('forest');
+    expect(effect.label).toBe('Forest');
+    expect(effect.effect).toBe('slower movement, abundant food');
+  });
+
+  it('derives terrain effect for organism in water (wetland) zone', () => {
+    const effect = deriveOrganismTerrainEffect({ x: 50, y: 150 }, terrainZones);
+    expect(effect).not.toBeNull();
+    expect(effect.type).toBe('water');
+    expect(effect.label).toBe('Wetland');
+    expect(effect.effect).toBe('slow movement, scarce food');
+  });
+
+  it('derives terrain effect for organism in rocky zone', () => {
+    const effect = deriveOrganismTerrainEffect({ x: 150, y: 150 }, terrainZones);
+    expect(effect).not.toBeNull();
+    expect(effect.type).toBe('rock');
+    expect(effect.label).toBe('Rocky');
+    expect(effect.effect).toBe('very slow, scarce food, energy drain');
+  });
+
+  it('uses organism size to determine terrain zone overlap', () => {
+    // Large organism at edge of zone should still be detected
+    const largeOrganism = { x: 99, y: 50, traits: { size: 3 } }; // radius = 9
+    const effect = deriveOrganismTerrainEffect(largeOrganism, terrainZones);
+    expect(effect).not.toBeNull();
+    expect(effect.type).toBe('grass');
+  });
+
+  it('handles missing traits gracefully (defaults to size 1)', () => {
+    const organism = { x: 99, y: 50 }; // No traits
+    const effect = deriveOrganismTerrainEffect(organism, terrainZones);
+    expect(effect).not.toBeNull();
+    expect(effect.type).toBe('grass');
+  });
+
+  it('formats terrain effect for HUD display', () => {
+    const effect = deriveOrganismTerrainEffect({ x: 50, y: 50 }, terrainZones);
+    const formatted = formatOrganismTerrainEffect(effect);
+    expect(formatted).toEqual({
+      zoneLabel: 'Plains',
+      effectLabel: 'normal movement, more food'
+    });
+  });
+
+  it('returns null from format when terrain effect is null', () => {
+    expect(formatOrganismTerrainEffect(null)).toBeNull();
+    expect(formatOrganismTerrainEffect(undefined)).toBeNull();
   });
 });

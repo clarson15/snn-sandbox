@@ -230,3 +230,91 @@ export function formatTrendIndicator(direction) {
       return '→ Flat';
   }
 }
+
+// Terrain zone type to display name mapping
+const TERRAIN_TYPE_LABELS = {
+  grass: 'Plains',
+  sand: 'Sand',
+  water: 'Wetland',
+  forest: 'Forest',
+  rock: 'Rocky'
+};
+
+// Terrain zone type to effect description mapping
+// Keep descriptions concise for HUD display
+const TERRAIN_EFFECT_DESCRIPTIONS = {
+  grass: 'normal movement, more food',
+  sand: 'slower movement, less food',
+  water: 'slow movement, scarce food',
+  forest: 'slower movement, abundant food',
+  rock: 'very slow, scarce food, energy drain'
+};
+
+/**
+ * Check if an organism is inside a terrain zone (rectangle-based collision)
+ * @param {object} organism - organism with x, y, and optionally traits.size
+ * @param {object} zone - terrain zone with x, y, width, height
+ * @returns {boolean}
+ */
+function isInTerrainZone(organism, zone) {
+  const organismSize = organism?.traits?.size ?? 1;
+  const organismRadius = organismSize * 3; // Approximate radius matching engine.js
+  const orgX = organism.x;
+  const orgY = organism.y;
+
+  // Find closest point on rectangle to circle center
+  const closestX = Math.max(zone.x, Math.min(orgX, zone.x + zone.width));
+  const closestY = Math.max(zone.y, Math.min(orgY, zone.y + zone.height));
+
+  // Check if circle overlaps with rectangle
+  const dx = orgX - closestX;
+  const dy = orgY - closestY;
+  return (dx * dx + dy * dy) < (organismRadius * organismRadius);
+}
+
+/**
+ * Derive the active terrain effect for an organism based on its position in terrain zones.
+ * Returns null if no terrain zone applies or if inputs are invalid.
+ * @param {object} organism - organism with x, y, and optionally traits
+ * @param {object[]} terrainZones - array of terrain zones
+ * @returns {object|null} - { type, label, effect } or null if no zone applies
+ */
+export function deriveOrganismTerrainEffect(organism, terrainZones) {
+  if (!organism || typeof organism.x !== 'number' || typeof organism.y !== 'number') {
+    return null;
+  }
+
+  const zones = Array.isArray(terrainZones) ? terrainZones : [];
+  if (zones.length === 0) {
+    return null;
+  }
+
+  // Find the first terrain zone the organism is in
+  for (const zone of zones) {
+    if (zone && isInTerrainZone(organism, zone)) {
+      const type = zone.type;
+      const label = TERRAIN_TYPE_LABELS[type] ?? 'Unknown';
+      const effect = TERRAIN_EFFECT_DESCRIPTIONS[type] ?? '';
+      return { type, label, effect };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Format the terrain effect for display in the HUD.
+ * Returns null if terrainEffect is null/undefined.
+ * @param {object|null} terrainEffect - result from deriveOrganismTerrainEffect
+ * @returns {object|null} - { zoneLabel, effectLabel } or null
+ */
+export function formatOrganismTerrainEffect(terrainEffect) {
+  if (!terrainEffect) {
+    return null;
+  }
+
+  return {
+    zoneLabel: terrainEffect.label,
+    effectLabel: terrainEffect.effect
+  };
+}
