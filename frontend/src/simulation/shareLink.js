@@ -90,7 +90,7 @@ export function resolveDeterministicQueryPrefill(search) {
       if (field.startsWith('terrainZone')) {
         switch (field) {
           case 'terrainZoneEnabled':
-            return [field, String(tzDefaults.enabled ? 1 : 0)];
+            return [field, String(Boolean(tzDefaults.enabled))];
           case 'terrainZoneCount':
             return [field, String(tzDefaults.zoneCount)];
           case 'terrainZoneMinWidthRatio':
@@ -171,7 +171,9 @@ export function resolveDeterministicQueryPrefill(search) {
           break;
       }
       // Also set flat value for backward compatibility
-      prefill[field] = toCanonicalNumberString(parsed);
+      prefill[field] = field === 'terrainZoneEnabled'
+        ? String(parsed === 1)
+        : toCanonicalNumberString(parsed);
     } else {
       prefill[field] = toCanonicalNumberString(parsed);
     }

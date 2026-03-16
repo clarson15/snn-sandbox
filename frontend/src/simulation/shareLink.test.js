@@ -63,4 +63,17 @@ describe('shareLink helpers', () => {
     expect(warningMessage).toContain('minimumPopulation');
     expect(warningMessage).toContain('reproductionThreshold');
   });
+
+  it('maps terrain query fields to app form-safe values', () => {
+    const { prefill } = resolveDeterministicQueryPrefill(
+      '?terrainZoneEnabled=1&terrainZoneCount=6&terrainZoneMinWidthRatio=0.16&terrainZoneMaxWidthRatio=0.34&terrainZoneMinHeightRatio=0.17&terrainZoneMaxHeightRatio=0.31'
+    );
+
+    expect(prefill.terrainZoneEnabled).toBe('true');
+    expect(prefill.terrainZoneCount).toBe('6');
+    expect(prefill.terrainZoneMinWidthRatio).toBe('0.16');
+    expect(prefill.terrainZoneMaxWidthRatio).toBe('0.34');
+    expect(prefill.terrainZoneMinHeightRatio).toBe('0.17');
+    expect(prefill.terrainZoneMaxHeightRatio).toBe('0.31');
+  });
 });
