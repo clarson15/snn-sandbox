@@ -1254,16 +1254,29 @@ export function stepWorld(state, rng, params = {}) {
     }
   }
 
-  const hasPredators = activeOrganisms.some((organism) => organism.type === 'predator');
+  let predatorCount = 0;
+  for (const organism of activeOrganisms) {
+    if (organism.type === 'predator') {
+      predatorCount += 1;
+    }
+  }
+
+  const hasPredators = predatorCount > 0;
   let organismContext = null;
   if (hasPredators) {
-    const maxVisionRange = activeOrganisms.reduce((max, organism) => {
-      const visionRange = organism.traits?.visionRange ?? 25;
-      return visionRange > max ? visionRange : max;
-    }, 25);
+    const shouldBuildPredatorPreyIndex = activeOrganisms.length >= 48 && predatorCount >= 4;
+    const maxVisionRange = shouldBuildPredatorPreyIndex
+      ? activeOrganisms.reduce((max, organism) => {
+        const visionRange = organism.traits?.visionRange ?? 25;
+        return visionRange > max ? visionRange : max;
+      }, 25)
+      : null;
+
     organismContext = {
       organisms: activeOrganisms,
-      preyIndex: buildPreySpatialIndex(activeOrganisms, maxVisionRange)
+      preyIndex: shouldBuildPredatorPreyIndex
+        ? buildPreySpatialIndex(activeOrganisms, maxVisionRange)
+        : null
     };
   }
 
@@ -1435,54 +1448,91 @@ export function stepWorld(state, rng, params = {}) {
     }
 
     if (preyCandidates.length > 0) {
-      const preyById = new Map(preyCandidates.map((prey) => [prey.id, prey]));
-      const preyCellSize = Math.max(predatorHuntRadius, 1);
-      const { cells: preyCellsByKey } = buildFoodSpatialIndex(preyCandidates, preyCellSize);
       const consumedPreyIds = new Set();
       const predatorEnergyGains = new Map();
-      const predatorsByStableOrder = [...predators].sort((a, b) => a.id.localeCompare(b.id));
 
-      for (const predator of predatorsByStableOrder) {
-        let chosenPreyId = null;
-        let chosenDistance = Number.POSITIVE_INFINITY;
-        const minCellX = toCellIndex(predator.x - predatorHuntRadius, preyCellSize);
-        const maxCellX = toCellIndex(predator.x + predatorHuntRadius, preyCellSize);
-        const minCellY = toCellIndex(predator.y - predatorHuntRadius, preyCellSize);
-        const maxCellY = toCellIndex(predator.y + predatorHuntRadius, preyCellSize);
+      let predatorsByStableOrder = predators;
+      const predatorsNeedSort = predators.length > 1
+        && predators.some((predator, index) => index > 0 && predator.id.localeCompare(predators[index - 1].id) < 0);
+      if (predatorsNeedSort) {
+        predatorsByStableOrder = [...predators].sort((a, b) => a.id.localeCompare(b.id));
+      }
 
-        for (let cellX = minCellX; cellX <= maxCellX; cellX += 1) {
-          for (let cellY = minCellY; cellY <= maxCellY; cellY += 1) {
-            const cellPreyIds = preyCellsByKey.get(toCellKey(cellX, cellY));
-            if (!cellPreyIds || cellPreyIds.size === 0) {
-              continue;
-            }
+      const shouldUseSpatialPredatorHuntLookup = predatorsByStableOrder.length >= 4 && preyCandidates.length >= 48;
 
-            for (const preyId of cellPreyIds) {
-              if (consumedPreyIds.has(preyId)) {
+      if (shouldUseSpatialPredatorHuntLookup) {
+        const preyById = new Map(preyCandidates.map((prey) => [prey.id, prey]));
+        const preyCellSize = Math.max(predatorHuntRadius, 1);
+        const { cells: preyCellsByKey } = buildFoodSpatialIndex(preyCandidates, preyCellSize);
+
+        for (const predator of predatorsByStableOrder) {
+          let chosenPreyId = null;
+          let chosenDistance = Number.POSITIVE_INFINITY;
+          const minCellX = toCellIndex(predator.x - predatorHuntRadius, preyCellSize);
+          const maxCellX = toCellIndex(predator.x + predatorHuntRadius, preyCellSize);
+          const minCellY = toCellIndex(predator.y - predatorHuntRadius, preyCellSize);
+          const maxCellY = toCellIndex(predator.y + predatorHuntRadius, preyCellSize);
+
+          for (let cellX = minCellX; cellX <= maxCellX; cellX += 1) {
+            for (let cellY = minCellY; cellY <= maxCellY; cellY += 1) {
+              const cellPreyIds = preyCellsByKey.get(toCellKey(cellX, cellY));
+              if (!cellPreyIds || cellPreyIds.size === 0) {
                 continue;
               }
 
-              const prey = preyById.get(preyId);
-              if (!prey) {
-                continue;
-              }
+              for (const preyId of cellPreyIds) {
+                if (consumedPreyIds.has(preyId)) {
+                  continue;
+                }
 
-              const distance = squaredDistance(predator, prey);
-              if (distance > predatorHuntRadiusSquared) {
-                continue;
-              }
+                const prey = preyById.get(preyId);
+                if (!prey) {
+                  continue;
+                }
 
-              if (distance < chosenDistance || (distance === chosenDistance && (chosenPreyId === null || preyId < chosenPreyId))) {
-                chosenDistance = distance;
-                chosenPreyId = preyId;
+                const distance = squaredDistance(predator, prey);
+                if (distance > predatorHuntRadiusSquared) {
+                  continue;
+                }
+
+                if (distance < chosenDistance || (distance === chosenDistance && (chosenPreyId === null || preyId < chosenPreyId))) {
+                  chosenDistance = distance;
+                  chosenPreyId = preyId;
+                }
               }
             }
           }
-        }
 
-        if (chosenPreyId !== null) {
-          consumedPreyIds.add(chosenPreyId);
-          predatorEnergyGains.set(predator.id, (predatorEnergyGains.get(predator.id) ?? 0) + predatorEnergyGain);
+          if (chosenPreyId !== null) {
+            consumedPreyIds.add(chosenPreyId);
+            predatorEnergyGains.set(predator.id, (predatorEnergyGains.get(predator.id) ?? 0) + predatorEnergyGain);
+          }
+        }
+      } else {
+        for (const predator of predatorsByStableOrder) {
+          let chosenPreyId = null;
+          let chosenDistance = Number.POSITIVE_INFINITY;
+
+          for (const prey of preyCandidates) {
+            if (consumedPreyIds.has(prey.id)) {
+              continue;
+            }
+
+            const distance = squaredDistance(predator, prey);
+            if (distance > predatorHuntRadiusSquared) {
+              continue;
+            }
+
+            if (distance < chosenDistance || (distance === chosenDistance && (chosenPreyId === null || prey.id < chosenPreyId))) {
+              chosenDistance = distance;
+              chosenPreyId = prey.id;
+            }
+          }
+
+          if (chosenPreyId !== null) {
+            consumedPreyIds.add(chosenPreyId);
+            predatorEnergyGains.set(predator.id, (predatorEnergyGains.get(predator.id) ?? 0) + predatorEnergyGain);
+          }
         }
       }
 
