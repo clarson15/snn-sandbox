@@ -100,6 +100,8 @@ export const STATS_TREND_DIRECTIONS = {
 };
 
 const POPULATION_TREND_EPSILON = 0;
+const FOOD_COUNT_TREND_EPSILON = 0;
+const AVERAGE_GENERATION_TREND_EPSILON = 0.1;
 const AVERAGE_ENERGY_TREND_EPSILON = 0.1;
 
 // Warning threshold for average organism energy
@@ -167,6 +169,8 @@ export function reduceStatsTrendHistory(history, stats, maxWindowTicks = STATS_T
   const nextSample = {
     tick: safeTick,
     population: toNonNegativeInteger(stats?.population),
+    foodCount: toNonNegativeInteger(stats?.foodCount),
+    averageGeneration: toFiniteNumber(stats?.averageGeneration),
     averageEnergy: toFiniteNumber(stats?.averageEnergy)
   };
 
@@ -210,6 +214,8 @@ export function deriveStatsTrends(history, tickCount) {
 
   return {
     population: deriveMetricTrend(history, safeTick, 'population', POPULATION_TREND_EPSILON),
+    foodCount: deriveMetricTrend(history, safeTick, 'foodCount', FOOD_COUNT_TREND_EPSILON),
+    averageGeneration: deriveMetricTrend(history, safeTick, 'averageGeneration', AVERAGE_GENERATION_TREND_EPSILON),
     averageEnergy: deriveMetricTrend(history, safeTick, 'averageEnergy', AVERAGE_ENERGY_TREND_EPSILON)
   };
 }

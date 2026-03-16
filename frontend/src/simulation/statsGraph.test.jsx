@@ -1,0 +1,75 @@
+import '@testing-library/jest-dom/vitest';
+import { cleanup, render } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
+
+import { StatsGraph } from './statsGraph';
+
+afterEach(() => {
+  cleanup();
+});
+
+describe('StatsGraph', () => {
+  it('renders empty state when history has less than 2 samples', () => {
+    const { container } = render(<StatsGraph history={[]} />);
+    expect(container.querySelector('.stats-graph-empty')).toHaveTextContent('Collecting data...');
+  });
+
+  it('renders empty state for null/undefined history', () => {
+    const { container } = render(<StatsGraph history={null} />);
+    expect(container.querySelector('.stats-graph-empty')).toHaveTextContent('Collecting data...');
+  });
+
+  it('renders SVG with polylines when history has enough data', () => {
+    const history = [
+      { tick: 0, population: 5, foodCount: 10, averageGeneration: 1.5, averageEnergy: 8 },
+      { tick: 10, population: 8, foodCount: 15, averageGeneration: 2.0, averageEnergy: 10 },
+      { tick: 20, population: 12, foodCount: 8, averageGeneration: 2.5, averageEnergy: 6 }
+    ];
+
+    const { container } = render(<StatsGraph history={history} />);
+    
+    const svg = container.querySelector('.stats-graph svg');
+    expect(svg).toBeInTheDocument();
+    
+    const polylines = container.querySelectorAll('.stats-graph polyline');
+    expect(polylines).toHaveLength(3); // population, foodCount, averageGeneration
+  });
+
+  it('renders legend with correct labels', () => {
+    const history = [
+      { tick: 0, population: 5, foodCount: 10, averageGeneration: 1.5, averageEnergy: 8 },
+      { tick: 10, population: 8, foodCount: 15, averageGeneration: 2.0, averageEnergy: 10 }
+    ];
+
+    const { container } = render(<StatsGraph history={history} />);
+    
+    const legend = container.querySelector('.stats-graph-legend');
+    expect(legend).toBeInTheDocument();
+    
+    expect(legend).toHaveTextContent('Pop');
+    expect(legend).toHaveTextContent('Food');
+    expect(legend).toHaveTextContent('Gen');
+  });
+
+  it('respects custom metrics prop', () => {
+    const history = [
+      { tick: 0, population: 5, foodCount: 10, averageGeneration: 1.5, averageEnergy: 8 },
+      { tick: 10, population: 8, foodCount: 15, averageGeneration: 2.0, averageEnergy: 10 }
+    ];
+
+    const { container } = render(<StatsGraph history={history} metrics={['population']} />);
+    const polylines = container.querySelectorAll('.stats-graph polyline');
+    expect(polylines).toHaveLength(1);
+  });
+
+  it('respects custom width prop', () => {
+    const history = [
+      { tick: 0, population: 5, foodCount: 10, averageGeneration: 1.5, averageEnergy: 8 },
+      { tick: 10, population: 8, foodCount: 15, averageGeneration: 2.0, averageEnergy: 10 }
+    ];
+
+    const { container } = render(<StatsGraph history={history} width={400} />);
+    const graph = container.querySelector('.stats-graph');
+    expect(graph.style.width).toBe('400px');
+  });
+});
