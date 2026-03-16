@@ -2508,7 +2508,7 @@ describe('App', () => {
     const isEggLaying = Number(target?.traits?.eggHatchTime) > 0;
 
     expect(organismHud).toHaveTextContent(`Birth mode: ${isEggLaying ? 'Egg-laying' : 'Live birth'}`);
-    expect(organismHud).toHaveTextContent(`Maturation period: ${target.traits.adolescenceAge.toFixed(3)}`);
+    expect(organismHud).toHaveTextContent(`Adolescence period: ${target.traits.adolescenceAge.toFixed(3)}`);
     if (isEggLaying) {
       expect(organismHud).toHaveTextContent(`Egg incubation: ${target.traits.eggHatchTime.toFixed(3)}`);
       return;

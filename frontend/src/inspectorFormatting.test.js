@@ -65,7 +65,8 @@ describe('formatInspectorSnapshot', () => {
       outputNeuronCount: '1',
       synapseCount: '1',
       inputBindings: 'Energy sensor',
-      outputBindings: 'Turn left actuator'
+      outputBindings: 'Turn left actuator',
+      terrain: '—'
     });
   });
 
@@ -92,6 +93,7 @@ describe('formatInspectorSnapshot', () => {
     expect(formatted.neuronCount).toBe('0');
     expect(formatted.inputBindings).toBe('—');
     expect(formatted.outputBindings).toBe('—');
+    expect(formatted.terrain).toBe('—');
   });
 
   it('formats live birth when egg hatch time is zero', () => {
@@ -108,5 +110,34 @@ describe('formatInspectorSnapshot', () => {
 
     expect(formatted.birthMode).toBe('Live birth');
     expect(formatted.maturationPeriod).toBe('24.000');
+    expect(formatted.terrain).toBe('—');
+  });
+
+  it('formats terrain effect with zone label and effect description', () => {
+    const formatted = formatInspectorSnapshot(
+      {
+        id: 'org-1',
+        traits: {},
+        brain: {}
+      },
+      null,
+      { label: 'Forest', effect: '50% vision' }
+    );
+
+    expect(formatted.terrain).toBe('Forest: 50% vision');
+  });
+
+  it('handles terrain with null/undefined values gracefully', () => {
+    const formatted = formatInspectorSnapshot(
+      {
+        id: 'org-1',
+        traits: {},
+        brain: {}
+      },
+      null,
+      null
+    );
+
+    expect(formatted.terrain).toBe('—');
   });
 });

@@ -931,8 +931,8 @@ function App() {
     return Number.isFinite(nearestDistance) ? nearestDistance : null;
   }, [displayWorld, inspectorOrganism]);
   const formattedInspector = useMemo(
-    () => formatInspectorSnapshot(inspectorOrganism, inspectorNearestFoodDistance),
-    [inspectorOrganism, inspectorNearestFoodDistance]
+    () => formatInspectorSnapshot(inspectorOrganism, inspectorNearestFoodDistance, selectedOrganismTerrainEffect),
+    [inspectorOrganism, inspectorNearestFoodDistance, selectedOrganismTerrainEffect]
   );
   const isHudSelectedOrganismEggLaying = Number.isFinite(Number(selectedOrganism?.traits?.eggHatchTime))
     && Number(selectedOrganism?.traits?.eggHatchTime) > 0;
@@ -2853,19 +2853,18 @@ function App() {
                       </button>
                     </div>
                     <div className="organism-hud-stats">
-                      <p><strong>Generation:</strong> {formattedInspector.generation}</p>
-                      <p><strong>Size:</strong> {formattedInspector.size}</p>
-                      <p><strong>Energy:</strong> {formattedInspector.energy}</p>
-                      <p><strong>Birth mode:</strong> {formattedInspector.birthMode}</p>
-                      <p><strong>Maturation period:</strong> {formattedInspector.maturationPeriod}</p>
-                      {isHudSelectedOrganismEggLaying ? (
-                        <p><strong>Egg incubation:</strong> {formattedInspector.eggHatchTime}</p>
-                      ) : null}
+                      {inspectorTraitSections.map((section) => (
+                        <div key={section.key} className="inspector-trait-section">
+                          <p className="inspector-section-label">{section.label}</p>
+                          {section.fields.map((field) => (
+                            <p key={field.key}>
+                              <strong>{field.label}:</strong> {field.value}
+                            </p>
+                          ))}
+                        </div>
+                      ))}
                       {selectedOrganismSpeciesId ? (
                         <p><strong>Species:</strong> <span style={{ color: getSpeciesColor(selectedOrganismSpeciesId) }}>{selectedOrganismSpeciesId}</span></p>
-                      ) : null}
-                      {formattedSelectedOrganismTerrainEffect ? (
-                        <p><strong>Terrain:</strong> {formattedSelectedOrganismTerrainEffect.zoneLabel}: {formattedSelectedOrganismTerrainEffect.effectLabel}</p>
                       ) : null}
                     </div>
                     {brainGraphModel && brainGraphModel.nodes.length > 0 ? (
