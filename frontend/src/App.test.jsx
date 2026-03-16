@@ -8,6 +8,7 @@ import { loadReplayComparisonPresets } from './simulation/replayComparisonPreset
 import { stepWorld } from './simulation/engine';
 import { createSeededPrng } from './simulation/prng';
 import { mapBrainToVisualizerModel } from './simulation/brainVisualizer';
+import { deriveOrganismTerrainEffect } from './simulation/stats';
 
 function ensureWritableLocalStorage() {
   const storage = window.localStorage;
@@ -2515,5 +2516,239 @@ describe('App', () => {
 
     expect(organismHud).not.toHaveTextContent(/Egg incubation:/i);
   });
+
+  it('renders terrain effect in selected organism HUD when organism is in a terrain zone (SSN-263)', async () => {
+    vi.useFakeTimers();
+
+    // Use terrain zones that cover almost the entire world to ensure organisms are in terrain
+    window.history.replaceState(
+      {},
+      '',
+      '/?seed=terrain-hud-test-seed&terrainZoneEnabled=1&terrainZoneCount=1&terrainZoneMinWidthRatio=0.5&terrainZoneMaxWidthRatio=0.5&terrainZoneMinHeightRatio=0.5&terrainZoneMaxHeightRatio=0.5'
+    );
+
+    const deterministicConfig = normalizeSimulationConfig(
+      {
+        name: 'Terrain HUD Test',
+        seed: 'terrain-hud-test-seed',
+        worldWidth: 800,
+        worldHeight: 480,
+        initialPopulation: 20,
+        initialFoodCount: 30,
+        terrainZoneGeneration: {
+          enabled: true,
+          zoneCount: 1,
+          minZoneWidthRatio: 0.5,
+          maxZoneWidthRatio: 0.5,
+          minZoneHeightRatio: 0.5,
+          maxZoneHeightRatio: 0.5
+        }
+      },
+      'terrain-hud-test-seed'
+    );
+
+    const initialWorld = createInitialWorldFromConfig(deterministicConfig);
+    expect(initialWorld.terrainZones).toHaveLength(1);
+
+    const selectedFixture = initialWorld.organisms.find((organism) => (
+      deriveOrganismTerrainEffect(organism, initialWorld.terrainZones) !== null
+    ));
+    expect(selectedFixture).toBeTruthy();
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'terrain-hud-test-seed' } });
+    fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '800' } });
+    fireEvent.change(screen.getByLabelText(/world height/i), { target: { value: '480' } });
+    fireEvent.change(screen.getByLabelText(/initial population/i), { target: { value: '20' } });
+    fireEvent.change(screen.getByLabelText(/initial food/i), { target: { value: '30' } });
+
+    const terrainToggle = screen.getByLabelText(/enable terrain zones/i);
+    if (!terrainToggle.checked) {
+      fireEvent.click(terrainToggle);
+    }
+    fireEvent.change(screen.getByLabelText(/zone count/i), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText(/min zone width ratio/i), { target: { value: '0.5' } });
+    fireEvent.change(screen.getByLabelText(/max zone width ratio/i), { target: { value: '0.5' } });
+    fireEvent.change(screen.getByLabelText(/min zone height ratio/i), { target: { value: '0.5' } });
+    fireEvent.change(screen.getByLabelText(/max zone height ratio/i), { target: { value: '0.5' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+
+    const canvas = screen.getByLabelText(/simulation world/i);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 800,
+      height: 480,
+      right: 800,
+      bottom: 480,
+      toJSON: () => ({})
+    });
+
+    fireEvent.click(canvas, { clientX: selectedFixture.x, clientY: selectedFixture.y });
+
+    const organismHud = screen.getByRole('region', { name: /organism info/i });
+    expect(organismHud).toHaveTextContent(`Organism ${selectedFixture.id.slice(0, 8)}`);
+    expect(organismHud).toHaveTextContent(/Terrain:/);
+    expect(organismHud).toHaveTextContent(/Terrain:\s*(Plains|Forest|Wetland|Rocky):/i);
+  });
+
+  it('does not render terrain line in organism HUD when no organism is selected (SSN-263)', async () => {
+    vi.useFakeTimers();
+
+    window.history.replaceState(
+      {},
+      '',
+      '/?seed=terrain-no-selection-seed&terrainZoneEnabled=1&terrainZoneCount=4'
+    );
+
+    const deterministicConfig = normalizeSimulationConfig(
+      {
+        name: 'Terrain No Selection Test',
+        seed: 'terrain-no-selection-seed',
+        worldWidth: 800,
+        worldHeight: 480,
+        initialPopulation: 20,
+        initialFoodCount: 30,
+        terrainZoneGeneration: {
+          enabled: true,
+          zoneCount: 4
+        }
+      },
+      'terrain-no-selection-seed'
+    );
+
+    const initialWorld = createInitialWorldFromConfig(deterministicConfig);
+    expect(initialWorld.terrainZones).toHaveLength(4);
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'terrain-no-selection-seed' } });
+    fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '800' } });
+    fireEvent.change(screen.getByLabelText(/world height/i), { target: { value: '480' } });
+    fireEvent.change(screen.getByLabelText(/initial population/i), { target: { value: '20' } });
+    fireEvent.change(screen.getByLabelText(/initial food/i), { target: { value: '30' } });
+
+    const terrainToggle = screen.getByLabelText(/enable terrain zones/i);
+    if (!terrainToggle.checked) {
+      fireEvent.click(terrainToggle);
+    }
+    fireEvent.change(screen.getByLabelText(/zone count/i), { target: { value: '4' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+
+    expect(screen.queryByRole('region', { name: /organism info/i })).not.toBeInTheDocument();
+
+    const statsHud = screen.getByRole('region', { name: /simulation stats hud/i });
+    expect(statsHud).toBeInTheDocument();
+    expect(within(statsHud).getByText(/^population:/i)).toHaveTextContent('Population: 20 (→ Flat)');
+  });
+
+  it('clears terrain from HUD when selected organism is deselected (SSN-263)', async () => {
+    vi.useFakeTimers();
+
+    window.history.replaceState(
+      {},
+      '',
+      '/?seed=terrain-deselect-seed&terrainZoneEnabled=1&terrainZoneCount=1&terrainZoneMinWidthRatio=0.5&terrainZoneMaxWidthRatio=0.5&terrainZoneMinHeightRatio=0.5&terrainZoneMaxHeightRatio=0.5'
+    );
+
+    const deterministicConfig = normalizeSimulationConfig(
+      {
+        name: 'Terrain Deselect Test',
+        seed: 'terrain-deselect-seed',
+        worldWidth: 800,
+        worldHeight: 480,
+        initialPopulation: 20,
+        initialFoodCount: 30,
+        terrainZoneGeneration: {
+          enabled: true,
+          zoneCount: 1,
+          minZoneWidthRatio: 0.5,
+          maxZoneWidthRatio: 0.5,
+          minZoneHeightRatio: 0.5,
+          maxZoneHeightRatio: 0.5
+        }
+      },
+      'terrain-deselect-seed'
+    );
+
+    const initialWorld = createInitialWorldFromConfig(deterministicConfig);
+    const selectedFixture = initialWorld.organisms.find((organism) => (
+      deriveOrganismTerrainEffect(organism, initialWorld.terrainZones) !== null
+    ));
+    expect(selectedFixture).toBeTruthy();
+
+    const emptyPoint = (() => {
+      const candidates = [
+        { x: 0, y: 0 },
+        { x: 799, y: 0 },
+        { x: 0, y: 479 },
+        { x: 799, y: 479 }
+      ];
+      return candidates.find((candidate) => (
+        initialWorld.organisms.every((organism) => {
+          const dx = organism.x - candidate.x;
+          const dy = organism.y - candidate.y;
+          return (dx * dx) + (dy * dy) > 81;
+        })
+      )) ?? { x: 0, y: 0 };
+    })();
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'terrain-deselect-seed' } });
+    fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '800' } });
+    fireEvent.change(screen.getByLabelText(/world height/i), { target: { value: '480' } });
+    fireEvent.change(screen.getByLabelText(/initial population/i), { target: { value: '20' } });
+    fireEvent.change(screen.getByLabelText(/initial food/i), { target: { value: '30' } });
+
+    const terrainToggle = screen.getByLabelText(/enable terrain zones/i);
+    if (!terrainToggle.checked) {
+      fireEvent.click(terrainToggle);
+    }
+    fireEvent.change(screen.getByLabelText(/zone count/i), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText(/min zone width ratio/i), { target: { value: '0.5' } });
+    fireEvent.change(screen.getByLabelText(/max zone width ratio/i), { target: { value: '0.5' } });
+    fireEvent.change(screen.getByLabelText(/min zone height ratio/i), { target: { value: '0.5' } });
+    fireEvent.change(screen.getByLabelText(/max zone height ratio/i), { target: { value: '0.5' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+
+    const canvas = screen.getByLabelText(/simulation world/i);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 800,
+      height: 480,
+      right: 800,
+      bottom: 480,
+      toJSON: () => ({})
+    });
+
+    fireEvent.click(canvas, { clientX: selectedFixture.x, clientY: selectedFixture.y });
+
+    const organismHud = screen.getByRole('region', { name: /organism info/i });
+    expect(organismHud).toHaveTextContent(/Terrain:/);
+
+    fireEvent.click(canvas, { clientX: emptyPoint.x, clientY: emptyPoint.y });
+
+    expect(screen.queryByRole('region', { name: /organism info/i })).not.toBeInTheDocument();
+  });
+
 
 });

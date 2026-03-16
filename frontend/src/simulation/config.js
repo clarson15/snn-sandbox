@@ -534,10 +534,10 @@ function generateTerrainZonesFromConfig(config, rng) {
     ? generation.zoneTypes
     : DEFAULT_TERRAIN_ZONE_GENERATION.zoneTypes;
 
-  const minWidth = config.worldWidth * generation.minimumZoneWidthRatio;
-  const maxWidth = config.worldWidth * generation.maximumZoneWidthRatio;
-  const minHeight = config.worldHeight * generation.minimumZoneHeightRatio;
-  const maxHeight = config.worldHeight * generation.maximumZoneHeightRatio;
+  const minWidth = config.worldWidth * (generation.minZoneWidthRatio ?? generation.minimumZoneWidthRatio);
+  const maxWidth = config.worldWidth * (generation.maxZoneWidthRatio ?? generation.maximumZoneWidthRatio);
+  const minHeight = config.worldHeight * (generation.minZoneHeightRatio ?? generation.minimumZoneHeightRatio);
+  const maxHeight = config.worldHeight * (generation.maxZoneHeightRatio ?? generation.maximumZoneHeightRatio);
 
   return Array.from({ length: generation.zoneCount }, (_, index) => {
     const width = minWidth + (rng.nextFloat() * Math.max(0, maxWidth - minWidth));

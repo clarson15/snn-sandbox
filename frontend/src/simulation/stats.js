@@ -230,3 +230,91 @@ export function formatTrendIndicator(direction) {
       return '→ Flat';
   }
 }
+
+// Terrain zone type to display name mapping
+// Uses exact types from deterministic world model: plains, forest, wetland, rocky
+const TERRAIN_TYPE_LABELS = {
+  plains: 'Plains',
+  forest: 'Forest',
+  wetland: 'Wetland',
+  rocky: 'Rocky'
+};
+
+// Terrain zone type to effect description mapping
+// Reflects actual deterministic mechanics: vision penalty, speed/turn penalty, energy drain
+const TERRAIN_EFFECT_DESCRIPTIONS = {
+  plains: 'normal',
+  forest: '50% vision',
+  wetland: '50% speed, 50% turn',
+  rocky: '-0.2 energy/tick'
+};
+
+/**
+ * Check if an organism is inside a terrain zone (point-in-rectangle).
+ * Uses zone.bounds for rectangle bounds per deterministic world model.
+ * @param {object} organism - organism with x, y
+ * @param {object} zone - terrain zone with bounds {x, y, width, height}
+ * @returns {boolean}
+ */
+function isInTerrainZone(organism, zone) {
+  const bounds = zone?.bounds;
+  if (!bounds) {
+    return false;
+  }
+
+  const orgX = organism.x;
+  const orgY = organism.y;
+
+  // Point-in-rectangle check: organism center inside bounds
+  return orgX >= bounds.x
+    && orgX <= bounds.x + bounds.width
+    && orgY >= bounds.y
+    && orgY <= bounds.y + bounds.height;
+}
+
+/**
+ * Derive the active terrain effect for an organism based on its position in terrain zones.
+ * Returns null if no terrain zone applies or if inputs are invalid.
+ * @param {object} organism - organism with x, y, and optionally traits
+ * @param {object[]} terrainZones - array of terrain zones
+ * @returns {object|null} - { type, label, effect } or null if no zone applies
+ */
+export function deriveOrganismTerrainEffect(organism, terrainZones) {
+  if (!organism || typeof organism.x !== 'number' || typeof organism.y !== 'number') {
+    return null;
+  }
+
+  const zones = Array.isArray(terrainZones) ? terrainZones : [];
+  if (zones.length === 0) {
+    return null;
+  }
+
+  // Find the first terrain zone the organism is in
+  for (const zone of zones) {
+    if (zone && isInTerrainZone(organism, zone)) {
+      const type = zone.type;
+      const label = TERRAIN_TYPE_LABELS[type] ?? 'Unknown';
+      const effect = TERRAIN_EFFECT_DESCRIPTIONS[type] ?? '';
+      return { type, label, effect };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Format the terrain effect for display in the HUD.
+ * Returns null if terrainEffect is null/undefined.
+ * @param {object|null} terrainEffect - result from deriveOrganismTerrainEffect
+ * @returns {object|null} - { zoneLabel, effectLabel } or null
+ */
+export function formatOrganismTerrainEffect(terrainEffect) {
+  if (!terrainEffect) {
+    return null;
+  }
+
+  return {
+    zoneLabel: terrainEffect.label,
+    effectLabel: terrainEffect.effect
+  };
+}
