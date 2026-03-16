@@ -107,7 +107,21 @@ function resolveOffspringCount(organism) {
   return INSPECTOR_PLACEHOLDER;
 }
 
-function formatInspectorSnapshot(organism, nearestFoodDistance) {
+/**
+ * Format terrain effect for inspector display.
+ * Returns a deterministic, readable format: "Zone: Effect" or placeholder if null.
+ * @param {object|null} terrainEffect - result from deriveOrganismTerrainEffect
+ * @returns {string} - formatted terrain string or placeholder
+ */
+function formatInspectorTerrain(terrainEffect) {
+  if (!terrainEffect || !terrainEffect.label || !terrainEffect.effect) {
+    return INSPECTOR_PLACEHOLDER;
+  }
+
+  return `${terrainEffect.label}: ${terrainEffect.effect}`;
+}
+
+function formatInspectorSnapshot(organism, nearestFoodDistance, terrainEffect) {
   const brain = organism?.brain ?? {};
   const neurons = Array.isArray(brain.neurons) ? brain.neurons : [];
   const synapses = Array.isArray(brain.synapses) ? brain.synapses : [];
@@ -138,7 +152,8 @@ function formatInspectorSnapshot(organism, nearestFoodDistance) {
     outputNeuronCount: countNeuronsByType(neurons, 'output'),
     synapseCount: formatInteger(synapses.length),
     inputBindings: formatNeuronBindingList(deriveBindingIds(brain, 'input'), 'input', INSPECTOR_PLACEHOLDER),
-    outputBindings: formatNeuronBindingList(deriveBindingIds(brain, 'output'), 'output', INSPECTOR_PLACEHOLDER)
+    outputBindings: formatNeuronBindingList(deriveBindingIds(brain, 'output'), 'output', INSPECTOR_PLACEHOLDER),
+    terrain: formatInspectorTerrain(terrainEffect)
   };
 }
 
@@ -146,5 +161,6 @@ export {
   INSPECTOR_PLACEHOLDER,
   formatFixed,
   formatFoodDistance,
-  formatInspectorSnapshot
+  formatInspectorSnapshot,
+  formatInspectorTerrain
 };
