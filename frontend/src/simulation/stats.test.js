@@ -162,6 +162,90 @@ describe('simulation stats', () => {
     ]);
   });
 
+  it('bounds history to fixed window and removes samples outside STATS_TREND_WINDOW_TICKS', () => {
+    // Build history spanning beyond the window
+    const history = [];
+    for (let tick = 0; tick <= STATS_TREND_WINDOW_TICKS + 50; tick += 10) {
+      history.push({
+        tick,
+        population: tick,
+        foodCount: tick * 2,
+        averageGeneration: tick / 10,
+        averageEnergy: tick / 5
+      });
+    }
+
+    // Add another sample at current tick - oldest should be filtered out
+    const currentTick = STATS_TREND_WINDOW_TICKS + 50;
+    const result = reduceStatsTrendHistory(history, {
+      tickCount: currentTick,
+      population: currentTick,
+      foodCount: currentTick * 2,
+      averageGeneration: currentTick / 10,
+      averageEnergy: currentTick / 5
+    });
+
+    // Oldest sample should have been filtered out (tick < currentTick - 120)
+    expect(result[0].tick).toBe(currentTick - STATS_TREND_WINDOW_TICKS);
+    expect(result[result.length - 1].tick).toBe(currentTick);
+  });
+
+  it('does not grow history when tick is stable (paused simulation)', () => {
+    // Simulate paused/stable sampling - same tick repeated
+    const history = [
+      { tick: 50, population: 5, foodCount: 10, averageGeneration: 2, averageEnergy: 4 }
+    ];
+
+    // Adding another sample at same tick should NOT grow history
+    const result = reduceStatsTrendHistory(history, {
+      tickCount: 50,
+      population: 7,
+      foodCount: 15,
+      averageGeneration: 3.5,
+      averageEnergy: 6
+    });
+
+    // History should remain unchanged - no duplicate ticks appended
+    expect(result).toHaveLength(1);
+    expect(result[0].tick).toBe(50);
+    // Original values preserved (not updated since tick is same)
+    expect(result[0].population).toBe(5);
+  });
+
+  it('handles new metrics (speciesCount, energyDeathWarning) correctly without breaking trend history', () => {
+    // Ensure deriveSimulationStats includes new metrics while history remains bounded
+    const world = {
+      tick: 100,
+      organisms: [
+        { id: 'o-1', generation: 2, energy: 10 },
+        { id: 'o-2', generation: 3, energy: 20 }
+      ],
+      food: [{ id: 'f-1' }]
+    };
+
+    const stats = deriveSimulationStats(world);
+
+    // New metrics should be present
+    expect(stats.speciesCount).toBe(1);
+    expect(stats.energyDeathWarning).toBe(false);
+
+    // History should still work correctly with the standard metrics
+    const history = [
+      { tick: 50, population: 3, foodCount: 5, averageGeneration: 2, averageEnergy: 15 }
+    ];
+
+    const result = reduceStatsTrendHistory(history, {
+      tickCount: stats.tickCount,
+      population: stats.population,
+      foodCount: stats.foodCount,
+      averageGeneration: stats.averageGeneration,
+      averageEnergy: stats.averageEnergy
+    });
+
+    expect(result).toHaveLength(2);
+    expect(result[result.length - 1].population).toBe(2);
+  });
+
   it('maps trend states to stable UI labels', () => {
     expect(formatTrendIndicator(STATS_TREND_DIRECTIONS.UP)).toBe('↑ Up');
     expect(formatTrendIndicator(STATS_TREND_DIRECTIONS.DOWN)).toBe('↓ Down');

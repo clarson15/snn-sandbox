@@ -319,7 +319,7 @@ a {
 .stats-graph-legend {
   display: flex;
   gap: 0.75rem;
-  padding: 4px GRAPH_PADDING 6px;
+  padding: 4px 4px 6px;
   justify-content: center;
 }
 
