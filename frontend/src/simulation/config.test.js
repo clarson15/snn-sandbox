@@ -330,6 +330,41 @@ describe('simulation config helpers', () => {
     expect(errors.minimumPopulation).toBeUndefined();
   });
 
+  it('validates terrain zone generation settings when enabled', () => {
+    const errors = validateSimulationConfig({
+      name: 'Terrain test',
+      terrainZoneGeneration: {
+        enabled: true,
+        zoneCount: 0,
+        minZoneWidthRatio: 0.05,
+        maxZoneWidthRatio: 0.04,
+        minZoneHeightRatio: 0.15,
+        maxZoneHeightRatio: 0.3
+      }
+    });
+
+    expect(errors.terrainZoneCount).toBe('Terrain zone count must be between 1 and 20.');
+    expect(errors.terrainZoneWidthRatio).toBe('Min zone width ratio must be less than or equal to max zone width ratio.');
+  });
+
+  it('accepts valid terrain zone generation settings', () => {
+    const errors = validateSimulationConfig({
+      name: 'Valid terrain test',
+      terrainZoneGeneration: {
+        enabled: true,
+        zoneCount: 6,
+        minZoneWidthRatio: 0.1,
+        maxZoneWidthRatio: 0.25,
+        minZoneHeightRatio: 0.15,
+        maxZoneHeightRatio: 0.35
+      }
+    });
+
+    expect(errors.terrainZoneCount).toBeUndefined();
+    expect(errors.terrainZoneWidthRatio).toBeUndefined();
+    expect(errors.terrainZoneHeightRatio).toBeUndefined();
+  });
+
   it('exposes a deterministic 2000-organism stress preset', () => {
     const stressPresetConfig = applyPreset('stress-test-2000');
 
@@ -495,7 +530,15 @@ describe('simulation config helpers', () => {
       initialPredatorCount: 0,
       predatorEnergyGain: 30,
       predatorHuntRadius: 50,
-      terrainZoneGeneration: { ...DEFAULT_TERRAIN_ZONE_GENERATION }
+      terrainZoneGeneration: {
+        enabled: false,
+        zoneCount: 4,
+        minZoneWidthRatio: 0.15,
+        maxZoneWidthRatio: 0.3,
+        minZoneHeightRatio: 0.15,
+        maxZoneHeightRatio: 0.3
+      }
+
     });
   });
 
@@ -558,7 +601,15 @@ describe('simulation config helpers', () => {
       initialPredatorCount: 0,
       predatorEnergyGain: 30,
       predatorHuntRadius: 50,
-      terrainZoneGeneration: { ...DEFAULT_TERRAIN_ZONE_GENERATION }
+      terrainZoneGeneration: {
+        enabled: false,
+        zoneCount: 4,
+        minZoneWidthRatio: 0.15,
+        maxZoneWidthRatio: 0.3,
+        minZoneHeightRatio: 0.15,
+        maxZoneHeightRatio: 0.3
+      }
+
     });
   });
 

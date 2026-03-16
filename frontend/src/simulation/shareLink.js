@@ -23,7 +23,14 @@ const DETERMINISTIC_PARAM_RULES = [
   ['offspringStartEnergy', 0, 200],
   ['reproductionMinimumAge', 0, 5000],
   ['reproductionRefractoryPeriod', 0, 5000],
-  ['maximumOrganismAge', 1, 10000]
+  ['maximumOrganismAge', 1, 10000],
+  // Terrain zone generation (flattened for share links)
+  ['terrainZoneEnabled', 0, 1],
+  ['terrainZoneCount', 1, 20],
+  ['terrainZoneMinWidthRatio', 0.05, 0.5],
+  ['terrainZoneMaxWidthRatio', 0.05, 0.5],
+  ['terrainZoneMinHeightRatio', 0.05, 0.5],
+  ['terrainZoneMaxHeightRatio', 0.05, 0.5]
 ];
 
 export const SHARE_QUERY_PARAM_ORDER = ['seed', ...DETERMINISTIC_PARAM_RULES.map(([key]) => key)];
@@ -37,7 +44,36 @@ export function buildDeterministicShareUrl({ origin, pathname, seed, parameters 
   params.set('seed', String(seed ?? '').trim());
 
   for (const [field] of DETERMINISTIC_PARAM_RULES) {
-    params.set(field, toCanonicalNumberString(parameters?.[field] ?? DEFAULT_CONFIG[field]));
+    let value;
+    // Handle flattened terrain zone generation fields
+    if (field.startsWith('terrainZone')) {
+      const tz = parameters?.terrainZoneGeneration ?? DEFAULT_CONFIG.terrainZoneGeneration;
+      switch (field) {
+        case 'terrainZoneEnabled':
+          value = tz.enabled ? 1 : 0;
+          break;
+        case 'terrainZoneCount':
+          value = tz.zoneCount;
+          break;
+        case 'terrainZoneMinWidthRatio':
+          value = tz.minZoneWidthRatio;
+          break;
+        case 'terrainZoneMaxWidthRatio':
+          value = tz.maxZoneWidthRatio;
+          break;
+        case 'terrainZoneMinHeightRatio':
+          value = tz.minZoneHeightRatio;
+          break;
+        case 'terrainZoneMaxHeightRatio':
+          value = tz.maxZoneHeightRatio;
+          break;
+        default:
+          value = DEFAULT_CONFIG[field];
+      }
+    } else {
+      value = parameters?.[field] ?? DEFAULT_CONFIG[field];
+    }
+    params.set(field, toCanonicalNumberString(value));
   }
 
   return `${origin}${pathname}?${params.toString()}`;
@@ -47,9 +83,30 @@ export function resolveDeterministicQueryPrefill(search) {
   const params = new URLSearchParams(search);
   const hasDeterministicParams = DETERMINISTIC_PARAM_RULES.some(([field]) => params.has(field));
 
+  const tzDefaults = DEFAULT_CONFIG.terrainZoneGeneration;
   const prefill = {
     seed: '',
-    ...Object.fromEntries(DETERMINISTIC_PARAM_RULES.map(([field]) => [field, String(DEFAULT_CONFIG[field])]))
+    ...Object.fromEntries(DETERMINISTIC_PARAM_RULES.map(([field]) => {
+      if (field.startsWith('terrainZone')) {
+        switch (field) {
+          case 'terrainZoneEnabled':
+            return [field, String(tzDefaults.enabled ? 1 : 0)];
+          case 'terrainZoneCount':
+            return [field, String(tzDefaults.zoneCount)];
+          case 'terrainZoneMinWidthRatio':
+            return [field, String(tzDefaults.minZoneWidthRatio)];
+          case 'terrainZoneMaxWidthRatio':
+            return [field, String(tzDefaults.maxZoneWidthRatio)];
+          case 'terrainZoneMinHeightRatio':
+            return [field, String(tzDefaults.minZoneHeightRatio)];
+          case 'terrainZoneMaxHeightRatio':
+            return [field, String(tzDefaults.maxZoneHeightRatio)];
+          default:
+            return [field, String(DEFAULT_CONFIG[field])];
+        }
+      }
+      return [field, String(DEFAULT_CONFIG[field])];
+    }))
   };
 
   const warnings = [];
@@ -63,6 +120,16 @@ export function resolveDeterministicQueryPrefill(search) {
       warnings.push('seed');
     }
   }
+
+  // Track terrain zone values for nested config reconstruction
+  const tzValues = {
+    enabled: tzDefaults.enabled,
+    zoneCount: tzDefaults.zoneCount,
+    minZoneWidthRatio: tzDefaults.minZoneWidthRatio,
+    maxZoneWidthRatio: tzDefaults.maxZoneWidthRatio,
+    minZoneHeightRatio: tzDefaults.minZoneHeightRatio,
+    maxZoneHeightRatio: tzDefaults.maxZoneHeightRatio
+  };
 
   for (const [field, min, max] of DETERMINISTIC_PARAM_RULES) {
     const raw = params.get(field);
@@ -79,8 +146,46 @@ export function resolveDeterministicQueryPrefill(search) {
       continue;
     }
 
-    prefill[field] = toCanonicalNumberString(parsed);
+    // Handle terrain zone fields - store for nested config
+    if (field.startsWith('terrainZone')) {
+      switch (field) {
+        case 'terrainZoneEnabled':
+          tzValues.enabled = parsed === 1;
+          break;
+        case 'terrainZoneCount':
+          tzValues.zoneCount = parsed;
+          break;
+        case 'terrainZoneMinWidthRatio':
+          tzValues.minZoneWidthRatio = parsed;
+          break;
+        case 'terrainZoneMaxWidthRatio':
+          tzValues.maxZoneWidthRatio = parsed;
+          break;
+        case 'terrainZoneMinHeightRatio':
+          tzValues.minZoneHeightRatio = parsed;
+          break;
+        case 'terrainZoneMaxHeightRatio':
+          tzValues.maxZoneHeightRatio = parsed;
+          break;
+        default:
+          break;
+      }
+      // Also set flat value for backward compatibility
+      prefill[field] = toCanonicalNumberString(parsed);
+    } else {
+      prefill[field] = toCanonicalNumberString(parsed);
+    }
   }
+
+  // Add nested terrainZoneGeneration to prefill
+  prefill.terrainZoneGeneration = {
+    enabled: tzValues.enabled,
+    zoneCount: tzValues.zoneCount,
+    minZoneWidthRatio: tzValues.minZoneWidthRatio,
+    maxZoneWidthRatio: tzValues.maxZoneWidthRatio,
+    minZoneHeightRatio: tzValues.minZoneHeightRatio,
+    maxZoneHeightRatio: tzValues.maxZoneHeightRatio
+  };
 
   return {
     prefill,
