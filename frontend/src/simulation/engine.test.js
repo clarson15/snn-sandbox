@@ -1668,6 +1668,108 @@ describe('simulation engine skeleton', () => {
       expect(result1.organisms[0].energy).toBe(result2.organisms[0].energy);
       expect(result1.organisms[0].energy).toBe(90); // 100 - (10 * 1)
     });
+
+    it('applies rocky terrain drain only to organisms inside rocky-zone bounds', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'inside', x: 12, y: 12, energy: 10, age: 0, generation: 1, direction: 0 },
+          { id: 'outside', x: 40, y: 40, energy: 10, age: 0, generation: 1, direction: 0 }
+        ],
+        terrainZones: [
+          { id: 'rocky-1', type: 'rocky', bounds: { x: 10, y: 10, width: 10, height: 10 } }
+        ]
+      });
+
+      const next = stepWorld(state, createSeededPrng('rocky-membership'), {
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        foodSpawnChance: 0
+      });
+
+      expect(next.organisms.find((o) => o.id === 'inside').energy).toBeCloseTo(9.8, 6);
+      expect(next.organisms.find((o) => o.id === 'outside').energy).toBe(10);
+    });
+
+    it('does not apply rocky drain in non-rocky terrain or when terrain is absent', () => {
+      const baseState = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 12, y: 12, energy: 10, age: 0, generation: 1, direction: 0 }
+        ]
+      });
+
+      const forestState = createWorldState({
+        ...baseState,
+        terrainZones: [
+          { id: 'forest-1', type: 'forest', bounds: { x: 10, y: 10, width: 10, height: 10 } }
+        ]
+      });
+
+      const noTerrainNext = stepWorld(baseState, createSeededPrng('no-terrain-rocky-fallback'), {
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        foodSpawnChance: 0
+      });
+      const forestNext = stepWorld(forestState, createSeededPrng('no-terrain-rocky-fallback'), {
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        foodSpawnChance: 0
+      });
+
+      expect(noTerrainNext.organisms[0].energy).toBe(10);
+      expect(forestNext.organisms[0].energy).toBe(10);
+    });
+
+    it('is deterministic for rocky terrain drain and preserves no-rocky parity', () => {
+      const createRockyState = () => createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 15, y: 15, energy: 10, age: 0, generation: 1, direction: 0 }
+        ],
+        terrainZones: [
+          { id: 'rocky-1', type: 'rocky', bounds: { x: 10, y: 10, width: 10, height: 10 } }
+        ]
+      });
+      const createNoTerrainState = () => createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 15, y: 15, energy: 10, age: 0, generation: 1, direction: 0 }
+        ]
+      });
+
+      const params = {
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        foodSpawnChance: 0
+      };
+
+      let rockyA = createRockyState();
+      let rockyB = createRockyState();
+      const rockyRngA = createSeededPrng('rocky-determinism-seed');
+      const rockyRngB = createSeededPrng('rocky-determinism-seed');
+
+      let noTerrainA = createNoTerrainState();
+      let noTerrainB = createNoTerrainState();
+      const noTerrainRngA = createSeededPrng('no-terrain-determinism-seed');
+      const noTerrainRngB = createSeededPrng('no-terrain-determinism-seed');
+
+      for (let tick = 0; tick < 5; tick += 1) {
+        rockyA = stepWorld(rockyA, rockyRngA, params);
+        rockyB = stepWorld(rockyB, rockyRngB, params);
+        noTerrainA = stepWorld(noTerrainA, noTerrainRngA, params);
+        noTerrainB = stepWorld(noTerrainB, noTerrainRngB, params);
+      }
+
+      expect(rockyA).toEqual(rockyB);
+      expect(noTerrainA).toEqual(noTerrainB);
+      expect(rockyA.organisms[0].energy).toBeCloseTo(9, 6);
+      expect(noTerrainA.organisms[0].energy).toBe(10);
+    });
   });
 
 });

@@ -144,6 +144,7 @@ const BRAIN_LAYER_ORDER = ['input', 'hidden', 'output'];
 const BRAIN_SIGNAL_SUBSTEPS = 2;
 const BRAIN_POTENTIAL_MIN = -4;
 const BRAIN_POTENTIAL_MAX = 4;
+const ROCKY_TERRAIN_ENERGY_DRAIN_PER_TICK = 0.2;
 const LEGACY_CONSTANT_INPUT_ID = 'in-constant';
 const NORMALIZED_BRAIN_VERSION = 2;
 const INCOMING_SYNAPSE_CACHE = new WeakMap();
@@ -839,6 +840,53 @@ function isInDangerZone(organism, dangerZone) {
   const dx = organism.x - dangerZone.x;
   const dy = organism.y - dangerZone.y;
   return (dx * dx + dy * dy) < (dangerZone.radius * dangerZone.radius);
+}
+
+/**
+ * Check if an organism center is inside a terrain-zone bounds rectangle.
+ * @param {WorldOrganism} organism
+ * @param {WorldTerrainZone} terrainZone
+ * @returns {boolean}
+ */
+function isInTerrainZoneBounds(organism, terrainZone) {
+  const bounds = terrainZone?.bounds;
+  if (!bounds) {
+    return false;
+  }
+
+  return organism.x >= bounds.x
+    && organism.x <= bounds.x + bounds.width
+    && organism.y >= bounds.y
+    && organism.y <= bounds.y + bounds.height;
+}
+
+/**
+ * Apply fixed passive energy drain for organisms in rocky terrain zones.
+ * @param {WorldOrganism[]} organisms
+ * @param {WorldTerrainZone[]} terrainZones
+ * @returns {WorldOrganism[]}
+ */
+function applyRockyTerrainEnergyDrain(organisms, terrainZones) {
+  if (!terrainZones || terrainZones.length === 0) {
+    return organisms;
+  }
+
+  const rockyZones = terrainZones.filter((terrainZone) => terrainZone?.type === 'rocky');
+  if (rockyZones.length === 0) {
+    return organisms;
+  }
+
+  return organisms.map((organism) => {
+    const inRockyZone = rockyZones.some((terrainZone) => isInTerrainZoneBounds(organism, terrainZone));
+    if (!inRockyZone) {
+      return organism;
+    }
+
+    return {
+      ...organism,
+      energy: Math.max(0, organism.energy - ROCKY_TERRAIN_ENERGY_DRAIN_PER_TICK)
+    };
+  });
 }
 
 /**
@@ -1724,10 +1772,11 @@ export function stepWorld(state, rng, params = {}) {
   const dangerZones = hazards.dangerZones ?? state.dangerZones ?? [];
   const terrainZones = hazards.terrainZones ?? state.terrainZones ?? [];
 
-  // Apply danger zone damage
+  // Apply danger-zone damage first, then rocky passive drain.
   let finalOrganisms = applyDangerZoneDamage(organisms, dangerZones);
+  finalOrganisms = applyRockyTerrainEnergyDrain(finalOrganisms, terrainZones);
 
-  // Filter out organisms that died from hazard damage
+  // Filter out organisms that died from hazard effects
   finalOrganisms = finalOrganisms.filter((organism) => organism.energy > 0);
 
   // Handle obstacle collisions
