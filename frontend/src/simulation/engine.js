@@ -60,12 +60,25 @@ import {
  */
 
 /**
+ * @typedef {object} WorldTerrainZone
+ * @property {string} id
+ * @property {number} x
+ * @property {number} y
+ * @property {number} width
+ * @property {number} height
+ * @property {'grass' | 'sand' | 'water' | 'forest' | 'rock'} [type] - terrain type for visual/effect differentiation
+ * @property {number} [foodMultiplier] - food spawn rate multiplier (default 1.0)
+ * @property {number} [movementSpeedMultiplier] - organism speed multiplier (default 1.0)
+ */
+
+/**
  * @typedef {object} WorldState
  * @property {number} tick
  * @property {WorldOrganism[]} organisms
  * @property {WorldFood[]} food
  * @property {WorldObstacle[]} [obstacles]
  * @property {WorldDangerZone[]} [dangerZones]
+ * @property {WorldTerrainZone[]} [terrainZones]
  */
 
 /**
@@ -104,6 +117,13 @@ import {
  * @property {number} [brainRemoveSynapseChance=0.05] probability of removing a synapse (0-1)
  * @property {WorldObstacle[]} [obstacles] obstacles in the world
  * @property {WorldDangerZone[]} [dangerZones] danger zones in the world
+ * @property {WorldTerrainZone[]} [terrainZones] terrain zones in the world
+ * @property {number} [terrainZoneCount=0] number of terrain zones to generate
+ * @property {number} [terrainZoneMinSize=50] minimum size for generated terrain zones
+ * @property {number} [terrainZoneMaxSize=150] maximum size for generated terrain zones
+ * @property {number} [terrainZoneGridCols=3] number of grid columns for terrain zone layout
+ * @property {number} [terrainZoneGridRows=2] number of grid rows for terrain zone layout
+ * @property {number} [rockyTerrainPenalty=0] additional energy drain per tick for organisms in rocky terrain
  */
 
 /**
@@ -111,7 +131,7 @@ import {
  * @returns {WorldState}
  */
 export function createWorldState(initial = {}) {
-  return {
+  const state = {
     tick: initial.tick ?? 0,
     organisms: initial.organisms ? initial.organisms.map((o) => ({
       ...o,
@@ -119,10 +139,116 @@ export function createWorldState(initial = {}) {
       genome: o?.genome ? { ...o.genome } : undefined,
       brain: cloneBrain(o?.brain)
     })) : [],
-    food: initial.food ? initial.food.map((f) => ({ ...f })) : [],
-    obstacles: initial.obstacles ? initial.obstacles.map((o) => ({ ...o })) : [],
-    dangerZones: initial.dangerZones ? initial.dangerZones.map((d) => ({ ...d })) : []
+    food: initial.food ? initial.food.map((f) => ({ ...f })) : []
   };
+
+  // Only include optional arrays if they have values (backward compatibility)
+  if (initial.obstacles && initial.obstacles.length > 0) {
+    state.obstacles = initial.obstacles.map((o) => ({ ...o }));
+  }
+  if (initial.dangerZones && initial.dangerZones.length > 0) {
+    state.dangerZones = initial.dangerZones.map((d) => ({ ...d }));
+  }
+  if (initial.terrainZones && initial.terrainZones.length > 0) {
+    state.terrainZones = initial.terrainZones.map((z) => ({ ...z }));
+  }
+
+  return state;
+}
+
+/**
+ * Valid terrain zone types
+ * @type {string[]}
+ */
+const TERRAIN_ZONE_TYPES = ['grass', 'sand', 'water', 'forest', 'rock'];
+
+/**
+ * Default terrain zone properties by type
+ * @type {Object<string, {foodMultiplier: number, movementSpeedMultiplier: number}>}
+ */
+const TERRAIN_ZONE_DEFAULTS = {
+  grass: { foodMultiplier: 1.2, movementSpeedMultiplier: 1.0 },
+  sand: { foodMultiplier: 0.8, movementSpeedMultiplier: 0.9 },
+  water: { foodMultiplier: 0.5, movementSpeedMultiplier: 0.7 },
+  forest: { foodMultiplier: 1.5, movementSpeedMultiplier: 0.85 },
+  rock: { foodMultiplier: 0.3, movementSpeedMultiplier: 0.6 }
+};
+
+/**
+ * Generate deterministic terrain zones based on seed and configuration.
+ * Uses a grid-based approach for reproducible zone layouts.
+ * 
+ * @param {StepRng} rng - seeded random number generator
+ * @param {number} worldWidth - world width
+ * @param {number} worldHeight - world height
+ * @param {number} zoneCount - number of terrain zones to generate
+ * @param {number} minSize - minimum zone dimension
+ * @param {number} maxSize - maximum zone dimension
+ * @param {number} gridCols - number of grid columns
+ * @param {number} gridRows - number of grid rows
+ * @returns {WorldTerrainZone[]} array of generated terrain zones
+ */
+export function generateTerrainZones(rng, worldWidth, worldHeight, zoneCount = 0, minSize = 50, maxSize = 150, gridCols = 3, gridRows = 2) {
+  if (zoneCount <= 0) {
+    return [];
+  }
+
+  const zones = [];
+  const effectiveZoneCount = Math.min(zoneCount, gridCols * gridRows);
+  
+  // Calculate grid cell size
+  const cellWidth = worldWidth / gridCols;
+  const cellHeight = worldHeight / gridRows;
+
+  // Generate zone positions using deterministic ordering
+  // Create an array of grid positions and shuffle using seeded RNG
+  const gridPositions = [];
+  for (let col = 0; col < gridCols; col += 1) {
+    for (let row = 0; row < gridRows; row += 1) {
+      gridPositions.push({ col, row });
+    }
+  }
+
+  // Fisher-Yates shuffle with seeded RNG for deterministic results
+  for (let i = gridPositions.length - 1; i > 0; i -= 1) {
+    const j = rng.nextInt(0, i + 1);
+    [gridPositions[i], gridPositions[j]] = [gridPositions[j], gridPositions[i]];
+  }
+
+  // Generate zones for selected grid positions
+  for (let i = 0; i < effectiveZoneCount; i += 1) {
+    const { col, row } = gridPositions[i];
+    
+    // Generate zone size using seeded RNG (within min/max bounds)
+    const sizeRatio = rng.nextFloat();
+    const zoneWidth = minSize + sizeRatio * (maxSize - minSize);
+    const zoneHeight = minSize + rng.nextFloat() * (maxSize - minSize);
+    
+    // Calculate position within grid cell (centered with small random offset)
+    const baseX = col * cellWidth;
+    const baseY = row * cellHeight;
+    const offsetX = rng.nextFloat() * (cellWidth - zoneWidth);
+    const offsetY = rng.nextFloat() * (cellHeight - zoneHeight);
+    
+    // Select terrain type using seeded RNG
+    const typeIndex = rng.nextInt(0, TERRAIN_ZONE_TYPES.length);
+    const type = TERRAIN_ZONE_TYPES[typeIndex];
+    const defaults = TERRAIN_ZONE_DEFAULTS[type];
+
+    zones.push({
+      id: `zone-${i + 1}`,
+      x: Math.floor(baseX + offsetX),
+      y: Math.floor(baseY + offsetY),
+      width: Math.floor(zoneWidth),
+      height: Math.floor(zoneHeight),
+      type,
+      foodMultiplier: defaults.foodMultiplier,
+      movementSpeedMultiplier: defaults.movementSpeedMultiplier
+    });
+  }
+
+  // Sort zones by ID for deterministic ordering
+  return zones.sort((a, b) => a.id.localeCompare(b.id));
 }
 
 const BRAIN_LAYER_ORDER = ['input', 'hidden', 'output'];
@@ -812,6 +938,68 @@ function isCollidingWithObstacle(organism, obstacle) {
   const dx = organism.x - closestX;
   const dy = organism.y - closestY;
   return (dx * dx + dy * dy) < (organismRadius * organismRadius);
+}
+
+/**
+ * Check if an organism is inside a terrain zone (rectangle-based)
+ * @param {WorldOrganism} organism
+ * @param {WorldTerrainZone} zone
+ * @returns {boolean}
+ */
+function isInTerrainZone(organism, zone) {
+  const organismRadius = (resolveExpressedTraits(organism).size ?? 1) * 3; // Approximate radius
+  // Check if organism's bounding circle overlaps with terrain zone rectangle
+  const closestX = Math.max(zone.x, Math.min(organism.x, zone.x + zone.width));
+  const closestY = Math.max(zone.y, Math.min(organism.y, zone.y + zone.height));
+  const dx = organism.x - closestX;
+  const dy = organism.y - closestY;
+  return (dx * dx + dy * dy) < (organismRadius * organismRadius);
+}
+
+/**
+ * Apply terrain zone effects to organisms
+ * Currently applies energy drain for rocky terrain zones
+ * @param {WorldOrganism[]} organisms
+ * @param {WorldTerrainZone[]} terrainZones
+ * @param {number} rockyTerrainPenalty - energy penalty per tick for being in rocky terrain
+ * @returns {WorldOrganism[]}
+ */
+function applyTerrainZoneEffects(organisms, terrainZones, rockyTerrainPenalty) {
+  if (!terrainZones || terrainZones.length === 0 || rockyTerrainPenalty <= 0) {
+    return organisms;
+  }
+
+  // Filter to only rocky terrain zones
+  const rockyZones = terrainZones.filter((zone) => zone.type === 'rock');
+  if (rockyZones.length === 0) {
+    return organisms;
+  }
+
+  return organisms.map((organism) => {
+    let totalRockyPenalty = 0;
+    const orgX = organism.x;
+    const orgY = organism.y;
+    const organismRadius = (resolveExpressedTraits(organism).size ?? 1) * 3;
+
+    for (const zone of rockyZones) {
+      // Inline rectangle collision check for performance
+      const closestX = Math.max(zone.x, Math.min(orgX, zone.x + zone.width));
+      const closestY = Math.max(zone.y, Math.min(orgY, zone.y + zone.height));
+      const dx = orgX - closestX;
+      const dy = orgY - closestY;
+      if (dx * dx + dy * dy < organismRadius * organismRadius) {
+        totalRockyPenalty += rockyTerrainPenalty;
+      }
+    }
+
+    if (totalRockyPenalty > 0) {
+      return {
+        ...organism,
+        energy: Math.max(0, organism.energy - totalRockyPenalty)
+      };
+    }
+    return organism;
+  });
 }
 
 /**
@@ -1707,11 +1895,19 @@ export function stepWorld(state, rng, params = {}) {
   const hazards = params;
   const obstacles = hazards.obstacles ?? state.obstacles ?? [];
   const dangerZones = hazards.dangerZones ?? state.dangerZones ?? [];
+  const terrainZones = hazards.terrainZones ?? state.terrainZones ?? [];
+  const rockyTerrainPenalty = hazards.rockyTerrainPenalty ?? 0;
 
   // Apply danger zone damage
   let finalOrganisms = applyDangerZoneDamage(organisms, dangerZones);
 
   // Filter out organisms that died from hazard damage
+  finalOrganisms = finalOrganisms.filter((organism) => organism.energy > 0);
+
+  // Apply terrain zone effects (rocky terrain energy drain)
+  finalOrganisms = applyTerrainZoneEffects(finalOrganisms, terrainZones, rockyTerrainPenalty);
+
+  // Filter out organisms that died from terrain effects
   finalOrganisms = finalOrganisms.filter((organism) => organism.energy > 0);
 
   // Handle obstacle collisions
@@ -1724,9 +1920,14 @@ export function stepWorld(state, rng, params = {}) {
     food: nextFood
   };
 
-  // Always include hazards for deterministic replay parity
+  // Always include hazards for deterministic replay parity (empty arrays are OK)
   returnState.obstacles = obstacles || [];
   returnState.dangerZones = dangerZones || [];
+  
+  // Only include terrain zones if they have values (backward compatibility)
+  if (terrainZones.length > 0) {
+    returnState.terrainZones = terrainZones;
+  }
 
   return returnState;
 }

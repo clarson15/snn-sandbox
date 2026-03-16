@@ -1669,4 +1669,251 @@ describe('simulation engine skeleton', () => {
     });
   });
 
+  describe('terrain zone effects', () => {
+    it('applies energy drain to organisms inside rocky terrain zones', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, metabolism: 0 } }
+        ],
+        terrainZones: [
+          { id: 'zone-1', x: 30, y: 30, width: 50, height: 50, type: 'rock' }
+        ]
+      });
+
+      const next = stepWorld(state, createSeededPrng('rocky-penalty'), {
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        rockyTerrainPenalty: 0.5
+      });
+
+      const org = next.organisms.find(o => o.id === 'org-1');
+      // Energy should be 100 - 0.5 (rocky penalty) = 99.5
+      expect(org.energy).toBe(99.5);
+    });
+
+    it('does not apply rocky penalty to organisms outside rocky terrain zones', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 10, y: 10, energy: 100, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, metabolism: 0 } }
+        ],
+        terrainZones: [
+          { id: 'zone-1', x: 30, y: 30, width: 50, height: 50, type: 'rock' }
+        ]
+      });
+
+      const next = stepWorld(state, createSeededPrng('rocky-no-penalty'), {
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        rockyTerrainPenalty: 0.5
+      });
+
+      const org = next.organisms.find(o => o.id === 'org-1');
+      // Energy should be unchanged (100 - 0) since organism is outside the rocky zone
+      expect(org.energy).toBe(100);
+    });
+
+    it('does not apply rocky penalty when terrain zones have non-rocky types', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, metabolism: 0 } }
+        ],
+        terrainZones: [
+          { id: 'zone-1', x: 30, y: 30, width: 50, height: 50, type: 'grass' }
+        ]
+      });
+
+      const next = stepWorld(state, createSeededPrng('grass-zone'), {
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        rockyTerrainPenalty: 0.5
+      });
+
+      const org = next.organisms.find(o => o.id === 'org-1');
+      // Energy should be unchanged since zone is grass, not rock
+      expect(org.energy).toBe(100);
+    });
+
+    it('does not apply rocky penalty when terrain zones are not provided', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, metabolism: 0 } }
+        ]
+      });
+
+      const next = stepWorld(state, createSeededPrng('no-terrain'), {
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        rockyTerrainPenalty: 0.5
+      });
+
+      const org = next.organisms.find(o => o.id === 'org-1');
+      // Energy should be unchanged since no terrain zones exist
+      expect(org.energy).toBe(100);
+    });
+
+    it('removes organisms when energy reaches zero from rocky terrain penalty', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 50, y: 50, energy: 2, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, metabolism: 0 } }
+        ],
+        terrainZones: [
+          { id: 'zone-1', x: 30, y: 30, width: 50, height: 50, type: 'rock' }
+        ]
+      });
+
+      const rng = createSeededPrng('rocky-death');
+      let currentState = state;
+
+      // First tick: energy 2 - 1 = 1
+      currentState = stepWorld(currentState, rng, {
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        rockyTerrainPenalty: 1
+      });
+      expect(currentState.organisms.length).toBe(1);
+      expect(currentState.organisms[0].energy).toBe(1);
+
+      // Second tick: energy 1 - 1 = 0, organism dies and is removed
+      currentState = stepWorld(currentState, rng, {
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        rockyTerrainPenalty: 1
+      });
+      expect(currentState.organisms.length).toBe(0);
+    });
+
+    it('applies deterministic rocky terrain energy drain with same seed', () => {
+      const createState = () => createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, metabolism: 0 } }
+        ],
+        terrainZones: [
+          { id: 'zone-1', x: 30, y: 30, width: 50, height: 50, type: 'rock' }
+        ]
+      });
+
+      const rng1 = createSeededPrng('deterministic-rocky-seed');
+      let result1 = createState();
+      for (let i = 0; i < 10; i++) {
+        result1 = stepWorld(result1, rng1, {
+          movementDelta: 0,
+          metabolismPerTick: 0,
+          movementCostMultiplier: 0,
+          rockyTerrainPenalty: 0.3
+        });
+      }
+
+      const rng2 = createSeededPrng('deterministic-rocky-seed');
+      let result2 = createState();
+      for (let i = 0; i < 10; i++) {
+        result2 = stepWorld(result2, rng2, {
+          movementDelta: 0,
+          metabolismPerTick: 0,
+          movementCostMultiplier: 0,
+          rockyTerrainPenalty: 0.3
+        });
+      }
+
+      // Same seed + same params = identical results
+      expect(result1.organisms[0].energy).toBe(result2.organisms[0].energy);
+      // Energy: 100 - (10 * 0.3) = 97
+      expect(result1.organisms[0].energy).toBeCloseTo(97, 5);
+    });
+
+    it('applies rocky penalty only when rockyTerrainPenalty > 0', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, metabolism: 0 } }
+        ],
+        terrainZones: [
+          { id: 'zone-1', x: 30, y: 30, width: 50, height: 50, type: 'rock' }
+        ]
+      });
+
+      // With rockyTerrainPenalty = 0, no penalty should be applied
+      const next = stepWorld(state, createSeededPrng('zero-penalty'), {
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        rockyTerrainPenalty: 0
+      });
+
+      const org = next.organisms.find(o => o.id === 'org-1');
+      expect(org.energy).toBe(100);
+    });
+
+    it('matches behavior when terrain generation is disabled', () => {
+      // With no terrain zones, behavior should match current non-terrain behavior
+      const stateWithZones = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, metabolism: 0 } }
+        ],
+        terrainZones: []
+      });
+
+      const stateWithoutZones = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, metabolism: 0 } }
+        ]
+      });
+
+      const rng1 = createSeededPrng('no-zones-seed');
+      const result1 = stepWorld(stateWithZones, rng1, {
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        rockyTerrainPenalty: 0
+      });
+
+      const rng2 = createSeededPrng('no-zones-seed');
+      const result2 = stepWorld(stateWithoutZones, rng2, {
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        rockyTerrainPenalty: 0
+      });
+
+      // Results should be identical
+      expect(result1.organisms[0].energy).toBe(result2.organisms[0].energy);
+    });
+
+    it('combines rocky penalty with metabolism correctly', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 50, y: 50, energy: 100, age: 0, generation: 1, direction: 0, traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, metabolism: 0.2 } }
+        ],
+        terrainZones: [
+          { id: 'zone-1', x: 30, y: 30, width: 50, height: 50, type: 'rock' }
+        ]
+      });
+
+      const next = stepWorld(state, createSeededPrng('combined-costs'), {
+        movementDelta: 0,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        rockyTerrainPenalty: 0.5
+      });
+
+      const org = next.organisms.find(o => o.id === 'org-1');
+      // Energy: 100 - 0.2 (metabolism) - 0.5 (rocky penalty) = 99.3
+      expect(org.energy).toBeCloseTo(99.3, 5);
+    });
+  });
+
 });
