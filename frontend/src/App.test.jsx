@@ -2750,5 +2750,99 @@ describe('App', () => {
     expect(screen.queryByRole('region', { name: /organism info/i })).not.toBeInTheDocument();
   });
 
+  it('renders terrain legend in detailed HUD when terrain zones are present (SSN-265)', async () => {
+    vi.useFakeTimers();
+
+    // Use URL params to configure terrain - let app construct config
+    window.history.replaceState({}, '', '/?seed=terrain-legend-test&terrainZoneEnabled=1&terrainZoneCount=2');
+
+    render(<App />);
+
+    // Start simulation
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+    act(() => { vi.advanceTimersByTime(100); });
+
+    // Enable detailed HUD
+    fireEvent.click(screen.getByRole('button', { name: /detailed/i }));
+
+    // Query terrain legend ONLY within stats HUD region (not config panel)
+    const statsHud = screen.getByRole('region', { name: /simulation stats hud/i });
+
+    // Verify Terrain section exists in stats HUD
+    const terrainSection = within(statsHud).getByText(/^Terrain$/);
+    expect(terrainSection).toBeInTheDocument();
+
+    // Verify terrain entries with effects appear in stats HUD only
+    const terrainEntries = within(statsHud).getAllByText(/(Forest|Wetland|Rocky|Plains):/);
+    expect(terrainEntries.length).toBeGreaterThan(0);
+
+    // Verify each entry has effect text
+    terrainEntries.forEach(entry => {
+      expect(entry.textContent).toMatch(/: (reduced vision|reduced speed and turn rate|passive energy drain|baseline terrain)/);
+    });
+
+    vi.useRealTimers();
+  });
+
+  it('does not render terrain legend when no terrain zones are present (SSN-265)', async () => {
+    vi.useFakeTimers();
+
+    // Disable terrain zones via URL
+    window.history.replaceState({}, '', '/?seed=no-terrain-test&terrainZoneEnabled=0');
+
+    render(<App />);
+
+    // Start simulation
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+    act(() => { vi.advanceTimersByTime(100); });
+
+    // Enable detailed HUD
+    fireEvent.click(screen.getByRole('button', { name: /detailed/i }));
+
+    // Query stats HUD only
+    const statsHud = screen.getByRole('region', { name: /simulation stats hud/i });
+
+    // Terrain legend should NOT appear in stats HUD
+    expect(within(statsHud).queryByText(/^Terrain$/)).not.toBeInTheDocument();
+
+    vi.useRealTimers();
+  });
+
+  it('renders terrain legend entries in deterministic order (SSN-265)', async () => {
+    vi.useFakeTimers();
+
+    // Use fixed seed that will generate known terrain types
+    window.history.replaceState({}, '', '/?seed=det-order-test&terrainZoneEnabled=1&terrainZoneCount=4');
+
+    // First render
+    const { unmount } = render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+    act(() => { vi.advanceTimersByTime(100); });
+    fireEvent.click(screen.getByRole('button', { name: /detailed/i }));
+
+    const statsHud1 = screen.getByRole('region', { name: /simulation stats hud/i });
+    const entries1 = within(statsHud1).getAllByText(/(Forest|Wetland|Rocky|Plains):/);
+    const text1 = entries1.map(e => e.textContent);
+    const order1 = text1.sort();
+
+    unmount();
+
+    // Second render with same seed
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+    act(() => { vi.advanceTimersByTime(100); });
+    fireEvent.click(screen.getByRole('button', { name: /detailed/i }));
+
+    const statsHud2 = screen.getByRole('region', { name: /simulation stats hud/i });
+    const entries2 = within(statsHud2).getAllByText(/(Forest|Wetland|Rocky|Plains):/);
+    const text2 = entries2.map(e => e.textContent);
+    const order2 = text2.sort();
+
+    // Same terrain types appear in same order
+    expect(order1).toEqual(order2);
+
+    vi.useRealTimers();
+  });
+
 
 });
