@@ -71,8 +71,16 @@ export function saveCustomPreset(name, config) {
       foodSpawnChance: config.foodSpawnChance,
       foodEnergyValue: config.foodEnergyValue,
       maxFood: config.maxFood,
+      // Legacy mutation fields (for backward compatibility)
       mutationRate: config.mutationRate,
       mutationStrength: config.mutationStrength,
+      // Trait-specific mutation controls (SSN-254)
+      physicalTraitsMutationRate: config.physicalTraitsMutationRate,
+      physicalTraitsMutationStrength: config.physicalTraitsMutationStrength,
+      brainStructureMutationRate: config.brainStructureMutationRate,
+      brainStructureMutationStrength: config.brainStructureMutationStrength,
+      brainWeightMutationRate: config.brainWeightMutationRate,
+      brainWeightMutationStrength: config.brainWeightMutationStrength,
       reproductionThreshold: config.reproductionThreshold,
       reproductionCost: config.reproductionCost,
       offspringStartEnergy: config.offspringStartEnergy,
@@ -137,8 +145,16 @@ export const SIMULATION_PRESETS = [
       foodSpawnChance: 0.04,
       foodEnergyValue: 5,
       maxFood: 120,
+      // Legacy mutation fields (for backward compatibility)
       mutationRate: 0.05,
-      mutationStrength: 0.1
+      mutationStrength: 0.1,
+      // Trait-specific mutation controls (SSN-254)
+      physicalTraitsMutationRate: 0.05,
+      physicalTraitsMutationStrength: 0.1,
+      brainStructureMutationRate: 0.05,
+      brainStructureMutationStrength: 0.1,
+      brainWeightMutationRate: 0.05,
+      brainWeightMutationStrength: 0.1
     }
   },
   {
@@ -154,8 +170,16 @@ export const SIMULATION_PRESETS = [
       foodSpawnChance: 0.08,
       foodEnergyValue: 5,
       maxFood: 400,
+      // Legacy mutation fields (for backward compatibility)
       mutationRate: 0.03,
-      mutationStrength: 0.05
+      mutationStrength: 0.05,
+      // Trait-specific mutation controls (SSN-254)
+      physicalTraitsMutationRate: 0.03,
+      physicalTraitsMutationStrength: 0.05,
+      brainStructureMutationRate: 0.03,
+      brainStructureMutationStrength: 0.05,
+      brainWeightMutationRate: 0.03,
+      brainWeightMutationStrength: 0.05
     }
   },
   {
@@ -171,8 +195,16 @@ export const SIMULATION_PRESETS = [
       foodSpawnChance: 0.05,
       foodEnergyValue: 5,
       maxFood: 150,
+      // Legacy mutation fields (for backward compatibility)
       mutationRate: 0.2,
-      mutationStrength: 0.3
+      mutationStrength: 0.3,
+      // Trait-specific mutation controls (SSN-254)
+      physicalTraitsMutationRate: 0.2,
+      physicalTraitsMutationStrength: 0.3,
+      brainStructureMutationRate: 0.2,
+      brainStructureMutationStrength: 0.3,
+      brainWeightMutationRate: 0.2,
+      brainWeightMutationStrength: 0.3
     }
   },
   {
@@ -188,8 +220,16 @@ export const SIMULATION_PRESETS = [
       foodSpawnChance: 0.02,
       foodEnergyValue: 8,
       maxFood: 60,
+      // Legacy mutation fields (for backward compatibility)
       mutationRate: 0.1,
-      mutationStrength: 0.15
+      mutationStrength: 0.15,
+      // Trait-specific mutation controls (SSN-254)
+      physicalTraitsMutationRate: 0.1,
+      physicalTraitsMutationStrength: 0.15,
+      brainStructureMutationRate: 0.1,
+      brainStructureMutationStrength: 0.15,
+      brainWeightMutationRate: 0.1,
+      brainWeightMutationStrength: 0.15
     }
   },
   {
@@ -205,8 +245,16 @@ export const SIMULATION_PRESETS = [
       foodSpawnChance: 0.05,
       foodEnergyValue: 5,
       maxFood: 2000,
+      // Legacy mutation fields (for backward compatibility)
       mutationRate: 0.05,
-      mutationStrength: 0.1
+      mutationStrength: 0.1,
+      // Trait-specific mutation controls (SSN-254)
+      physicalTraitsMutationRate: 0.05,
+      physicalTraitsMutationStrength: 0.1,
+      brainStructureMutationRate: 0.05,
+      brainStructureMutationStrength: 0.1,
+      brainWeightMutationRate: 0.05,
+      brainWeightMutationStrength: 0.1
     }
   }
 ];
@@ -250,8 +298,16 @@ export const DEFAULT_CONFIG = {
   foodSpawnChance: 0.1,
   foodEnergyValue: 10,
   maxFood: 450,
+  // Legacy mutation controls (fallback for backward compatibility)
   mutationRate: 0.05,
   mutationStrength: 0.1,
+  // Trait-specific mutation controls (SSN-254)
+  physicalTraitsMutationRate: 0.05,
+  physicalTraitsMutationStrength: 0.1,
+  brainStructureMutationRate: 0.05,
+  brainStructureMutationStrength: 0.1,
+  brainWeightMutationRate: 0.05,
+  brainWeightMutationStrength: 0.1,
   // Reproduction settings
   reproductionThreshold: 42,
   reproductionCost: 20,
@@ -314,8 +370,16 @@ export function validateSimulationConfig(input) {
     ['foodSpawnChance', 0, 1, 'Food spawn chance must be between 0 and 1.'],
     ['foodEnergyValue', 1, 100, 'Food energy value must be between 1 and 100.'],
     ['maxFood', 1, 2000, 'Max food must be between 1 and 2000.'],
+    // Legacy mutation fields (backward compatibility)
     ['mutationRate', 0, 1, 'Mutation rate must be between 0 and 1.'],
     ['mutationStrength', 0, 1, 'Mutation strength must be between 0 and 1.'],
+    // Trait-specific mutation controls (SSN-254)
+    ['physicalTraitsMutationRate', 0, 1, 'Physical traits mutation rate must be between 0 and 1.'],
+    ['physicalTraitsMutationStrength', 0, 1, 'Physical traits mutation strength must be between 0 and 1.'],
+    ['brainStructureMutationRate', 0, 1, 'Brain structure mutation rate must be between 0 and 1.'],
+    ['brainStructureMutationStrength', 0, 1, 'Brain structure mutation strength must be between 0 and 1.'],
+    ['brainWeightMutationRate', 0, 1, 'Brain weight mutation rate must be between 0 and 1.'],
+    ['brainWeightMutationStrength', 0, 1, 'Brain weight mutation strength must be between 0 and 1.'],
     ['reproductionThreshold', 1, 200, 'Reproduction threshold must be between 1 and 200.'],
     ['reproductionCost', 0, 200, 'Reproduction cost must be between 0 and 200.'],
     ['offspringStartEnergy', 0, 200, 'Offspring start energy must be between 0 and 200.'],
@@ -382,8 +446,17 @@ export function normalizeSimulationConfig(input, resolvedSeed) {
     foodSpawnChance: Number(input.foodSpawnChance ?? DEFAULT_CONFIG.foodSpawnChance),
     foodEnergyValue: Number(input.foodEnergyValue ?? DEFAULT_CONFIG.foodEnergyValue),
     maxFood: Number(input.maxFood ?? DEFAULT_CONFIG.maxFood),
+    // Legacy mutation fields (for backward compatibility)
     mutationRate: Number(input.mutationRate ?? DEFAULT_CONFIG.mutationRate),
     mutationStrength: Number(input.mutationStrength ?? DEFAULT_CONFIG.mutationStrength),
+    // Trait-specific mutation controls (SSN-254)
+    // Use legacy values as fallback if new fields are not provided
+    physicalTraitsMutationRate: Number(input.physicalTraitsMutationRate ?? input.mutationRate ?? DEFAULT_CONFIG.physicalTraitsMutationRate),
+    physicalTraitsMutationStrength: Number(input.physicalTraitsMutationStrength ?? input.mutationStrength ?? DEFAULT_CONFIG.physicalTraitsMutationStrength),
+    brainStructureMutationRate: Number(input.brainStructureMutationRate ?? input.mutationRate ?? DEFAULT_CONFIG.brainStructureMutationRate),
+    brainStructureMutationStrength: Number(input.brainStructureMutationStrength ?? input.mutationStrength ?? DEFAULT_CONFIG.brainStructureMutationStrength),
+    brainWeightMutationRate: Number(input.brainWeightMutationRate ?? input.mutationRate ?? DEFAULT_CONFIG.brainWeightMutationRate),
+    brainWeightMutationStrength: Number(input.brainWeightMutationStrength ?? input.mutationStrength ?? DEFAULT_CONFIG.brainWeightMutationStrength),
     reproductionThreshold: Number(input.reproductionThreshold ?? DEFAULT_CONFIG.reproductionThreshold),
     reproductionCost: Number(input.reproductionCost ?? DEFAULT_CONFIG.reproductionCost),
     offspringStartEnergy: Number(input.offspringStartEnergy ?? DEFAULT_CONFIG.offspringStartEnergy),
@@ -745,6 +818,16 @@ export function toEngineStepParams(config, options = {}) {
     initialColors
   );
 
+  // Map config mutation values to engine step params (SSN-254)
+  // Physical traits: size, speed, visionRange, turnRate, metabolism, adolescenceAge, eggHatchTime
+  // Brain structure: add/remove neurons and synapses
+  // Brain weight: synapse weight changes
+  const traitMutationRate = config.physicalTraitsMutationRate ?? config.mutationRate ?? 0.1;
+  const traitMutationMagnitude = config.physicalTraitsMutationStrength ?? config.mutationStrength ?? 0.2;
+  const brainMutationRate = config.brainWeightMutationRate ?? config.mutationRate ?? 0.1;
+  const brainMutationMagnitude = config.brainWeightMutationStrength ?? config.mutationStrength ?? 0.2;
+  const brainStructureMutationRate = config.brainStructureMutationRate ?? config.mutationRate ?? 0.05;
+
   return {
     movementDelta: 1.5,
     metabolismPerTick: 0.05,
@@ -754,8 +837,16 @@ export function toEngineStepParams(config, options = {}) {
     worldHeight: config.worldHeight,
     maxFood: config.maxFood,
     minimumPopulation: config.minimumPopulation,
+    // Legacy mutation params (for backward compatibility)
     mutationRate: config.mutationRate,
     mutationStrength: config.mutationStrength,
+    // Trait-specific mutation params (SSN-254)
+    traitMutationRate,
+    traitMutationMagnitude,
+    brainMutationRate,
+    brainMutationMagnitude,
+    brainAddSynapseChance: brainStructureMutationRate,
+    brainRemoveSynapseChance: brainStructureMutationRate * 0.5,
     reproductionThreshold: config.reproductionThreshold,
     reproductionCost: config.reproductionCost,
     offspringStartEnergy: config.offspringStartEnergy,
@@ -819,8 +910,16 @@ function sanitizeLoadedConfigDraft(parsed) {
     foodSpawnChance: [0, 1],
     foodEnergyValue: [1, 100],
     maxFood: [1, 2000],
+    // Legacy mutation fields (backward compatibility)
     mutationRate: [0, 1],
     mutationStrength: [0, 1],
+    // Trait-specific mutation controls (SSN-254)
+    physicalTraitsMutationRate: [0, 1],
+    physicalTraitsMutationStrength: [0, 1],
+    brainStructureMutationRate: [0, 1],
+    brainStructureMutationStrength: [0, 1],
+    brainWeightMutationRate: [0, 1],
+    brainWeightMutationStrength: [0, 1],
     reproductionThreshold: [1, 200],
     reproductionCost: [0, 200],
     offspringStartEnergy: [0, 200],
@@ -851,6 +950,38 @@ function sanitizeLoadedConfigDraft(parsed) {
   if (sanitized.maxFood < sanitized.initialFoodCount) {
     sanitized.initialFoodCount = DEFAULT_CONFIG.initialFoodCount;
     sanitized.maxFood = DEFAULT_CONFIG.maxFood;
+  }
+
+  // Backward compatibility: use legacy mutation values as fallbacks for new trait-specific fields (SSN-254)
+  // If source has legacy mutationRate/mutationStrength but not the new fields, propagate them
+  const sourceMutationRate = Number(source.mutationRate);
+  const sourceMutationStrength = Number(source.mutationStrength);
+  const hasValidLegacyMutationRate = isFiniteInRange(sourceMutationRate, 0, 1);
+  const hasValidLegacyMutationStrength = isFiniteInRange(sourceMutationStrength, 0, 1);
+
+  if (hasValidLegacyMutationRate) {
+    // If new fields not in source, use legacy values
+    if (!('physicalTraitsMutationRate' in source)) {
+      sanitized.physicalTraitsMutationRate = sourceMutationRate;
+    }
+    if (!('brainStructureMutationRate' in source)) {
+      sanitized.brainStructureMutationRate = sourceMutationRate;
+    }
+    if (!('brainWeightMutationRate' in source)) {
+      sanitized.brainWeightMutationRate = sourceMutationRate;
+    }
+  }
+
+  if (hasValidLegacyMutationStrength) {
+    if (!('physicalTraitsMutationStrength' in source)) {
+      sanitized.physicalTraitsMutationStrength = sourceMutationStrength;
+    }
+    if (!('brainStructureMutationStrength' in source)) {
+      sanitized.brainStructureMutationStrength = sourceMutationStrength;
+    }
+    if (!('brainWeightMutationStrength' in source)) {
+      sanitized.brainWeightMutationStrength = sourceMutationStrength;
+    }
   }
 
   const sourceTerrainGeneration = source.terrainZoneGeneration && typeof source.terrainZoneGeneration === 'object'
