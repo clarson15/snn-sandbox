@@ -298,11 +298,13 @@ describe('simulation stats', () => {
 });
 
 describe('organism terrain effect', () => {
+  // Use real deterministic world model schema: terrain types plains|forest|wetland|rocky
+  // and bounds {x, y, width, height} instead of top-level x/y/width/height
   const terrainZones = [
-    { id: 'zone-1', x: 0, y: 0, width: 100, height: 100, type: 'grass' },
-    { id: 'zone-2', x: 100, y: 0, width: 100, height: 100, type: 'forest' },
-    { id: 'zone-3', x: 0, y: 100, width: 100, height: 100, type: 'water' },
-    { id: 'zone-4', x: 100, y: 100, width: 100, height: 100, type: 'rock' }
+    { id: 'zone-1', bounds: { x: 0, y: 0, width: 100, height: 100 }, type: 'plains' },
+    { id: 'zone-2', bounds: { x: 100, y: 0, width: 100, height: 100 }, type: 'forest' },
+    { id: 'zone-3', bounds: { x: 0, y: 100, width: 100, height: 100 }, type: 'wetland' },
+    { id: 'zone-4', bounds: { x: 100, y: 100, width: 100, height: 100 }, type: 'rocky' }
   ];
 
   it('returns null when organism is null', () => {
@@ -324,12 +326,12 @@ describe('organism terrain effect', () => {
     expect(deriveOrganismTerrainEffect({ x: 250, y: 250 }, terrainZones)).toBeNull();
   });
 
-  it('derives terrain effect for organism in grass (plains) zone', () => {
+  it('derives terrain effect for organism in plains zone', () => {
     const effect = deriveOrganismTerrainEffect({ x: 50, y: 50 }, terrainZones);
     expect(effect).not.toBeNull();
-    expect(effect.type).toBe('grass');
+    expect(effect.type).toBe('plains');
     expect(effect.label).toBe('Plains');
-    expect(effect.effect).toBe('normal movement, more food');
+    expect(effect.effect).toBe('normal');
   });
 
   it('derives terrain effect for organism in forest zone', () => {
@@ -337,38 +339,42 @@ describe('organism terrain effect', () => {
     expect(effect).not.toBeNull();
     expect(effect.type).toBe('forest');
     expect(effect.label).toBe('Forest');
-    expect(effect.effect).toBe('slower movement, abundant food');
+    expect(effect.effect).toBe('50% vision');
   });
 
-  it('derives terrain effect for organism in water (wetland) zone', () => {
+  it('derives terrain effect for organism in wetland zone', () => {
     const effect = deriveOrganismTerrainEffect({ x: 50, y: 150 }, terrainZones);
     expect(effect).not.toBeNull();
-    expect(effect.type).toBe('water');
+    expect(effect.type).toBe('wetland');
     expect(effect.label).toBe('Wetland');
-    expect(effect.effect).toBe('slow movement, scarce food');
+    expect(effect.effect).toBe('50% speed, 50% turn');
   });
 
   it('derives terrain effect for organism in rocky zone', () => {
     const effect = deriveOrganismTerrainEffect({ x: 150, y: 150 }, terrainZones);
     expect(effect).not.toBeNull();
-    expect(effect.type).toBe('rock');
+    expect(effect.type).toBe('rocky');
     expect(effect.label).toBe('Rocky');
-    expect(effect.effect).toBe('very slow, scarce food, energy drain');
+    expect(effect.effect).toBe('-0.2 energy/tick');
   });
 
-  it('uses organism size to determine terrain zone overlap', () => {
-    // Large organism at edge of zone should still be detected
-    const largeOrganism = { x: 99, y: 50, traits: { size: 3 } }; // radius = 9
-    const effect = deriveOrganismTerrainEffect(largeOrganism, terrainZones);
+  it('handles organism at exact zone boundary edge (point-in-rectangle)', () => {
+    // Organism at the exact edge of the plains zone
+    const effect = deriveOrganismTerrainEffect({ x: 100, y: 50 }, terrainZones);
     expect(effect).not.toBeNull();
-    expect(effect.type).toBe('grass');
+    expect(effect.type).toBe('plains');
   });
 
-  it('handles missing traits gracefully (defaults to size 1)', () => {
-    const organism = { x: 99, y: 50 }; // No traits
-    const effect = deriveOrganismTerrainEffect(organism, terrainZones);
+  it('handles organism outside zone bounds', () => {
+    // Outside all zones
+    const effect = deriveOrganismTerrainEffect({ x: 99, y: 99 }, terrainZones);
     expect(effect).not.toBeNull();
-    expect(effect.type).toBe('grass');
+    expect(effect.type).toBe('plains');
+
+    // Just outside the plains zone at x=100 (boundary is inclusive)
+    const effect2 = deriveOrganismTerrainEffect({ x: 101, y: 50 }, terrainZones);
+    expect(effect2).not.toBeNull();
+    expect(effect2.type).toBe('forest');
   });
 
   it('formats terrain effect for HUD display', () => {
@@ -376,12 +382,17 @@ describe('organism terrain effect', () => {
     const formatted = formatOrganismTerrainEffect(effect);
     expect(formatted).toEqual({
       zoneLabel: 'Plains',
-      effectLabel: 'normal movement, more food'
+      effectLabel: 'normal'
     });
   });
 
   it('returns null from format when terrain effect is null', () => {
     expect(formatOrganismTerrainEffect(null)).toBeNull();
     expect(formatOrganismTerrainEffect(undefined)).toBeNull();
+  });
+
+  it('returns null when no organism is selected (no-selection case)', () => {
+    expect(deriveOrganismTerrainEffect(null, terrainZones)).toBeNull();
+    expect(deriveOrganismTerrainEffect(undefined, terrainZones)).toBeNull();
   });
 });

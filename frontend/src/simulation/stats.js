@@ -232,44 +232,44 @@ export function formatTrendIndicator(direction) {
 }
 
 // Terrain zone type to display name mapping
+// Uses exact types from deterministic world model: plains, forest, wetland, rocky
 const TERRAIN_TYPE_LABELS = {
-  grass: 'Plains',
-  sand: 'Sand',
-  water: 'Wetland',
+  plains: 'Plains',
   forest: 'Forest',
-  rock: 'Rocky'
+  wetland: 'Wetland',
+  rocky: 'Rocky'
 };
 
 // Terrain zone type to effect description mapping
-// Keep descriptions concise for HUD display
+// Reflects actual deterministic mechanics: vision penalty, speed/turn penalty, energy drain
 const TERRAIN_EFFECT_DESCRIPTIONS = {
-  grass: 'normal movement, more food',
-  sand: 'slower movement, less food',
-  water: 'slow movement, scarce food',
-  forest: 'slower movement, abundant food',
-  rock: 'very slow, scarce food, energy drain'
+  plains: 'normal',
+  forest: '50% vision',
+  wetland: '50% speed, 50% turn',
+  rocky: '-0.2 energy/tick'
 };
 
 /**
- * Check if an organism is inside a terrain zone (rectangle-based collision)
- * @param {object} organism - organism with x, y, and optionally traits.size
- * @param {object} zone - terrain zone with x, y, width, height
+ * Check if an organism is inside a terrain zone (point-in-rectangle).
+ * Uses zone.bounds for rectangle bounds per deterministic world model.
+ * @param {object} organism - organism with x, y
+ * @param {object} zone - terrain zone with bounds {x, y, width, height}
  * @returns {boolean}
  */
 function isInTerrainZone(organism, zone) {
-  const organismSize = organism?.traits?.size ?? 1;
-  const organismRadius = organismSize * 3; // Approximate radius matching engine.js
+  const bounds = zone?.bounds;
+  if (!bounds) {
+    return false;
+  }
+
   const orgX = organism.x;
   const orgY = organism.y;
 
-  // Find closest point on rectangle to circle center
-  const closestX = Math.max(zone.x, Math.min(orgX, zone.x + zone.width));
-  const closestY = Math.max(zone.y, Math.min(orgY, zone.y + zone.height));
-
-  // Check if circle overlaps with rectangle
-  const dx = orgX - closestX;
-  const dy = orgY - closestY;
-  return (dx * dx + dy * dy) < (organismRadius * organismRadius);
+  // Point-in-rectangle check: organism center inside bounds
+  return orgX >= bounds.x
+    && orgX <= bounds.x + bounds.width
+    && orgY >= bounds.y
+    && orgY <= bounds.y + bounds.height;
 }
 
 /**
