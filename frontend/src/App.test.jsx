@@ -311,14 +311,14 @@ describe('App', () => {
     fireEvent.change(screen.getByLabelText(/simulation name/i), { target: { value: 'Custom setup' } });
     fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'abc-seed' } });
     fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '1200' } });
-    fireEvent.change(screen.getByLabelText(/mutation rate/i), { target: { value: '0.33' } });
+    fireEvent.change(screen.getByLabelText(/mutation rate \(legacy\)/i), { target: { value: '0.33' } });
 
     fireEvent.click(screen.getByRole('button', { name: /use defaults/i }));
 
     expect(screen.getByLabelText(/simulation name/i)).toHaveValue('New Simulation');
     expect(screen.getByLabelText(/^seed \(optional\)$/i)).toHaveValue('');
     expect(screen.getByLabelText(/world width/i)).toHaveValue(1920);
-    expect(screen.getByLabelText(/mutation rate/i)).toHaveValue(0.05);
+    expect(screen.getByLabelText(/mutation rate \(legacy\)/i)).toHaveValue(0.05);
   });
 
   it('keeps saved draft intact when using defaults in the form', () => {
@@ -867,7 +867,7 @@ describe('App', () => {
     fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '20' } });
     fireEvent.change(screen.getByLabelText(/max food/i), { target: { value: '1' } });
     fireEvent.change(screen.getByLabelText(/initial food count/i), { target: { value: '20' } });
-    fireEvent.change(screen.getByLabelText(/mutation rate/i), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText(/mutation rate \(legacy\)/i), { target: { value: '2' } });
     fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
 
     expect(screen.getByText(/world width must be between 100 and 3000/i)).toBeInTheDocument();

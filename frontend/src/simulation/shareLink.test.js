@@ -17,8 +17,15 @@ describe('shareLink helpers', () => {
         foodSpawnChance: 0.05,
         foodEnergyValue: 9,
         maxFood: 300,
+        // Legacy mutation fields
         mutationRate: 0.2,
         mutationStrength: 0.15,
+        // New trait-specific mutation fields (SSN-254)
+        physicalTraitsMutationRate: 0.2,
+        physicalTraitsMutationStrength: 0.15,
+        brainStructureMutationRate: 0.2,
+        brainWeightMutationRate: 0.2,
+        brainWeightMutationStrength: 0.15,
         reproductionThreshold: 60,
         reproductionCost: 20,
         offspringStartEnergy: 12,
@@ -28,7 +35,7 @@ describe('shareLink helpers', () => {
       }
     });
 
-    expect(url).toBe('https://sandbox.example/run?seed=seed-42&worldWidth=1200&worldHeight=720&initialPopulation=40&minimumPopulation=20&initialFoodCount=50&foodSpawnChance=0.05&foodEnergyValue=9&maxFood=300&mutationRate=0.2&mutationStrength=0.15&reproductionThreshold=60&reproductionCost=20&offspringStartEnergy=12&reproductionMinimumAge=25&reproductionRefractoryPeriod=80&maximumOrganismAge=900');
+    expect(url).toBe('https://sandbox.example/run?seed=seed-42&worldWidth=1200&worldHeight=720&initialPopulation=40&minimumPopulation=20&initialFoodCount=50&foodSpawnChance=0.05&foodEnergyValue=9&maxFood=300&mutationRate=0.2&mutationStrength=0.15&physicalTraitsMutationRate=0.2&physicalTraitsMutationStrength=0.15&brainStructureMutationRate=0.2&brainWeightMutationRate=0.2&brainWeightMutationStrength=0.15&reproductionThreshold=60&reproductionCost=20&offspringStartEnergy=12&reproductionMinimumAge=25&reproductionRefractoryPeriod=80&maximumOrganismAge=900');
   });
 
   it('parses query prefill and falls back to defaults with warning on invalid fields', () => {

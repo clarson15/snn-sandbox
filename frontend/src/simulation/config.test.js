@@ -471,6 +471,12 @@ describe('simulation config helpers', () => {
       maxFood: 180,
       mutationRate: 0.3,
       mutationStrength: 0.4,
+      // New trait-specific mutation fields use legacy values when not provided (SSN-254)
+      physicalTraitsMutationRate: 0.3,
+      physicalTraitsMutationStrength: 0.4,
+      brainStructureMutationRate: 0.3,
+      brainWeightMutationRate: 0.3,
+      brainWeightMutationStrength: 0.4,
       resolvedSeed: undefined,
       reproductionThreshold: 47,
       reproductionCost: 17,
@@ -528,6 +534,12 @@ describe('simulation config helpers', () => {
       maxFood: 450,
       mutationRate: 0.05,
       mutationStrength: 0.1,
+      // New trait-specific mutation fields use defaults (SSN-254)
+      physicalTraitsMutationRate: 0.05,
+      physicalTraitsMutationStrength: 0.1,
+      brainStructureMutationRate: 0.05,
+      brainWeightMutationRate: 0.05,
+      brainWeightMutationStrength: 0.1,
       resolvedSeed: undefined,
       reproductionThreshold: 42,
       reproductionCost: 20,
@@ -723,6 +735,86 @@ describe('simulation config helpers', () => {
       // Energy should be deterministic across multiple world creations
       const world2 = createInitialWorldFromConfig(config);
       expect(world.organisms).toEqual(world2.organisms);
+    });
+  });
+
+  describe('toEngineStepParams mutation mapping (SSN-254)', () => {
+    it('maps new trait-specific mutation fields to engine params', () => {
+      const config = normalizeSimulationConfig(
+        {
+          name: 'Mutation Test',
+          seed: 'mutation-seed',
+          physicalTraitsMutationRate: 0.15,
+          physicalTraitsMutationStrength: 0.25,
+          brainStructureMutationRate: 0.08,
+          brainWeightMutationRate: 0.2,
+          brainWeightMutationStrength: 0.35
+        },
+        'mutation-seed'
+      );
+
+      const stepParams = toEngineStepParams(config);
+
+      // Physical traits should map to traitMutationRate/Magnitude
+      expect(stepParams.traitMutationRate).toBe(0.15);
+      expect(stepParams.traitMutationMagnitude).toBe(0.25);
+      // Brain weight should map to brainMutationRate/Magnitude
+      expect(stepParams.brainMutationRate).toBe(0.2);
+      expect(stepParams.brainMutationMagnitude).toBe(0.35);
+      // Brain structure should map to add/remove synapse chances
+      expect(stepParams.brainAddSynapseChance).toBe(0.08);
+      expect(stepParams.brainRemoveSynapseChance).toBe(0.04); // 0.08 * 0.5
+    });
+
+    it('falls back to legacy mutationRate/mutationStrength when new fields not provided', () => {
+      const config = normalizeSimulationConfig(
+        {
+          name: 'Legacy Mutation Test',
+          seed: 'legacy-mutation-seed',
+          mutationRate: 0.1,
+          mutationStrength: 0.2
+        },
+        'legacy-mutation-seed'
+      );
+
+      const stepParams = toEngineStepParams(config);
+
+      // All mutation params should use legacy values when new fields not provided
+      expect(stepParams.traitMutationRate).toBe(0.1);
+      expect(stepParams.traitMutationMagnitude).toBe(0.2);
+      expect(stepParams.brainMutationRate).toBe(0.1);
+      expect(stepParams.brainMutationMagnitude).toBe(0.2);
+      expect(stepParams.brainAddSynapseChance).toBe(0.1);
+      expect(stepParams.brainRemoveSynapseChance).toBe(0.05); // 0.1 * 0.5
+    });
+
+    it('uses explicit new fields even when legacy fields are present', () => {
+      const config = normalizeSimulationConfig(
+        {
+          name: 'Explicit Test',
+          seed: 'explicit-seed',
+          // Legacy values
+          mutationRate: 0.05,
+          mutationStrength: 0.1,
+          // New explicit values should override
+          physicalTraitsMutationRate: 0.3,
+          physicalTraitsMutationStrength: 0.4,
+          brainStructureMutationRate: 0.25,
+          brainWeightMutationRate: 0.45,
+          brainWeightMutationStrength: 0.55
+        },
+        'explicit-seed'
+      );
+
+      const stepParams = toEngineStepParams(config);
+
+      // New explicit values should be used
+      expect(stepParams.traitMutationRate).toBe(0.3);
+      expect(stepParams.traitMutationMagnitude).toBe(0.4);
+      expect(stepParams.brainMutationRate).toBe(0.45);
+      expect(stepParams.brainMutationMagnitude).toBe(0.55);
+      expect(stepParams.brainAddSynapseChance).toBe(0.25);
+      expect(stepParams.brainRemoveSynapseChance).toBe(0.125); // 0.25 * 0.5
     });
   });
 });
