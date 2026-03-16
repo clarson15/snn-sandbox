@@ -27,6 +27,7 @@ jobs:
         id: app_version
         run: |
           short_sha="${GITHUB_SHA::7}"
+          build_timestamp=$(date -u +"%Y%m%dT%H%M%SZ")
           
           # Find the latest semver tag across all branches
           latest_tag=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1 || true)
@@ -38,14 +39,14 @@ jobs:
             minor=$(echo "$version_num" | cut -d. -f2)
             patch=$(echo "$version_num" | cut -d. -f3)
             patch=$((patch + 1))
-            new_version="${major}.${minor}.${patch}"
+            new_version="${major}.${minor}.${patch}+build.${build_timestamp}"
             echo "Latest tag: $latest_tag, incrementing to: $new_version"
             echo "value=${new_version}" >> "$GITHUB_OUTPUT"
-            echo "sha_tag=${new_version}" >> "$GITHUB_OUTPUT"
+            echo "sha_tag=${new_version%%+build.*}" >> "$GITHUB_OUTPUT"
           else
             # No tags found, start at v0.0.1
             echo "No semver tags found, starting at v0.0.1"
-            echo "value=0.0.1" >> "$GITHUB_OUTPUT"
+            echo "value=0.0.1+build.${build_timestamp}" >> "$GITHUB_OUTPUT"
             echo "sha_tag=0.0.1" >> "$GITHUB_OUTPUT"
           fi
 
