@@ -29,6 +29,7 @@ Install the following locally:
 ## Repository layout
 
 - `frontend/` — React app
+- `frontend/src/simulation/` — deterministic simulation engine, replay, and renderer modules
 - `backend/SnnSandbox/` — ASP.NET API
 - `backend/SnnSandbox.Tests/` — backend tests
 - `snn-sandbox.sln` — .NET solution
@@ -158,7 +159,7 @@ If a seed is not provided when creating a simulation, one may be generated and p
 
 ### Deterministic tick engine contract
 
-The frontend `SimulationEngine` skeleton in `frontend/src/simulation/engine.js` follows this contract:
+The simulation engine in `frontend/src/simulation/engine.js` follows this contract:
 - `stepWorld(state, rng, params)` is the single tick transition function.
 - It accepts current `WorldState` + seeded RNG + params and returns a **new** `WorldState`.
 - It must not use ambient nondeterministic APIs (`Math.random`, `Date.now`).

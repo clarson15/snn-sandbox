@@ -7,8 +7,7 @@ import { createInitialWorldFromConfig, loadSimulationConfig, normalizeSimulation
 import { loadReplayComparisonPresets } from './simulation/replayComparisonPresets';
 import { stepWorld } from './simulation/engine';
 import { createSeededPrng } from './simulation/prng';
-import { mapBrainEmphasisChecksum, mapBrainToVisualizerModel } from './simulation/brainVisualizer';
-import { INSPECTOR_TRAIT_SECTION_SCHEMA } from './inspectorTraitSchema';
+import { mapBrainToVisualizerModel } from './simulation/brainVisualizer';
 
 function ensureWritableLocalStorage() {
   const storage = window.localStorage;
@@ -805,7 +804,7 @@ describe('App', () => {
     expect(screen.getByText(/seed regeneration cancelled\./i)).toBeInTheDocument();
   });
 
-  it.skip('new run with same seed clears selection and restores default playback controls', async () => {
+  it('new run with same seed clears selection and restores default playback controls', () => {
     vi.useFakeTimers();
     render(<App />);
 
@@ -847,14 +846,13 @@ describe('App', () => {
     });
 
     fireEvent.click(canvas, { clientX: selectedFixture.x, clientY: selectedFixture.y });
-    const inspector = screen.getByRole('region', { name: /organism inspector/i });
-    expect(inspector).toHaveTextContent(`ID: ${selectedFixture.id}`);
+    const organismHud = screen.getByRole('region', { name: /organism info/i });
+    expect(organismHud).toHaveTextContent(`Organism ${selectedFixture.id.slice(0, 8)}`);
 
     fireEvent.click(screen.getByRole('button', { name: /^5x$/i }));
     fireEvent.click(screen.getByRole('button', { name: /new run with same seed/i }));
 
-    expect(screen.getByRole('heading', { name: /no organism selected/i })).toBeInTheDocument();
-    expect(screen.getByText(/select an organism to view deterministic inspector details\./i)).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: /organism info/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^pause$/i })).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByRole('button', { name: /^1x$/i })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText(/^tick count:/i)).toHaveTextContent('Tick count: 0');
@@ -862,112 +860,6 @@ describe('App', () => {
     vi.useRealTimers();
   });
 
-  it.skip('switches inspector layout mode between desktop and compact on breakpoint changes', () => {
-    Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: 1200 });
-    render(<App />);
-
-    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'inspector-layout-seed' } });
-    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
-    fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
-
-    const deterministicConfig = normalizeSimulationConfig(
-      {
-        name: 'Inspector layout test',
-        seed: 'inspector-layout-seed',
-        worldWidth: 800,
-        worldHeight: 480,
-        initialPopulation: 20,
-        minimumPopulation: 15,
-        initialFoodCount: 40,
-        foodSpawnChance: 0.03,
-        foodEnergyValue: 20,
-        maxFood: 250
-      },
-      'inspector-layout-seed'
-    );
-
-    const initialWorld = createInitialWorldFromConfig(deterministicConfig);
-    const selectedFixture = initialWorld.organisms[0];
-    const canvas = screen.getByLabelText(/simulation world/i);
-    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
-      x: 0,
-      y: 0,
-      left: 0,
-      top: 0,
-      width: 800,
-      height: 480,
-      right: 800,
-      bottom: 480,
-      toJSON: () => ({})
-    });
-
-    fireEvent.click(canvas, { clientX: selectedFixture.x, clientY: selectedFixture.y });
-
-    const inspector = screen.getByRole('region', { name: /organism inspector/i });
-    const layout = inspector.querySelector('.inspector-sections-layout');
-    expect(layout).toHaveAttribute('data-layout-mode', 'desktop');
-
-    act(() => {
-      window.innerWidth = 900;
-      window.dispatchEvent(new Event('resize'));
-    });
-
-    expect(layout).toHaveAttribute('data-layout-mode', 'compact');
-  });
-
-  it.skip('shows critical inspector stats including food distance while selected', () => {
-    render(<App />);
-
-    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'inspector-critical-stats-seed' } });
-    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
-    fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
-
-    const deterministicConfig = normalizeSimulationConfig(
-      {
-        name: 'Inspector critical stats test',
-        seed: 'inspector-critical-stats-seed',
-        worldWidth: 800,
-        worldHeight: 480,
-        initialPopulation: 20,
-        minimumPopulation: 15,
-        initialFoodCount: 40,
-        foodSpawnChance: 0.03,
-        foodEnergyValue: 20,
-        maxFood: 250
-      },
-      'inspector-critical-stats-seed'
-    );
-
-    const initialWorld = createInitialWorldFromConfig(deterministicConfig);
-    const selectedFixture = initialWorld.organisms[0];
-    const canvas = screen.getByLabelText(/simulation world/i);
-    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
-      x: 0,
-      y: 0,
-      left: 0,
-      top: 0,
-      width: 800,
-      height: 480,
-      right: 800,
-      bottom: 480,
-      toJSON: () => ({})
-    });
-
-    fireEvent.click(canvas, { clientX: selectedFixture.x, clientY: selectedFixture.y });
-
-    const lineageRow = screen.getByRole('region', { name: /inspector lineage row/i });
-    expect(lineageRow).toHaveTextContent(/generation:/i);
-    expect(lineageRow).toHaveTextContent(/parent:/i);
-    expect(lineageRow).toHaveTextContent(/offspring:/i);
-    expect(lineageRow).toHaveTextContent(/parent:\s*—/i);
-    expect(lineageRow).toHaveTextContent(/offspring:\s*—/i);
-
-    const criticalStats = screen.getByRole('region', { name: /inspector critical stats/i });
-    expect(criticalStats).toHaveTextContent(/energy:/i);
-    expect(criticalStats).toHaveTextContent(/age:/i);
-    expect(criticalStats).toHaveTextContent(/generation:/i);
-    expect(criticalStats).toHaveTextContent(/food distance:/i);
-  });
 
   it('shows actionable validation errors for invalid ranges', () => {
     render(<App />);
@@ -2210,109 +2102,6 @@ describe('App', () => {
     expect(enabledRestartButton.closest('.control-with-hint')).not.toHaveClass('is-disabled');
   });
 
-  it.skip('supports playback + inspector keyboard shortcuts and ignores keys while typing', () => {
-    vi.useFakeTimers();
-    render(<App />);
-
-    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
-
-    const tickNode = screen.getByText(/^tick count:/i);
-    const readTick = () => Number.parseInt(tickNode.textContent.replace(/\D+/g, ''), 10);
-
-    expect(screen.getByText(/shortcuts: space pause\/play · \. single-step \(paused\) · 1\/2\/3\/4 set speed/i)).toBeInTheDocument();
-    expect(screen.getByText(/inspector shortcuts: ←\/↑ previous organism · →\/↓ next organism · p pin\/unpin inspector · \[\/\] section focus · enter toggle section/i)).toBeInTheDocument();
-    expect(screen.getByText(/pin mode: disabled/i)).toBeInTheDocument();
-
-    fireEvent.keyDown(window, { key: '3', code: 'Digit3' });
-    expect(screen.getByRole('button', { name: /^5x$/i })).toHaveAttribute('aria-pressed', 'true');
-
-
-    fireEvent.keyDown(window, { key: ' ', code: 'Space' });
-    expect(screen.getByRole('button', { name: /^pause$/i })).toHaveAttribute('aria-pressed', 'true');
-
-
-    const pausedTick = readTick();
-    fireEvent.keyDown(window, { key: '.', code: 'Period' });
-    expect(readTick()).toBe(pausedTick + 1);
-
-    const inspectorPanel = screen.getByRole('heading', { name: /organism inspector/i }).closest('section');
-    expect(inspectorPanel).toBeTruthy();
-
-    const readInspectorId = () => inspectorPanel?.textContent?.match(/ID:\s*(org-\d+)/i)?.[1];
-
-    fireEvent.keyDown(window, { key: 'ArrowRight', code: 'ArrowRight' });
-    const firstSelectedId = readInspectorId();
-    expect(firstSelectedId).toBeTruthy();
-
-    fireEvent.keyDown(window, { key: 'ArrowDown', code: 'ArrowDown' });
-    const secondSelectedId = readInspectorId();
-    expect(secondSelectedId).toBeTruthy();
-    expect(secondSelectedId).not.toBe(firstSelectedId);
-
-    fireEvent.keyDown(window, { key: 'ArrowUp', code: 'ArrowUp' });
-    const restoredSelectedId = readInspectorId();
-    expect(restoredSelectedId).toBe(firstSelectedId);
-
-    fireEvent.keyDown(window, { key: 'ArrowLeft', code: 'ArrowLeft' });
-    const wrappedSelectedId = readInspectorId();
-    expect(wrappedSelectedId).toBeTruthy();
-    expect(wrappedSelectedId).not.toBe(restoredSelectedId);
-
-    const lifecycleToggle = screen.getByRole('button', { name: /^lifecycle$/i });
-    const physicalTraitsToggle = screen.getByRole('button', { name: /^physical traits$/i });
-    const genomeBrainToggle = screen.getByRole('button', { name: /^genome\/brain$/i });
-
-    expect(lifecycleToggle).toHaveAttribute('aria-expanded', 'true');
-    fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
-    expect(physicalTraitsToggle).toHaveFocus();
-    fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
-    expect(genomeBrainToggle).toHaveFocus();
-    fireEvent.keyDown(window, { key: ']', code: 'BracketRight' });
-    expect(lifecycleToggle).toHaveFocus();
-    fireEvent.keyDown(window, { key: '[', code: 'BracketLeft' });
-    expect(genomeBrainToggle).toHaveFocus();
-
-    fireEvent.keyDown(window, { key: 'Enter', code: 'Enter' });
-    expect(genomeBrainToggle).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.getByText(/genome signature:/i)).not.toBeVisible();
-
-    fireEvent.keyDown(window, { key: 'Enter', code: 'Enter' });
-    expect(genomeBrainToggle).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByText(/genome signature:/i)).toBeInTheDocument();
-
-    fireEvent.keyDown(window, { key: 'p', code: 'KeyP' });
-    expect(screen.getByRole('button', { name: /unpin organism inspector/i })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByText(/pin mode: enabled/i)).toBeInTheDocument();
-
-    fireEvent.keyDown(window, { key: 'P', code: 'KeyP' });
-    expect(screen.getByRole('button', { name: /pin organism inspector/i })).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByText(/pin mode: disabled/i)).toBeInTheDocument();
-
-    fireEvent.keyDown(window, { key: ' ', code: 'Space' });
-    expect(screen.getByRole('button', { name: /^pause$/i })).toHaveAttribute('aria-pressed', 'false');
-
-    fireEvent.keyDown(window, { key: ' ', code: 'Space' });
-    expect(screen.getByRole('button', { name: /^pause$/i })).toHaveAttribute('aria-pressed', 'true');
-    const seedInput = screen.getByLabelText(/seed/i);
-    seedInput.focus();
-
-    const focusedPauseTick = readTick();
-    const focusedInspectorId = readInspectorId();
-    fireEvent.keyDown(seedInput, { key: '.', code: 'Period' });
-    fireEvent.keyDown(seedInput, { key: '4', code: 'Digit4' });
-    fireEvent.keyDown(seedInput, { key: '[', code: 'BracketLeft' });
-    fireEvent.keyDown(seedInput, { key: ']', code: 'BracketRight' });
-    fireEvent.keyDown(seedInput, { key: 'ArrowRight', code: 'ArrowRight' });
-    fireEvent.keyDown(seedInput, { key: 'p', code: 'KeyP' });
-
-    expect(readTick()).toBe(focusedPauseTick);
-    expect(screen.getByRole('button', { name: /^10x$/i })).toHaveAttribute('aria-pressed', 'false');
-    expect(inspectorPanel.textContent.match(/ID:\s*(org-\d+)/i)?.[1]).toBe(focusedInspectorId);
-    expect(screen.getByRole('button', { name: /pin organism inspector/i })).toHaveAttribute('aria-pressed', 'false');
-
-    vi.useRealTimers();
-  });
-
   it('shows keyboard shortcuts modal and supports close interactions without mutating simulation state', () => {
     vi.useFakeTimers();
     render(<App />);
@@ -2355,7 +2144,7 @@ describe('App', () => {
     vi.useRealTimers();
   });
 
-  it.skip('clears stale selection to deterministic empty state when selected organism dies', async () => {
+  it('clears stale selection when the selected organism dies', () => {
     vi.useFakeTimers();
     render(<App />);
 
@@ -2392,12 +2181,17 @@ describe('App', () => {
 
     let projected = initialWorld;
     let firstDiedId = null;
+    let deathTick = null;
     for (let i = 0; i < 800 && !firstDiedId; i += 1) {
       projected = stepWorld(projected, rng, stepParams);
       firstDiedId = initialIds.find((id) => !projected.organisms.some((organism) => organism.id === id)) ?? null;
+      if (firstDiedId) {
+        deathTick = i + 1;
+      }
     }
 
     expect(firstDiedId).toBeTruthy();
+    expect(deathTick).toBeTruthy();
     const selectedFixture = initialWorld.organisms.find((organism) => organism.id === firstDiedId);
     expect(selectedFixture).toBeTruthy();
 
@@ -2415,159 +2209,22 @@ describe('App', () => {
     });
 
     fireEvent.click(canvas, { clientX: selectedFixture.x, clientY: selectedFixture.y });
-    const inspector = screen.getByRole('region', { name: /organism inspector/i });
-    expect(inspector).toHaveTextContent(`ID: ${selectedFixture.id}`);
-
-    fireEvent.click(screen.getByRole('button', { name: /^1x$/i }));
-
-    for (let i = 0; i < 12; i += 1) {
-      act(() => {
-        vi.advanceTimersByTime(1000);
-      });
-
-      if (screen.queryByText(/selected organism is no longer available\./i)) {
-        break;
-      }
-    }
-
-    fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
-    expect(screen.getByRole('heading', { name: /no organism selected/i })).toBeInTheDocument();
-    expect(screen.queryByText(/selected organism details/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole('region', { name: /inspector summary card/i })).not.toBeInTheDocument();
-    expect(screen.queryByText(/brain data unavailable for this organism\./i)).not.toBeInTheDocument();
-
-    vi.useRealTimers();
-  });
-
-  it.skip('clears pinned inspector snapshot when selected organism dies', () => {
-    vi.useFakeTimers();
-    render(<App />);
-
-    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'pin-mode-seed' } });
-    fireEvent.change(screen.getByLabelText(/^initial population$/i), { target: { value: '2' } });
-    fireEvent.change(screen.getByLabelText(/^minimum population$/i), { target: { value: '1' } });
-    fireEvent.change(screen.getByLabelText(/^initial food count$/i), { target: { value: '0' } });
-    fireEvent.change(screen.getByLabelText(/food spawn chance/i), { target: { value: '0' } });
-    fireEvent.change(screen.getByLabelText(/^max food$/i), { target: { value: '1' } });
-
-    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
-    fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
-
-    const deterministicConfig = normalizeSimulationConfig(
-      {
-        name: 'Pin mode stale test',
-        seed: 'pin-mode-seed',
-        worldWidth: 800,
-        worldHeight: 480,
-        initialPopulation: 2,
-        minimumPopulation: 1,
-        initialFoodCount: 0,
-        foodSpawnChance: 0,
-        foodEnergyValue: 5,
-        maxFood: 1
-      },
-      'pin-mode-seed'
+    expect(screen.getByRole('region', { name: /organism info/i })).toHaveTextContent(
+      `Organism ${selectedFixture.id.slice(0, 8)}`
     );
 
-    const initialWorld = createInitialWorldFromConfig(deterministicConfig);
-    const rng = createSeededPrng(deterministicConfig.resolvedSeed);
-    const stepParams = toEngineStepParams(deterministicConfig);
-    const initialIds = initialWorld.organisms.map((organism) => organism.id);
-
-    let projected = initialWorld;
-    let firstDiedId = null;
-    for (let i = 0; i < 800 && !firstDiedId; i += 1) {
-      projected = stepWorld(projected, rng, stepParams);
-      firstDiedId = initialIds.find((id) => !projected.organisms.some((organism) => organism.id === id)) ?? null;
-    }
-
-    expect(firstDiedId).toBeTruthy();
-    const selectedFixture = initialWorld.organisms.find((organism) => organism.id === firstDiedId);
-    expect(selectedFixture).toBeTruthy();
-
-    const canvas = screen.getByLabelText(/simulation world/i);
-    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
-      x: 0,
-      y: 0,
-      left: 0,
-      top: 0,
-      width: 800,
-      height: 480,
-      right: 800,
-      bottom: 480,
-      toJSON: () => ({})
-    });
-
-    fireEvent.click(canvas, { clientX: selectedFixture.x, clientY: selectedFixture.y });
-    const inspector = screen.getByRole('region', { name: /organism inspector/i });
-    expect(inspector).toHaveTextContent(`ID: ${selectedFixture.id}`);
-
-    const pinButton = screen.getByRole('button', { name: /pin organism inspector/i });
-    fireEvent.click(pinButton);
-    expect(screen.getByRole('button', { name: /unpin organism inspector/i })).toHaveAttribute('aria-pressed', 'true');
-
-    fireEvent.click(canvas, { clientX: 799, clientY: 479 });
-    expect(inspector).toHaveTextContent(`ID: ${selectedFixture.id}`);
-
     fireEvent.click(screen.getByRole('button', { name: /^1x$/i }));
 
-    for (let i = 0; i < 120; i += 1) {
-      act(() => {
-        vi.advanceTimersByTime(1000);
-      });
+    act(() => {
+      vi.advanceTimersByTime(deathTick * 100 + 200);
+    });
 
-      if (!inspector.textContent?.includes(`ID: ${selectedFixture.id}`)) {
-        break;
-      }
-    }
-
-    expect(screen.getByRole('heading', { name: /no organism selected/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /pin organism inspector/i })).toHaveAttribute('aria-pressed', 'false');
-    expect(inspector).not.toHaveTextContent(`ID: ${selectedFixture.id}`);
+    fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
+    expect(screen.queryByRole('region', { name: /organism info/i })).not.toBeInTheDocument();
 
     vi.useRealTimers();
   });
 
-  it.skip('renders selected vs pinned side-by-side comparison for key inspector fields', () => {
-    render(<App />);
-
-    fireEvent.change(screen.getByLabelText(/seed/i), { target: { value: 'comparison-seed' } });
-    fireEvent.change(screen.getByLabelText(/initial population/i), { target: { value: '4' } });
-    fireEvent.change(screen.getByLabelText(/minimum population/i), { target: { value: '4' } });
-    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
-    fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
-
-    const nextButton = screen.getByRole('button', { name: /next organism/i });
-    fireEvent.click(nextButton);
-
-    const pinButton = screen.getByRole('button', { name: /pin organism inspector/i });
-    fireEvent.click(pinButton);
-
-    fireEvent.click(nextButton);
-
-    expect(screen.getByRole('heading', { name: /selected vs pinned comparison/i })).toBeInTheDocument();
-    const comparisonTable = screen.getByRole('table', {
-      name: /selected and pinned organism comparison/i
-    });
-    expect(comparisonTable).toBeInTheDocument();
-    expect(within(comparisonTable).getByText(/^generation$/i)).toBeInTheDocument();
-    expect(within(comparisonTable).getByText(/^vision range$/i)).toBeInTheDocument();
-    const fieldOrder = within(comparisonTable)
-      .getAllByRole('rowheader')
-      .map((cell) => cell.textContent?.trim())
-      .filter(Boolean);
-    expect(fieldOrder).toEqual([
-      'Generation',
-      'Age',
-      'Energy',
-      'Size',
-      'Speed',
-      'Turn rate',
-      'Vision range',
-      'Metabolism'
-    ]);
-    expect(screen.getAllByText(/vs pinned/i).length).toBeGreaterThan(0);
-  });
 
   it('renders an always-visible zero-safe stats HUD before simulation starts', () => {
     render(<App />);
@@ -2701,196 +2358,6 @@ describe('App', () => {
     vi.useRealTimers();
   });
 
-  it.skip('disables inspector next/previous controls when there are no alive organisms', () => {
-    render(<App />);
-
-    expect(screen.getByRole('button', { name: /previous organism/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /next organism/i })).toBeDisabled();
-  });
-
-  it.skip('navigates organisms in deterministic id order with next/previous controls', () => {
-    render(<App />);
-
-    fireEvent.change(screen.getByLabelText(/simulation name/i), { target: { value: 'Fixture' } });
-    fireEvent.change(screen.getByLabelText(/seed/i), { target: { value: 'fixture-seed' } });
-    fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '800' } });
-    fireEvent.change(screen.getByLabelText(/world height/i), { target: { value: '480' } });
-    fireEvent.change(screen.getByLabelText(/initial population/i), { target: { value: '12' } });
-    fireEvent.change(screen.getByLabelText(/minimum population/i), { target: { value: '12' } });
-    fireEvent.change(screen.getByLabelText(/initial food count/i), { target: { value: '30' } });
-    fireEvent.change(screen.getByLabelText(/food spawn chance/i), { target: { value: '0.04' } });
-    fireEvent.change(screen.getByLabelText(/food energy value/i), { target: { value: '5' } });
-    fireEvent.change(screen.getByLabelText(/max food/i), { target: { value: '120' } });
-    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
-
-    const fixtureConfig = normalizeSimulationConfig(
-      {
-        name: 'Fixture',
-        seed: 'fixture-seed',
-        worldWidth: 800,
-        worldHeight: 480,
-        initialPopulation: 12,
-        minimumPopulation: 12,
-        initialFoodCount: 30,
-        foodSpawnChance: 0.04,
-        foodEnergyValue: 5,
-        maxFood: 120
-      },
-      'fixture-seed'
-    );
-    const fixtureWorld = createInitialWorldFromConfig(fixtureConfig);
-    const sortedIds = fixtureWorld.organisms.map((organism) => organism.id).sort((left, right) => left.localeCompare(right));
-
-    const nextButton = screen.getByRole('button', { name: /next organism/i });
-    const previousButton = screen.getByRole('button', { name: /previous organism/i });
-    const inspector = screen.getByRole('region', { name: /organism inspector/i });
-
-    expect(nextButton).toBeEnabled();
-    expect(previousButton).toBeEnabled();
-
-    fireEvent.click(nextButton);
-    expect(inspector).toHaveTextContent(`ID: ${sortedIds[0]}`);
-
-    fireEvent.click(nextButton);
-    expect(inspector).toHaveTextContent(`ID: ${sortedIds[1]}`);
-
-    fireEvent.click(previousButton);
-    expect(inspector).toHaveTextContent(`ID: ${sortedIds[0]}`);
-
-    fireEvent.click(previousButton);
-    expect(inspector).toHaveTextContent(`ID: ${sortedIds[sortedIds.length - 1]}`);
-  });
-
-  it.skip('renders deterministic inspector values from fixed seeded fixture', () => {
-    render(<App />);
-
-    fireEvent.change(screen.getByLabelText(/seed/i), { target: { value: 'fixture-seed' } });
-    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
-
-    const fixtureConfig = normalizeSimulationConfig(
-      {
-        name: 'Fixture',
-        seed: 'fixture-seed',
-        worldWidth: 800,
-        worldHeight: 480,
-        initialPopulation: 12,
-        initialFoodCount: 30,
-        foodSpawnChance: 0.04,
-        foodEnergyValue: 5,
-        maxFood: 120
-      },
-      'fixture-seed'
-    );
-    const fixtureWorld = createInitialWorldFromConfig(fixtureConfig);
-    const firstTarget = fixtureWorld.organisms[0];
-    const secondTarget = fixtureWorld.organisms[1];
-
-    const canvas = screen.getByLabelText(/simulation world/i);
-    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
-      x: 0,
-      y: 0,
-      left: 0,
-      top: 0,
-      width: 800,
-      height: 480,
-      right: 800,
-      bottom: 480,
-      toJSON: () => ({})
-    });
-
-    fireEvent.click(canvas, { clientX: firstTarget.x, clientY: firstTarget.y });
-
-    const inspector = screen.getByRole('region', { name: /organism inspector/i });
-
-    expect(inspector).toHaveTextContent(`ID: ${firstTarget.id}`);
-    expect(within(inspector).queryByRole('heading', { name: /no organism selected/i })).not.toBeInTheDocument();
-    const summaryCard = screen.getByRole('region', { name: /inspector summary card/i });
-    expect(summaryCard).toHaveTextContent(`ID: ${firstTarget.id}`);
-    expect(summaryCard).toHaveTextContent(`Generation: ${firstTarget.generation}`);
-    expect(summaryCard).toHaveTextContent(`Age: ${firstTarget.age}`);
-    expect(summaryCard).toHaveTextContent(`Energy: ${firstTarget.energy.toFixed(3)}`);
-    expect(summaryCard).toHaveTextContent(/parent:\s*(none|org-\d+)/i);
-    expect(inspector).toHaveTextContent(`Generation: ${firstTarget.generation}`);
-    expect(inspector).toHaveTextContent(`Age: ${firstTarget.age}`);
-    expect(inspector).toHaveTextContent(`Size: ${firstTarget.traits.size.toFixed(3)}`);
-    expect(inspector).toHaveTextContent(`Speed: ${firstTarget.traits.speed.toFixed(3)}`);
-    expect(inspector).toHaveTextContent(`Vision range: ${firstTarget.traits.visionRange.toFixed(3)}`);
-    expect(inspector).toHaveTextContent(`Turn rate: ${firstTarget.traits.turnRate.toFixed(3)}`);
-    expect(inspector).toHaveTextContent(`Metabolism: ${firstTarget.traits.metabolism.toFixed(3)}`);
-    expect(inspector).toHaveTextContent(`Neurons: ${firstTarget.brain.neurons.length}`);
-    expect(inspector).toHaveTextContent(`Synapses: ${firstTarget.brain.synapses.length}`);
-    expect(screen.getByLabelText(/brain graph legend/i)).toHaveTextContent(/input neurons/i);
-    expect(screen.getByLabelText(/brain graph legend/i)).toHaveTextContent(/hidden neurons/i);
-    expect(screen.getByLabelText(/brain graph legend/i)).toHaveTextContent(/output neurons/i);
-    expect(screen.getByLabelText(/brain graph weight legend/i)).toHaveTextContent(/fixed scale -1.0 to \+1.0/i);
-    expect(screen.getByRole('img', { name: /organism brain graph/i })).toBeInTheDocument();
-
-    fireEvent.click(canvas, { clientX: secondTarget.x, clientY: secondTarget.y });
-    expect(inspector).toHaveTextContent(`ID: ${secondTarget.id}`);
-    expect(inspector).toHaveTextContent(`Generation: ${secondTarget.generation}`);
-    expect(inspector).toHaveTextContent(`Age: ${secondTarget.age}`);
-    expect(inspector).toHaveTextContent(`Neurons: ${secondTarget.brain.neurons.length}`);
-    expect(inspector).not.toHaveTextContent(`ID: ${firstTarget.id}`);
-
-    fireEvent.click(canvas, { clientX: 799, clientY: 479 });
-    expect(inspector).toHaveTextContent(/no organism selected/i);
-    expect(inspector).toHaveTextContent(/select an organism to view deterministic inspector details/i);
-
-    fireEvent.click(canvas, { clientX: firstTarget.x, clientY: firstTarget.y });
-    fireEvent.click(screen.getByRole('button', { name: /close organism inspector/i }));
-    expect(inspector).toHaveTextContent(/no organism selected/i);
-    expect(inspector).toHaveTextContent(/select an organism to view deterministic inspector details/i);
-  });
-
-  it.skip('keeps signal emphasis controls deterministic for fixture brain data', () => {
-    render(<App />);
-
-    fireEvent.change(screen.getByLabelText(/seed/i), { target: { value: 'fixture-seed' } });
-    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
-
-    const fixtureConfig = normalizeSimulationConfig(
-      {
-        name: 'Fixture',
-        seed: 'fixture-seed',
-        worldWidth: 800,
-        worldHeight: 480,
-        initialPopulation: 12,
-        initialFoodCount: 30,
-        foodSpawnChance: 0.04,
-        foodEnergyValue: 5,
-        maxFood: 120
-      },
-      'fixture-seed'
-    );
-    const fixtureWorld = createInitialWorldFromConfig(fixtureConfig);
-    const firstTarget = fixtureWorld.organisms[0];
-
-    const canvas = screen.getByLabelText(/simulation world/i);
-    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
-      x: 0,
-      y: 0,
-      left: 0,
-      top: 0,
-      width: 800,
-      height: 480,
-      right: 800,
-      bottom: 480,
-      toJSON: () => ({})
-    });
-
-    fireEvent.click(canvas, { clientX: firstTarget.x, clientY: firstTarget.y });
-
-    const expectedChecksum = mapBrainEmphasisChecksum(mapBrainToVisualizerModel(firstTarget.brain), {
-      hideNearZeroWeights: true,
-      nearZeroThreshold: 0.1,
-      strongestEdgeCount: 2
-    });
-
-    fireEvent.click(screen.getByLabelText(/hide near-zero-weight synapses/i));
-    fireEvent.change(screen.getByLabelText(/highlight strongest synapse count/i), { target: { value: '2' } });
-
-    expect(screen.getByLabelText(/brain graph emphasis checksum/i)).toHaveTextContent(expectedChecksum);
-  });
 
   it('renders output neuron tooltips to the left of the node', () => {
     render(<App />);
@@ -2997,398 +2464,4 @@ describe('App', () => {
     expect(organismHud).not.toHaveTextContent(/Egg incubation:/i);
   });
 
-  it.skip('supports deterministic neuron filters and pinned path metadata in brain visualizer', () => {
-    render(<App />);
-
-    fireEvent.change(screen.getByLabelText(/seed/i), { target: { value: 'fixture-seed' } });
-    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
-
-    const fixtureConfig = normalizeSimulationConfig(
-      {
-        name: 'Fixture',
-        seed: 'fixture-seed',
-        worldWidth: 800,
-        worldHeight: 480,
-        initialPopulation: 12,
-        initialFoodCount: 30,
-        foodSpawnChance: 0.04,
-        foodEnergyValue: 5,
-        maxFood: 120
-      },
-      'fixture-seed'
-    );
-    const fixtureWorld = createInitialWorldFromConfig(fixtureConfig);
-    const firstTarget = fixtureWorld.organisms[0];
-
-    const canvas = screen.getByLabelText(/simulation world/i);
-    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
-      x: 0,
-      y: 0,
-      left: 0,
-      top: 0,
-      width: 800,
-      height: 480,
-      right: 800,
-      bottom: 480,
-      toJSON: () => ({})
-    });
-
-    fireEvent.click(canvas, { clientX: firstTarget.x, clientY: firstTarget.y });
-
-    const pinNeuronButton = screen.getAllByRole('button', { name: /pin neuron/i })[0];
-    fireEvent.click(pinNeuronButton);
-
-    expect(screen.getByText(/pinned neuron: /i)).not.toHaveTextContent('none');
-    expect(screen.getByText(/pinned neuron metadata — id:/i)).toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText(/minimum neuron activation threshold/i), { target: { value: '0.5' } });
-    fireEvent.click(screen.getByRole('checkbox', { name: /hidden/i }));
-
-    fireEvent.click(screen.getByRole('button', { name: /clear filters \+ pin/i }));
-    expect(screen.getByText(/pinned neuron: none/i)).toBeInTheDocument();
-    expect(screen.queryByText(/pinned neuron metadata — id:/i)).not.toBeInTheDocument();
-  });
-
-  it.skip('supports keyboard-accessible brain focus mode controls and safely resets on invalid neuron selection', () => {
-    render(<App />);
-
-    fireEvent.change(screen.getByLabelText(/seed/i), { target: { value: 'fixture-seed' } });
-    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
-
-    const fixtureConfig = normalizeSimulationConfig(
-      {
-        name: 'Fixture',
-        seed: 'fixture-seed',
-        worldWidth: 800,
-        worldHeight: 480,
-        initialPopulation: 12,
-        initialFoodCount: 30,
-        foodSpawnChance: 0.04,
-        foodEnergyValue: 5,
-        maxFood: 120
-      },
-      'fixture-seed'
-    );
-    const fixtureWorld = createInitialWorldFromConfig(fixtureConfig);
-    const firstTarget = fixtureWorld.organisms[0];
-
-    const canvas = screen.getByLabelText(/simulation world/i);
-    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
-      x: 0,
-      y: 0,
-      left: 0,
-      top: 0,
-      width: 800,
-      height: 480,
-      right: 800,
-      bottom: 480,
-      toJSON: () => ({})
-    });
-
-    fireEvent.click(canvas, { clientX: firstTarget.x, clientY: firstTarget.y });
-
-    const selectedNeuronControl = screen.getByLabelText(/selected neuron for focus mode/i);
-    const optionText = selectedNeuronControl.querySelector('option[value]:not([value=""])')?.textContent;
-    expect(optionText).toBeTruthy();
-
-    fireEvent.change(selectedNeuronControl, { target: { value: optionText } });
-    fireEvent.click(screen.getByRole('radio', { name: /incoming only/i }));
-
-    expect(screen.getByText(/focus mode:/i)).toHaveTextContent(/incoming/i);
-    expect(screen.getByText(/selected neuron:/i)).not.toHaveTextContent(/none/i);
-
-    fireEvent.change(screen.getByLabelText(/minimum neuron activation threshold/i), { target: { value: '1' } });
-
-    expect(screen.getByText(/focus mode:/i)).toHaveTextContent(/full/i);
-    expect(screen.getByText(/selected neuron:/i)).toHaveTextContent(/none/i);
-  });
-
-  it.skip('resets neuron detail panel predictably when selected organism changes', () => {
-    render(<App />);
-
-    fireEvent.change(screen.getByLabelText(/seed/i), { target: { value: 'fixture-seed' } });
-    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
-
-    const fixtureConfig = normalizeSimulationConfig(
-      {
-        name: 'Fixture',
-        seed: 'fixture-seed',
-        worldWidth: 800,
-        worldHeight: 480,
-        initialPopulation: 12,
-        initialFoodCount: 30,
-        foodSpawnChance: 0.04,
-        foodEnergyValue: 5,
-        maxFood: 120
-      },
-      'fixture-seed'
-    );
-    const fixtureWorld = createInitialWorldFromConfig(fixtureConfig);
-    const firstTarget = fixtureWorld.organisms[0];
-
-    const canvas = screen.getByLabelText(/simulation world/i);
-    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
-      x: 0,
-      y: 0,
-      left: 0,
-      top: 0,
-      width: 800,
-      height: 480,
-      right: 800,
-      bottom: 480,
-      toJSON: () => ({})
-    });
-
-    fireEvent.click(canvas, { clientX: firstTarget.x, clientY: firstTarget.y });
-
-    const selectedNeuronControl = screen.getByLabelText(/selected neuron for focus mode/i);
-    const optionValue = selectedNeuronControl.querySelector('option[value]:not([value=""])')?.getAttribute('value');
-    expect(optionValue).toBeTruthy();
-    fireEvent.change(selectedNeuronControl, { target: { value: optionValue } });
-
-    expect(screen.getByLabelText(/brain neuron detail panel/i)).toHaveTextContent(/Neuron detail:/i);
-    expect(screen.getByLabelText(/brain neuron detail panel/i)).toHaveTextContent(/potential/i);
-    expect(screen.getByLabelText(/brain neuron detail panel/i)).toHaveTextContent(/spike state/i);
-
-    fireEvent.click(screen.getByRole('button', { name: /select next organism/i }));
-
-    expect(screen.getByLabelText(/brain neuron detail panel/i)).toHaveTextContent(/Select, focus, or hover a neuron/i);
-  });
-
-  it.skip('pins neuron detail on click and ignores hover overrides until unpinned', () => {
-    render(<App />);
-
-    fireEvent.change(screen.getByLabelText(/seed/i), { target: { value: 'fixture-seed' } });
-    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
-
-    const fixtureConfig = normalizeSimulationConfig(
-      {
-        name: 'Fixture',
-        seed: 'fixture-seed',
-        worldWidth: 800,
-        worldHeight: 480,
-        initialPopulation: 12,
-        initialFoodCount: 30,
-        foodSpawnChance: 0.04,
-        foodEnergyValue: 5,
-        maxFood: 120
-      },
-      'fixture-seed'
-    );
-    const fixtureWorld = createInitialWorldFromConfig(fixtureConfig);
-    const firstTarget = fixtureWorld.organisms[0];
-
-    const canvas = screen.getByLabelText(/simulation world/i);
-    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
-      x: 0,
-      y: 0,
-      left: 0,
-      top: 0,
-      width: 800,
-      height: 480,
-      right: 800,
-      bottom: 480,
-      toJSON: () => ({})
-    });
-
-    fireEvent.click(canvas, { clientX: firstTarget.x, clientY: firstTarget.y });
-
-    const selectedNeuronControl = screen.getByLabelText(/selected neuron for focus mode/i);
-    const neuronIds = Array.from(selectedNeuronControl.querySelectorAll('option[value]'))
-      .map((option) => option.getAttribute('value'))
-      .filter((value) => value);
-    expect(neuronIds.length).toBeGreaterThan(1);
-
-    const firstNeuronId = neuronIds[0];
-    const secondNeuronId = neuronIds[1];
-    const neuronDetailPanel = screen.getByLabelText(/brain neuron detail panel/i);
-    const brainGraph = screen.getByRole('img', { name: /organism brain graph/i });
-
-    const firstNeuronButton = within(brainGraph).getByLabelText(`Pin neuron ${firstNeuronId}`);
-    const secondNeuronButton = within(brainGraph).getByLabelText(`Pin neuron ${secondNeuronId}`);
-
-    fireEvent.click(firstNeuronButton);
-    expect(screen.getByText(/pinned neuron:/i)).toHaveTextContent(firstNeuronId);
-    expect(neuronDetailPanel).toHaveTextContent(new RegExp(`Neuron detail:\\s*ID ${firstNeuronId}`, 'i'));
-
-    fireEvent.mouseEnter(secondNeuronButton);
-    expect(neuronDetailPanel).toHaveTextContent(new RegExp(`Neuron detail:\\s*ID ${firstNeuronId}`, 'i'));
-
-    fireEvent.click(firstNeuronButton);
-    expect(screen.getByText(/pinned neuron:/i)).toHaveTextContent(/none/i);
-
-    fireEvent.mouseEnter(secondNeuronButton);
-    expect(neuronDetailPanel).toHaveTextContent(new RegExp(`Neuron detail:\\s*ID ${secondNeuronId}`, 'i'));
-  });
-
-  it.skip('maps synapse row selection to graph edge highlight deterministically', () => {
-    render(<App />);
-
-    fireEvent.change(screen.getByLabelText(/seed/i), { target: { value: 'fixture-seed' } });
-    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
-
-    const fixtureConfig = normalizeSimulationConfig(
-      {
-        name: 'Fixture',
-        seed: 'fixture-seed',
-        worldWidth: 800,
-        worldHeight: 480,
-        initialPopulation: 12,
-        initialFoodCount: 30,
-        foodSpawnChance: 0.04,
-        foodEnergyValue: 5,
-        maxFood: 120
-      },
-      'fixture-seed'
-    );
-    const fixtureWorld = createInitialWorldFromConfig(fixtureConfig);
-    const firstTarget = fixtureWorld.organisms[0];
-
-    const canvas = screen.getByLabelText(/simulation world/i);
-    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
-      x: 0,
-      y: 0,
-      left: 0,
-      top: 0,
-      width: 800,
-      height: 480,
-      right: 800,
-      bottom: 480,
-      toJSON: () => ({})
-    });
-
-    fireEvent.click(canvas, { clientX: firstTarget.x, clientY: firstTarget.y });
-
-    const selectedNeuronControl = screen.getByLabelText(/selected neuron for focus mode/i);
-    const optionValue = selectedNeuronControl.querySelector('option[value]:not([value=""])')?.getAttribute('value');
-    expect(optionValue).toBeTruthy();
-    fireEvent.change(selectedNeuronControl, { target: { value: optionValue } });
-
-    const neuronDetailPanel = screen.getByLabelText(/brain neuron detail panel/i);
-    const synapseRowButton = within(neuronDetailPanel).queryAllByRole('button', { name: /select synapse/i })[0];
-    expect(synapseRowButton).toBeTruthy();
-
-    fireEvent.click(synapseRowButton);
-
-    const selectedDetails = screen.getByLabelText(/brain graph selected synapse details/i);
-    expect(selectedDetails.textContent).toMatch(/selected synapse/i);
-
-    const selectedSynapseId = synapseRowButton.getAttribute('aria-label')?.match(/select synapse\s+([^:]+)/i)?.[1];
-    expect(selectedSynapseId).toBeTruthy();
-    expect(selectedDetails.textContent).toContain(selectedSynapseId);
-    expect(synapseRowButton).toHaveAttribute('aria-pressed', 'true');
-  });
-
-  it.skip('renders inspector sections in deterministic order and uses placeholder for missing values', () => {
-    render(<App />);
-
-    fireEvent.change(screen.getByLabelText(/seed/i), { target: { value: 'fixture-seed' } });
-    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
-
-    const fixtureConfig = normalizeSimulationConfig(
-      {
-        name: 'Fixture',
-        seed: 'fixture-seed',
-        worldWidth: 800,
-        worldHeight: 480,
-        initialPopulation: 12,
-        initialFoodCount: 30,
-        foodSpawnChance: 0.04,
-        foodEnergyValue: 5,
-        maxFood: 120
-      },
-      'fixture-seed'
-    );
-    const fixtureWorld = createInitialWorldFromConfig(fixtureConfig);
-    const firstTarget = fixtureWorld.organisms[0];
-
-    const canvas = screen.getByLabelText(/simulation world/i);
-    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
-      x: 0,
-      y: 0,
-      left: 0,
-      top: 0,
-      width: 800,
-      height: 480,
-      right: 800,
-      bottom: 480,
-      toJSON: () => ({})
-    });
-
-    fireEvent.click(canvas, { clientX: firstTarget.x, clientY: firstTarget.y });
-
-    const sectionLabels = screen.getAllByRole('button', {
-      name: /^(Lifecycle|Physical Traits|Genome\/Brain)$/i
-    }).map((element) => element.textContent);
-    expect(sectionLabels).toEqual(
-      INSPECTOR_TRAIT_SECTION_SCHEMA.map((section) => section.label)
-    );
-
-    const traitSectionRows = INSPECTOR_TRAIT_SECTION_SCHEMA.map((section) => {
-      const region = screen.getByRole('region', { name: section.label });
-      return Array.from(region.querySelectorAll('p strong')).map((node) => node.textContent);
-    });
-
-    const expectedSectionRows = INSPECTOR_TRAIT_SECTION_SCHEMA.map((section) => section.fields.map((field) => `${field.label}:`));
-    expectedSectionRows.forEach((expectedLabels, index) => {
-      expect(traitSectionRows[index].slice(0, expectedLabels.length)).toEqual(expectedLabels);
-    });
-  });
-
-  it.skip('keeps inspector and synapse controls keyboard-operable with deterministic focus after selection changes', async () => {
-    render(<App />);
-
-    fireEvent.change(screen.getByLabelText(/seed/i), { target: { value: 'fixture-seed' } });
-    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
-
-    const fixtureConfig = normalizeSimulationConfig(
-      {
-        name: 'Fixture',
-        seed: 'fixture-seed',
-        worldWidth: 800,
-        worldHeight: 480,
-        initialPopulation: 12,
-        initialFoodCount: 30,
-        foodSpawnChance: 0.04,
-        foodEnergyValue: 5,
-        maxFood: 120
-      },
-      'fixture-seed'
-    );
-    const fixtureWorld = createInitialWorldFromConfig(fixtureConfig);
-    const firstTarget = fixtureWorld.organisms[0];
-
-    const canvas = screen.getByLabelText(/simulation world/i);
-    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
-      x: 0,
-      y: 0,
-      left: 0,
-      top: 0,
-      width: 800,
-      height: 480,
-      right: 800,
-      bottom: 480,
-      toJSON: () => ({})
-    });
-
-    fireEvent.click(canvas, { clientX: firstTarget.x, clientY: firstTarget.y });
-
-    const selectionHeading = screen.getByRole('heading', { name: /inspector selection details/i });
-    await waitFor(() => {
-      expect(selectionHeading).toHaveFocus();
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: /select next organism/i }));
-    await waitFor(() => {
-      expect(selectionHeading).toHaveFocus();
-    });
-
-    expect(screen.getByRole('group', { name: /brain visualizer viewport controls/i })).toBeInTheDocument();
-
-    const synapseControl = screen.getAllByRole('button', { name: /synapse/i })[0];
-    synapseControl.focus();
-    fireEvent.keyDown(synapseControl, { key: 'Enter' });
-
-    expect(screen.getByLabelText(/brain graph selected synapse details/i).textContent).toMatch(/selected synapse/i);
-  });
 });

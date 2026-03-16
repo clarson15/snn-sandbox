@@ -1,5 +1,5 @@
 /**
- * Deterministic simulation tick engine skeleton.
+ * Deterministic simulation tick engine.
  *
  * Contract:
  * - Input: current world state + seeded RNG + optional parameters

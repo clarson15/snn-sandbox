@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-The repo is split by runtime. `frontend/` contains the React + Vite UI, with feature code in `frontend/src/` and deterministic simulation modules grouped under `frontend/src/simulation/`. The ASP.NET API lives in `backend/SnnSandbox/`, and backend tests live in `backend/SnnSandbox.Tests/`. Root-level `engine.js` and `engine.test.js` mirror core simulation behavior for quick iteration. Use `docs/` for design notes, replay artifacts, and benchmark documentation.
+The repo is split by runtime. `frontend/` contains the React + Vite UI, with feature code in `frontend/src/` and deterministic simulation modules grouped under `frontend/src/simulation/`. The ASP.NET API lives in `backend/SnnSandbox/`, and backend tests live in `backend/SnnSandbox.Tests/`. Treat `frontend/src/simulation/engine.js` as the canonical simulation engine and keep engine-related tests colocated under `frontend/src/simulation/`. Use `docs/` for design notes, replay artifacts, and benchmark documentation.
 
 ## Build, Test, and Development Commands
 Install frontend dependencies with `cd frontend && npm ci`, then restore .NET packages with `dotnet restore snn-sandbox.sln`.

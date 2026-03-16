@@ -93,17 +93,14 @@ import { deriveInspectorTraitSections, INSPECTOR_TRAIT_SECTION_SCHEMA } from './
 import { deriveInspectorTraitDeltaModel } from './inspectorTraitDelta';
 import { deriveInspectorGenomeMutationSummaryModel } from './inspectorGenomeMutationSummary';
 import { deriveInspectorSynapseTableRows } from './inspectorSynapseTable';
-import { deriveInspectorComparisonRows } from './inspectorComparison';
 import { deriveNeuronDetailPanel } from './inspectorNeuronDetail';
 
 const TICK_MS = 1000 / 30;
 const SPEED_OPTIONS = [1, 2, 5, 10];
 const REPLAY_SPEED_OPTIONS = [0.5, 1, 2, 5];
 const SIMULATION_VERSION = 'snn-sandbox-v1';
-const INSPECTOR_COMPACT_BREAKPOINT_PX = 980;
 const INSPECTOR_TREND_STRIP_WIDTH = 280;
 const INSPECTOR_TREND_STRIP_HEIGHT = 72;
-const INSPECTOR_SECTION_ORDER = INSPECTOR_TRAIT_SECTION_SCHEMA.map((section) => section.key);
 const FORM_FIELDS = [
   'name',
   'seed',
@@ -254,11 +251,9 @@ function App() {
   const [selectedOrganismId, setSelectedOrganismId] = useState(null);
   const [hudOverlayVisible, setHudOverlayVisible] = useState(false);
   const [inspectorPinned, setInspectorPinned] = useState(false);
-  const [isCompactInspectorLayout, setIsCompactInspectorLayout] = useState(false);
   const [pinnedOrganismSnapshot, setPinnedOrganismSnapshot] = useState(null);
   const [selectedOrganismUnavailable, setSelectedOrganismUnavailable] = useState(false);
   const [inspectorTrendState, setInspectorTrendState] = useState(() => ({ selectedOrganismId: null, samples: [] }));
-  const [activeInspectorSectionIndex, setActiveInspectorSectionIndex] = useState(0);
   const [hoveredSynapseId, setHoveredSynapseId] = useState(null);
   const [selectedSynapseHighlight, setSelectedSynapseHighlight] = useState(null);
   const [brainGraphTransform, setBrainGraphTransform] = useState(() => ({ scale: 1, translateX: 0, translateY: 0 }));
@@ -494,19 +489,6 @@ function App() {
       .catch(() => {
         setAppVersion(packageJson.version);
       });
-  }, []);
-
-  useEffect(() => {
-    const onResize = () => {
-      setIsCompactInspectorLayout(window.innerWidth <= INSPECTOR_COMPACT_BREAKPOINT_PX);
-    };
-
-    window.addEventListener('resize', onResize);
-    onResize();
-
-    return () => {
-      window.removeEventListener('resize', onResize);
-    };
   }, []);
 
   useEffect(() => {
@@ -1125,23 +1107,6 @@ function App() {
       setSelectedSynapseHighlight(null);
     }
   }, [selectedSynapseHighlightId, selectedSynapseHighlight]);
-
-  const pinnedComparisonCandidate = inspectorPinned ? pinnedOrganismSnapshot : null;
-  const hasComparisonPair = Boolean(
-    selectedOrganism &&
-    pinnedComparisonCandidate &&
-    selectedOrganism.id !== pinnedComparisonCandidate.id
-  );
-  const comparisonUnavailableReason = hasComparisonPair
-    ? null
-    : selectedOrganismUnavailable && pinnedComparisonCandidate
-      ? 'Comparison unavailable: selected organism is no longer alive. Showing pinned snapshot only.'
-      : null;
-
-  const comparisonRows = useMemo(
-    () => (hasComparisonPair ? deriveInspectorComparisonRows(selectedOrganism, pinnedComparisonCandidate) : []),
-    [hasComparisonPair, selectedOrganism, pinnedComparisonCandidate]
-  );
 
   const onFieldChange = (field) => (event) => {
     const nextValue = event.target.value;
@@ -1976,8 +1941,6 @@ function App() {
   }, [
     keyboardShortcutsModalOpen,
     pendingDeleteSnapshot,
-    inspectorOrganism,
-    activeInspectorSectionIndex,
     hudOverlayVisible,
     onAdjustSpeedByStep,
     onSelectNextOrganism,

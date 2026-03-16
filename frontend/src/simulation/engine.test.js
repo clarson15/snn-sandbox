@@ -181,7 +181,7 @@ function stepWorldWithLegacyFoodLookup(state, rng, params = {}) {
   };
 }
 
-describe('simulation engine skeleton', () => {
+describe('simulation engine', () => {
   it('advances tick and returns a new world state object', () => {
     const rng = createSeededPrng('tick-advance');
     const next = stepWorld(baseState, rng, {
