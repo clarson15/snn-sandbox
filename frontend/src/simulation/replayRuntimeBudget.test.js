@@ -23,6 +23,19 @@ describe('replayRuntimeBudget', () => {
     expect(policy.strictBudgetMs).toBe(1234);
   });
 
+  it('defaults strict mode CI budget to 1650ms when no overrides are set', () => {
+    process.env.CI = 'true';
+    delete process.env.REPLAY_PARITY_BUDGET_MODE;
+    delete process.env.REPLAY_PARITY_STRICT_BUDGET_MS;
+    delete process.env.REPLAY_PARITY_BUDGET_STRICT_MS;
+    delete process.env.REPLAY_PARITY_BUDGET_MS;
+
+    const policy = readReplayRuntimeBudgetPolicy();
+    expect(policy.mode).toBe('strict');
+    expect(policy.strictBudgetMs).toBe(1650);
+    expect(policy.budgetMs).toBe(1650);
+  });
+
   it('reports runtime metadata fields in budget summary output', () => {
     const summary = buildReplayRuntimeBudgetReport({
       fixtureTimingsMs: [
