@@ -1651,6 +1651,26 @@ function App() {
     return Array.from(typeMap.values());
   }, [displayWorld]);
 
+  // Get unique terrain types for legend (SSN-265)
+  const terrainLegend = useMemo(() => {
+    if (!displayWorld || !displayWorld.terrainZones) return [];
+    const typeMap = new Map();
+    for (const zone of displayWorld.terrainZones) {
+      if (!typeMap.has(zone.type)) {
+        const terrainConfig = {
+          forest: { color: '#228b22', label: 'Forest', effect: 'reduced vision' },
+          wetland: { color: '#48d1cc', label: 'Wetland', effect: 'reduced speed and turn rate' },
+          rocky: { color: '#808080', label: 'Rocky', effect: 'passive energy drain' },
+          plains: { color: '#c2b280', label: 'Plains', effect: 'baseline terrain / no penalty' }
+        };
+        const config = terrainConfig[zone.type] || terrainConfig.plains;
+        typeMap.set(zone.type, { type: zone.type, color: config.color, label: config.label, effect: config.effect });
+      }
+    }
+    // Sort for deterministic ordering - alphabetical by type
+    return Array.from(typeMap.values()).sort((a, b) => a.type.localeCompare(b.type));
+  }, [displayWorld]);
+
   const formattedStats = useMemo(() => formatSimulationStats(derivedStats), [derivedStats]);
 
   useEffect(() => {
@@ -3147,6 +3167,19 @@ function App() {
                         <div key={type} className="legend-item">
                           <span className="legend-swatch" style={{ backgroundColor: color }} />
                           {type}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {isDetailedHudVisible && terrainLegend.length > 0 ? (
+                  <div className="legend-group terrain-legend">
+                    <strong>Terrain</strong>
+                    <div className="legend-items">
+                      {terrainLegend.map(({ type, color, label, effect }) => (
+                        <div key={type} className="legend-item">
+                          <span className="legend-swatch" style={{ backgroundColor: color }} />
+                          {label}: {effect}
                         </div>
                       ))}
                     </div>
