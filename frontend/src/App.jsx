@@ -2864,8 +2864,8 @@ function App() {
                       {selectedOrganismSpeciesId ? (
                         <p><strong>Species:</strong> <span style={{ color: getSpeciesColor(selectedOrganismSpeciesId) }}>{selectedOrganismSpeciesId}</span></p>
                       ) : null}
-                      {formattedSelectedOrganismTerrainEffect ? (
-                        <p><strong>Terrain:</strong> {formattedSelectedOrganismTerrainEffect.zoneLabel}: {formattedSelectedOrganismTerrainEffect.effectLabel}</p>
+                      {formattedInspector.terrain !== INSPECTOR_PLACEHOLDER ? (
+                        <p><strong>Terrain:</strong> {formattedInspector.terrain}</p>
                       ) : null}
                     </div>
                     {brainGraphModel && brainGraphModel.nodes.length > 0 ? (
