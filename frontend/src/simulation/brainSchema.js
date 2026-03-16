@@ -1,4 +1,4 @@
-export const INPUT_NEURON_IDS = Object.freeze([
+export const BASE_INPUT_NEURON_IDS = Object.freeze([
   'in-age',
   'in-direction',
   'in-direction-cos',
@@ -12,6 +12,23 @@ export const INPUT_NEURON_IDS = Object.freeze([
   'in-x',
   'in-y'
 ]);
+
+export const PREDATOR_INPUT_NEURON_IDS = Object.freeze([
+  'in-prey-distance',
+  'in-prey-direction',
+  'in-prey-detected'
+]);
+
+export const INPUT_NEURON_IDS = Object.freeze([
+  ...BASE_INPUT_NEURON_IDS,
+  ...PREDATOR_INPUT_NEURON_IDS
+]);
+
+export function getInputNeuronIdsForOrganismType(organismType = 'herbivore') {
+  return organismType === 'predator'
+    ? INPUT_NEURON_IDS
+    : BASE_INPUT_NEURON_IDS;
+}
 
 export const OUTPUT_NEURON_IDS = Object.freeze([
   'out-forward',

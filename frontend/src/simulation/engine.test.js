@@ -181,7 +181,7 @@ function stepWorldWithLegacyFoodLookup(state, rng, params = {}) {
   };
 }
 
-describe('simulation engine', () => {
+describe('simulation engine skeleton', () => {
   it('advances tick and returns a new world state object', () => {
     const rng = createSeededPrng('tick-advance');
     const next = stepWorld(baseState, rng, {
@@ -729,6 +729,58 @@ describe('simulation engine', () => {
     expect(hiddenNeuron.activation).toBeGreaterThan(0);
     expect(outputNeuron.activation).toBeGreaterThan(0);
     expect(organism.x).toBeGreaterThan(0);
+  });
+
+  it('wires predator prey-sensing context through brain evaluation', () => {
+    const state = createWorldState({
+      tick: 0,
+      organisms: [
+        {
+          id: 'pred-1',
+          type: 'predator',
+          x: 10,
+          y: 10,
+          energy: 100,
+          age: 0,
+          generation: 1,
+          direction: 0,
+          traits: { size: 1.4, speed: 2, visionRange: 40, turnRate: 0.05, metabolism: 0 },
+          brain: {
+            neurons: [
+              { id: 'in-prey-detected', type: 'input' },
+              { id: 'out-forward', type: 'output', threshold: 1, decay: 0, potential: 0 }
+            ],
+            synapses: [
+              { id: 'syn-prey-forward', sourceId: 'in-prey-detected', targetId: 'out-forward', weight: 2 }
+            ]
+          }
+        },
+        {
+          id: 'org-1',
+          type: 'herbivore',
+          x: 20,
+          y: 10,
+          energy: 20,
+          age: 0,
+          generation: 1,
+          direction: 0,
+          traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.05, metabolism: 0 },
+          brain: { neurons: [], synapses: [] }
+        }
+      ],
+      food: []
+    });
+
+    const next = stepWorld(state, createSeededPrng('predator-prey-sensor-ctx'), {
+      movementDelta: 2,
+      metabolismPerTick: 0,
+      movementCostMultiplier: 0,
+      foodSpawnChance: 0,
+      predatorHuntRadius: 0
+    });
+
+    const predator = next.organisms.find((organism) => organism.id === 'pred-1');
+    expect(predator.x).toBeGreaterThan(10);
   });
 
   it('applies deterministic per-organism metabolism-based energy loss', () => {

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { runTicks } from './engine';
+import { BASE_INPUT_NEURON_IDS, INPUT_NEURON_IDS } from './brainSchema';
 import {
   applyPreset,
   createDeterministicRunBootstrap,
@@ -170,6 +171,49 @@ describe('simulation config helpers', () => {
     expect(colorsA).toEqual(colorsB);
     expect(new Set(colorsA).size).toBe(colorsA.length);
     expect(colorsA.every((color) => /^#[0-9a-f]{6}$/i.test(color))).toBe(true);
+  });
+
+  it('includes predator prey-sensing IDs in input neuron schema', () => {
+    expect(INPUT_NEURON_IDS).toEqual(expect.arrayContaining([
+      'in-prey-distance',
+      'in-prey-direction',
+      'in-prey-detected'
+    ]));
+  });
+
+  it('builds predator and herbivore brains with correct type-specific input sets', () => {
+    const config = normalizeSimulationConfig(
+      {
+        name: 'Predator brain test',
+        seed: 'predator-brain-test',
+        worldWidth: '320',
+        worldHeight: '240',
+        initialPopulation: '1',
+        minimumPopulation: '1',
+        initialPredatorCount: '1',
+        initialFoodCount: '0',
+        foodSpawnChance: '0',
+        foodEnergyValue: '5',
+        maxFood: '20'
+      },
+      'predator-brain-test'
+    );
+
+    const world = createInitialWorldFromConfig(config);
+    const predator = world.organisms.find((organism) => organism.type === 'predator');
+    const herbivore = world.organisms.find((organism) => organism.type !== 'predator');
+
+    const predatorInputIds = predator.brain.neurons
+      .filter((neuron) => neuron.type === 'input')
+      .map((neuron) => neuron.id)
+      .sort();
+    const herbivoreInputIds = herbivore.brain.neurons
+      .filter((neuron) => neuron.type === 'input')
+      .map((neuron) => neuron.id)
+      .sort();
+
+    expect(predatorInputIds).toEqual([...INPUT_NEURON_IDS].sort());
+    expect(herbivoreInputIds).toEqual([...BASE_INPUT_NEURON_IDS].sort());
   });
 
   it('validates invalid numeric ranges', () => {
@@ -400,7 +444,10 @@ describe('simulation config helpers', () => {
       enableDangerZones: false,
       dangerZoneCount: 2,
       dangerZoneRadius: 40,
-      dangerZoneDamage: 0.5
+      dangerZoneDamage: 0.5,
+      initialPredatorCount: 0,
+      predatorEnergyGain: 30,
+      predatorHuntRadius: 50
     });
   });
 
@@ -453,7 +500,10 @@ describe('simulation config helpers', () => {
       enableDangerZones: false,
       dangerZoneCount: 2,
       dangerZoneRadius: 40,
-      dangerZoneDamage: 0.5
+      dangerZoneDamage: 0.5,
+      initialPredatorCount: 0,
+      predatorEnergyGain: 30,
+      predatorHuntRadius: 50
     });
   });
 
