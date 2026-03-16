@@ -45,8 +45,10 @@ import {
 } from './inspectorTrend';
 import { INSPECTOR_PLACEHOLDER, formatInspectorSnapshot } from './inspectorFormatting';
 import {
+  deriveOrganismTerrainEffect,
   deriveSimulationStats,
   deriveStatsTrends,
+  formatOrganismTerrainEffect,
   formatSimulationStats,
   formatTrendIndicator,
   reduceStatsTrendHistory
@@ -705,6 +707,19 @@ function App() {
 
     return displayWorld.organisms.find((organism) => organism.id === selectedOrganismId) ?? null;
   }, [displayWorld, selectedOrganismId, tickDisplay]);
+
+  // Derive terrain effect for selected organism (SSN-263)
+  const selectedOrganismTerrainEffect = useMemo(() => {
+    if (!selectedOrganism || !displayWorld?.terrainZones) {
+      return null;
+    }
+    return deriveOrganismTerrainEffect(selectedOrganism, displayWorld.terrainZones);
+  }, [selectedOrganism, displayWorld?.terrainZones]);
+
+  const formattedSelectedOrganismTerrainEffect = useMemo(
+    () => formatOrganismTerrainEffect(selectedOrganismTerrainEffect),
+    [selectedOrganismTerrainEffect]
+  );
 
   useEffect(() => {
     setInspectorTrendState((previous) => reduceInspectorTrendState(previous, {
@@ -2784,6 +2799,9 @@ function App() {
                       ) : null}
                       {selectedOrganismSpeciesId ? (
                         <p><strong>Species:</strong> <span style={{ color: getSpeciesColor(selectedOrganismSpeciesId) }}>{selectedOrganismSpeciesId}</span></p>
+                      ) : null}
+                      {formattedSelectedOrganismTerrainEffect ? (
+                        <p><strong>Terrain:</strong> {formattedSelectedOrganismTerrainEffect.zoneLabel}: {formattedSelectedOrganismTerrainEffect.effectLabel}</p>
                       ) : null}
                     </div>
                     {brainGraphModel && brainGraphModel.nodes.length > 0 ? (
