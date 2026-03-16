@@ -16,8 +16,8 @@ fi
 echo "Validating APP_VERSION: $APP_VERSION"
 
 # Validation patterns
-# Main build: either 0.0.1+build.<timestamp> (no tags case) or <major>.<minor>.<patch+1>+build.<timestamp>
-MAIN_BUILD_PATTERN="^(0\.0\.1|[1-9][0-9]*\.[0-9]+\.[0-9]+)\+build\.[0-9]{8}T[0-9]{6}Z$"
+# Main build: either 0.0.x+build.<timestamp> (any 0.0.x where x>=1) or <major>.<minor>.<patch+1>+build.<timestamp>
+MAIN_BUILD_PATTERN="^(0\.0\.[1-9][0-9]*|[1-9][0-9]*\.[0-9]+\.[0-9]+)\+build\.[0-9]{8}T[0-9]{6}Z$"
 
 # PR build: 0.0.0-pr.<pr-number>+sha.<shortsha>+build.<timestamp>
 PR_BUILD_PATTERN="^0\.0\.0-pr\.[0-9]+\+sha\.[0-9a-f]{7}\+build\.[0-9]{8}T[0-9]{6}Z$"
@@ -44,8 +44,8 @@ else
     echo "ERROR: APP_VERSION '$APP_VERSION' does not match expected format"
     echo ""
     echo "Expected formats:"
-    echo "  Main build: <major>.<minor>.<patch+1>+build.YYYYMMDDTHHMMSSZ"
-    echo "              or 0.0.1+build.YYYYMMDDTHHMMSSZ (no tags)"
+    echo "  Main build: <major>.<minor>.<patch>+build.YYYYMMDDTHHMMSSZ"
+    echo "              or 0.0.x+build.YYYYMMDDTHHMMSSZ (0.x series)"
     echo "  PR build:   0.0.0-pr.<pr>+sha.<sha>+build.YYYYMMDDTHHMMSSZ"
     echo "  Local:      0.0.0-local"
     echo "  Override:   <semver>"
