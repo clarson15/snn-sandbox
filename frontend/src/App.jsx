@@ -177,6 +177,7 @@ function normalizeComparableSeed(seed) {
 }
 
 function createFormStateFromConfig(config) {
+  const tz = config.terrainZoneGeneration ?? DEFAULT_CONFIG.terrainZoneGeneration;
   return {
     ...config,
     worldWidth: String(config.worldWidth),
@@ -197,7 +198,14 @@ function createFormStateFromConfig(config) {
     maximumOrganismAge: String(config.maximumOrganismAge ?? DEFAULT_CONFIG.maximumOrganismAge),
     initialPredatorCount: String(config.initialPredatorCount ?? DEFAULT_CONFIG.initialPredatorCount),
     predatorEnergyGain: String(config.predatorEnergyGain ?? DEFAULT_CONFIG.predatorEnergyGain),
-    predatorHuntRadius: String(config.predatorHuntRadius ?? DEFAULT_CONFIG.predatorHuntRadius)
+    predatorHuntRadius: String(config.predatorHuntRadius ?? DEFAULT_CONFIG.predatorHuntRadius),
+    // Terrain zone generation
+    terrainZoneEnabled: String(Boolean(tz.enabled)),
+    terrainZoneCount: String(tz.zoneCount ?? DEFAULT_CONFIG.terrainZoneGeneration.zoneCount),
+    terrainZoneMinWidthRatio: String(tz.minZoneWidthRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.minZoneWidthRatio),
+    terrainZoneMaxWidthRatio: String(tz.maxZoneWidthRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.maxZoneWidthRatio),
+    terrainZoneMinHeightRatio: String(tz.minZoneHeightRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.minZoneHeightRatio),
+    terrainZoneMaxHeightRatio: String(tz.maxZoneHeightRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.maxZoneHeightRatio)
   };
 }
 
@@ -1178,6 +1186,7 @@ function App() {
     }
 
     // Apply preset values to form state, preserving name and seed
+    const presetTz = preset.config.terrainZoneGeneration ?? DEFAULT_CONFIG.terrainZoneGeneration;
     const newFormState = {
       ...formState,
       name: formState.name || DEFAULT_CONFIG.name,
@@ -1205,7 +1214,14 @@ function App() {
       maximumOrganismAge: String(preset.config.maximumOrganismAge ?? DEFAULT_CONFIG.maximumOrganismAge),
       initialPredatorCount: String(preset.config.initialPredatorCount ?? DEFAULT_CONFIG.initialPredatorCount),
       predatorEnergyGain: String(preset.config.predatorEnergyGain ?? DEFAULT_CONFIG.predatorEnergyGain),
-      predatorHuntRadius: String(preset.config.predatorHuntRadius ?? DEFAULT_CONFIG.predatorHuntRadius)
+      predatorHuntRadius: String(preset.config.predatorHuntRadius ?? DEFAULT_CONFIG.predatorHuntRadius),
+      // Terrain zone generation
+      terrainZoneEnabled: String(Boolean(presetTz.enabled)),
+      terrainZoneCount: String(presetTz.zoneCount ?? DEFAULT_CONFIG.terrainZoneGeneration.zoneCount),
+      terrainZoneMinWidthRatio: String(presetTz.minZoneWidthRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.minZoneWidthRatio),
+      terrainZoneMaxWidthRatio: String(presetTz.maxZoneWidthRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.maxZoneWidthRatio),
+      terrainZoneMinHeightRatio: String(presetTz.minZoneHeightRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.minZoneHeightRatio),
+      terrainZoneMaxHeightRatio: String(presetTz.maxZoneHeightRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.maxZoneHeightRatio)
     };
 
     setFormState(newFormState);
@@ -1241,7 +1257,15 @@ function App() {
       maximumOrganismAge: toFiniteNumberOrDefault(formState.maximumOrganismAge, DEFAULT_CONFIG.maximumOrganismAge),
       initialPredatorCount: toFiniteNumberOrDefault(formState.initialPredatorCount, DEFAULT_CONFIG.initialPredatorCount),
       predatorEnergyGain: toFiniteNumberOrDefault(formState.predatorEnergyGain, DEFAULT_CONFIG.predatorEnergyGain),
-      predatorHuntRadius: toFiniteNumberOrDefault(formState.predatorHuntRadius, DEFAULT_CONFIG.predatorHuntRadius)
+      predatorHuntRadius: toFiniteNumberOrDefault(formState.predatorHuntRadius, DEFAULT_CONFIG.predatorHuntRadius),
+      terrainZoneGeneration: {
+        enabled: formState.terrainZoneEnabled === 'true',
+        zoneCount: toFiniteNumberOrDefault(formState.terrainZoneCount, DEFAULT_CONFIG.terrainZoneGeneration.zoneCount),
+        minZoneWidthRatio: toFiniteNumberOrDefault(formState.terrainZoneMinWidthRatio, DEFAULT_CONFIG.terrainZoneGeneration.minZoneWidthRatio),
+        maxZoneWidthRatio: toFiniteNumberOrDefault(formState.terrainZoneMaxWidthRatio, DEFAULT_CONFIG.terrainZoneGeneration.maxZoneWidthRatio),
+        minZoneHeightRatio: toFiniteNumberOrDefault(formState.terrainZoneMinHeightRatio, DEFAULT_CONFIG.terrainZoneGeneration.minZoneHeightRatio),
+        maxZoneHeightRatio: toFiniteNumberOrDefault(formState.terrainZoneMaxHeightRatio, DEFAULT_CONFIG.terrainZoneGeneration.maxZoneHeightRatio)
+      }
     };
 
     const success = saveCustomPreset(newPresetName, currentConfig);
@@ -3339,6 +3363,60 @@ function App() {
                   {errors.predatorHuntRadius ? <span className="error-text">{errors.predatorHuntRadius}</span> : null}
                 </label>
               </div>
+
+              <h3>Environment settings</h3>
+              <p className="field-hint">Configure terrain zone generation for environmental variety.</p>
+              <div className="field-row">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={formState.terrainZoneEnabled === 'true'}
+                    onChange={(e) => {
+                      const newValue = e.target.checked ? 'true' : 'false';
+                      setFormState((prev) => ({ ...prev, terrainZoneEnabled: newValue }));
+                    }}
+                  />
+                  Enable terrain zones
+                </label>
+              </div>
+              {formState.terrainZoneEnabled === 'true' ? (
+                <>
+                  <p className="field-hint">Zone count: 1-20. Width/height ratios: 0.05-0.5.</p>
+                  <div className="field-row">
+                    <label>
+                      Zone count
+                      <input type="number" value={formState.terrainZoneCount} onChange={onFieldChange('terrainZoneCount')} />
+                      {errors.terrainZoneCount ? <span className="error-text">{errors.terrainZoneCount}</span> : null}
+                    </label>
+                  </div>
+                  <div className="field-row">
+                    <label>
+                      Min zone width ratio
+                      <input type="number" step="0.01" value={formState.terrainZoneMinWidthRatio} onChange={onFieldChange('terrainZoneMinWidthRatio')} />
+                      {errors.terrainZoneMinWidthRatio ? <span className="error-text">{errors.terrainZoneMinWidthRatio}</span> : null}
+                    </label>
+                    <label>
+                      Max zone width ratio
+                      <input type="number" step="0.01" value={formState.terrainZoneMaxWidthRatio} onChange={onFieldChange('terrainZoneMaxWidthRatio')} />
+                      {errors.terrainZoneMaxWidthRatio ? <span className="error-text">{errors.terrainZoneMaxWidthRatio}</span> : null}
+                    </label>
+                  </div>
+                  <div className="field-row">
+                    <label>
+                      Min zone height ratio
+                      <input type="number" step="0.01" value={formState.terrainZoneMinHeightRatio} onChange={onFieldChange('terrainZoneMinHeightRatio')} />
+                      {errors.terrainZoneMinHeightRatio ? <span className="error-text">{errors.terrainZoneMinHeightRatio}</span> : null}
+                    </label>
+                    <label>
+                      Max zone height ratio
+                      <input type="number" step="0.01" value={formState.terrainZoneMaxHeightRatio} onChange={onFieldChange('terrainZoneMaxHeightRatio')} />
+                      {errors.terrainZoneMaxHeightRatio ? <span className="error-text">{errors.terrainZoneMaxHeightRatio}</span> : null}
+                    </label>
+                  </div>
+                  {errors.terrainZoneWidthRatio ? <p className="error-text">{errors.terrainZoneWidthRatio}</p> : null}
+                  {errors.terrainZoneHeightRatio ? <p className="error-text">{errors.terrainZoneHeightRatio}</p> : null}
+                </>
+              ) : null}
 
               <div className="field-row">
                 <button type="button" onClick={onResetConfigToDefaults}>

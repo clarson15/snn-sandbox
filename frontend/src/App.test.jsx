@@ -261,6 +261,58 @@ describe('App', () => {
     window.history.replaceState({}, '', '/');
   });
 
+  it('prefills terrain generation controls from query params', () => {
+    window.history.replaceState({}, '', '/?seed=terrain-seed-42&terrainZoneEnabled=1&terrainZoneCount=6&terrainZoneMinWidthRatio=0.16&terrainZoneMaxWidthRatio=0.34&terrainZoneMinHeightRatio=0.17&terrainZoneMaxHeightRatio=0.31');
+
+    render(<App />);
+
+    expect(screen.getByLabelText(/^seed \(optional\)$/i)).toHaveValue('terrain-seed-42');
+    expect(screen.getByLabelText(/enable terrain zones/i)).toBeChecked();
+    expect(screen.getByLabelText(/zone count/i)).toHaveValue(6);
+    expect(screen.getByLabelText(/min zone width ratio/i)).toHaveValue(0.16);
+    expect(screen.getByLabelText(/max zone width ratio/i)).toHaveValue(0.34);
+    expect(screen.getByLabelText(/min zone height ratio/i)).toHaveValue(0.17);
+    expect(screen.getByLabelText(/max zone height ratio/i)).toHaveValue(0.31);
+
+    window.history.replaceState({}, '', '/');
+  });
+
+  it('saves and reapplies custom presets with terrain generation controls', async () => {
+    render(<App />);
+
+    const terrainToggle = screen.getByLabelText(/enable terrain zones/i);
+    if (!terrainToggle.checked) {
+      fireEvent.click(terrainToggle);
+    }
+
+    fireEvent.change(screen.getByLabelText(/zone count/i), { target: { value: '8' } });
+    fireEvent.change(screen.getByLabelText(/min zone width ratio/i), { target: { value: '0.2' } });
+    fireEvent.change(screen.getByLabelText(/max zone width ratio/i), { target: { value: '0.4' } });
+    fireEvent.change(screen.getByLabelText(/min zone height ratio/i), { target: { value: '0.19' } });
+    fireEvent.change(screen.getByLabelText(/max zone height ratio/i), { target: { value: '0.38' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /save current as preset/i }));
+    fireEvent.change(screen.getByPlaceholderText(/preset name/i), { target: { value: 'Terrain tuning preset' } });
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    fireEvent.click(screen.getByLabelText(/enable terrain zones/i));
+    expect(screen.queryByLabelText(/zone count/i)).not.toBeInTheDocument();
+
+    const presetSelect = screen.getByLabelText(/quick-start preset/i);
+    const customOption = screen.getByRole('option', { name: /terrain tuning preset/i });
+    fireEvent.change(presetSelect, { target: { value: customOption.getAttribute('value') } });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/enable terrain zones/i)).toBeChecked();
+    });
+
+    expect(screen.getByLabelText(/zone count/i)).toHaveValue(8);
+    expect(screen.getByLabelText(/min zone width ratio/i)).toHaveValue(0.2);
+    expect(screen.getByLabelText(/max zone width ratio/i)).toHaveValue(0.4);
+    expect(screen.getByLabelText(/min zone height ratio/i)).toHaveValue(0.19);
+    expect(screen.getByLabelText(/max zone height ratio/i)).toHaveValue(0.38);
+  });
+
   it('shows non-blocking feedback when shared query values are missing or invalid', () => {
     window.history.replaceState({}, '', '/?seed=seed-1&worldWidth=invalid&worldHeight=640');
 

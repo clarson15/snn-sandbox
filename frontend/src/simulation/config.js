@@ -89,10 +89,8 @@ export function saveCustomPreset(name, config) {
       initialPredatorCount: config.initialPredatorCount,
       predatorEnergyGain: config.predatorEnergyGain,
       predatorHuntRadius: config.predatorHuntRadius,
-      terrainZoneGeneration: {
-        ...DEFAULT_TERRAIN_ZONE_GENERATION,
-        ...(config.terrainZoneGeneration ?? {})
-      }
+      terrainZoneGeneration: config.terrainZoneGeneration
+
     },
     createdAt: now
   };
@@ -321,7 +319,16 @@ export const DEFAULT_CONFIG = {
   initialPredatorCount: 0,
   predatorEnergyGain: 30,
   predatorHuntRadius: 50,
-  terrainZoneGeneration: { ...DEFAULT_TERRAIN_ZONE_GENERATION }
+  // Terrain zone generation settings
+  terrainZoneGeneration: {
+    enabled: false,
+    zoneCount: 4,
+    minZoneWidthRatio: 0.15,
+    maxZoneWidthRatio: 0.3,
+    minZoneHeightRatio: 0.15,
+    maxZoneHeightRatio: 0.3
+  }
+
 };
 
 export function resolveSeed(seedInput) {
@@ -389,11 +396,45 @@ export function validateSimulationConfig(input) {
     ['dangerZoneRadius', 10, 200, 'Danger zone radius must be between 10 and 200.'],
     ['dangerZoneDamage', 0, 5, 'Danger zone damage must be between 0 and 5.'],
     ['terrainZoneGeneration.zoneCount', 0, 24, 'Terrain zone count must be between 0 and 24.'],
-    ['terrainZoneGeneration.minimumZoneWidthRatio', 0.05, 1, 'Terrain minimum width ratio must be between 0.05 and 1.'],
-    ['terrainZoneGeneration.maximumZoneWidthRatio', 0.05, 1, 'Terrain maximum width ratio must be between 0.05 and 1.'],
-    ['terrainZoneGeneration.minimumZoneHeightRatio', 0.05, 1, 'Terrain minimum height ratio must be between 0.05 and 1.'],
-    ['terrainZoneGeneration.maximumZoneHeightRatio', 0.05, 1, 'Terrain maximum height ratio must be between 0.05 and 1.']
+    ['terrainZoneGeneration.minZoneWidthRatio', 0.05, 1, 'Terrain minimum width ratio must be between 0.05 and 1.'],
+    ['terrainZoneGeneration.maxZoneWidthRatio', 0.05, 1, 'Terrain maximum width ratio must be between 0.05 and 1.'],
+    ['terrainZoneGeneration.minZoneHeightRatio', 0.05, 1, 'Terrain minimum height ratio must be between 0.05 and 1.'],
+    ['terrainZoneGeneration.maxZoneHeightRatio', 0.05, 1, 'Terrain maximum height ratio must be between 0.05 and 1.']
   ];
+
+  // Terrain zone generation validation
+  const tzInput = input.terrainZoneGeneration ?? {};
+  const tzEnabled = Boolean(tzInput.enabled ?? DEFAULT_CONFIG.terrainZoneGeneration.enabled);
+  const tzZoneCount = Number(tzInput.zoneCount ?? DEFAULT_CONFIG.terrainZoneGeneration.zoneCount);
+  const tzMinWidthRatio = Number(tzInput.minZoneWidthRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.minZoneWidthRatio);
+  const tzMaxWidthRatio = Number(tzInput.maxZoneWidthRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.maxZoneWidthRatio);
+  const tzMinHeightRatio = Number(tzInput.minZoneHeightRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.minZoneHeightRatio);
+  const tzMaxHeightRatio = Number(tzInput.maxZoneHeightRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.maxZoneHeightRatio);
+
+  if (tzEnabled) {
+    if (!Number.isFinite(tzZoneCount) || tzZoneCount < 1 || tzZoneCount > 20) {
+      errors.terrainZoneCount = 'Terrain zone count must be between 1 and 20.';
+    }
+    if (!Number.isFinite(tzMinWidthRatio) || tzMinWidthRatio < 0.05 || tzMinWidthRatio > 0.5) {
+      errors.terrainZoneMinWidthRatio = 'Min zone width ratio must be between 0.05 and 0.5.';
+    }
+    if (!Number.isFinite(tzMaxWidthRatio) || tzMaxWidthRatio < 0.05 || tzMaxWidthRatio > 0.5) {
+      errors.terrainZoneMaxWidthRatio = 'Max zone width ratio must be between 0.05 and 0.5.';
+    }
+    if (!Number.isFinite(tzMinHeightRatio) || tzMinHeightRatio < 0.05 || tzMinHeightRatio > 0.5) {
+      errors.terrainZoneMinHeightRatio = 'Min zone height ratio must be between 0.05 and 0.5.';
+    }
+    if (!Number.isFinite(tzMaxHeightRatio) || tzMaxHeightRatio < 0.05 || tzMaxHeightRatio > 0.5) {
+      errors.terrainZoneMaxHeightRatio = 'Max zone height ratio must be between 0.05 and 0.5.';
+    }
+    // Validate ratios are in correct order
+    if (Number.isFinite(tzMinWidthRatio) && Number.isFinite(tzMaxWidthRatio) && tzMinWidthRatio > tzMaxWidthRatio) {
+      errors.terrainZoneWidthRatio = 'Min zone width ratio must be less than or equal to max zone width ratio.';
+    }
+    if (Number.isFinite(tzMinHeightRatio) && Number.isFinite(tzMaxHeightRatio) && tzMinHeightRatio > tzMaxHeightRatio) {
+      errors.terrainZoneHeightRatio = 'Min zone height ratio must be less than or equal to max zone height ratio.';
+    }
+  }
 
   for (const [field, min, max, message] of numericChecks) {
     const sourceValue = field.includes('.')
@@ -466,16 +507,15 @@ export function normalizeSimulationConfig(input, resolvedSeed) {
     initialPredatorCount: Number(input.initialPredatorCount ?? DEFAULT_CONFIG.initialPredatorCount),
     predatorEnergyGain: Number(input.predatorEnergyGain ?? DEFAULT_CONFIG.predatorEnergyGain),
     predatorHuntRadius: Number(input.predatorHuntRadius ?? DEFAULT_CONFIG.predatorHuntRadius),
+    // Terrain zone generation
     terrainZoneGeneration: {
-      enabled: Boolean(terrainZoneGeneration.enabled),
-      zoneCount: Number(terrainZoneGeneration.zoneCount ?? DEFAULT_TERRAIN_ZONE_GENERATION.zoneCount),
-      minimumZoneWidthRatio: Number(terrainZoneGeneration.minimumZoneWidthRatio ?? DEFAULT_TERRAIN_ZONE_GENERATION.minimumZoneWidthRatio),
-      maximumZoneWidthRatio: Number(terrainZoneGeneration.maximumZoneWidthRatio ?? DEFAULT_TERRAIN_ZONE_GENERATION.maximumZoneWidthRatio),
-      minimumZoneHeightRatio: Number(terrainZoneGeneration.minimumZoneHeightRatio ?? DEFAULT_TERRAIN_ZONE_GENERATION.minimumZoneHeightRatio),
-      maximumZoneHeightRatio: Number(terrainZoneGeneration.maximumZoneHeightRatio ?? DEFAULT_TERRAIN_ZONE_GENERATION.maximumZoneHeightRatio),
-      zoneTypes: Array.isArray(terrainZoneGeneration.zoneTypes) && terrainZoneGeneration.zoneTypes.length > 0
-        ? terrainZoneGeneration.zoneTypes.map((zoneType) => String(zoneType))
-        : [...DEFAULT_TERRAIN_ZONE_GENERATION.zoneTypes]
+      enabled: Boolean(input.terrainZoneGeneration?.enabled ?? DEFAULT_CONFIG.terrainZoneGeneration.enabled),
+      zoneCount: Number(input.terrainZoneGeneration?.zoneCount ?? DEFAULT_CONFIG.terrainZoneGeneration.zoneCount),
+      minZoneWidthRatio: Number(input.terrainZoneGeneration?.minZoneWidthRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.minZoneWidthRatio),
+      maxZoneWidthRatio: Number(input.terrainZoneGeneration?.maxZoneWidthRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.maxZoneWidthRatio),
+      minZoneHeightRatio: Number(input.terrainZoneGeneration?.minZoneHeightRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.minZoneHeightRatio),
+      maxZoneHeightRatio: Number(input.terrainZoneGeneration?.maxZoneHeightRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.maxZoneHeightRatio)
+
     }
   };
 }
@@ -937,68 +977,43 @@ function sanitizeLoadedConfigDraft(parsed) {
     sanitized[field] = isFiniteInRange(candidate, min, max) ? candidate : DEFAULT_CONFIG[field];
   }
 
+  // Legacy mutation fallback: hydrate trait-specific controls from legacy mutation
+  // values when trait-specific values are absent/invalid in stored drafts.
+  const legacyMutationRate = Number(source.mutationRate);
+  const legacyMutationStrength = Number(source.mutationStrength);
+  if (isFiniteInRange(legacyMutationRate, 0, 1)) {
+    for (const field of ['physicalTraitsMutationRate', 'brainStructureMutationRate', 'brainWeightMutationRate']) {
+      const candidate = Number(source[field]);
+      if (!isFiniteInRange(candidate, 0, 1)) {
+        sanitized[field] = legacyMutationRate;
+      }
+    }
+  }
+
+  if (isFiniteInRange(legacyMutationStrength, 0, 1)) {
+    for (const field of ['physicalTraitsMutationStrength', 'brainWeightMutationStrength']) {
+      const candidate = Number(source[field]);
+      if (!isFiniteInRange(candidate, 0, 1)) {
+        sanitized[field] = legacyMutationStrength;
+      }
+    }
+  }
+
   if (sanitized.maxFood < sanitized.initialFoodCount) {
     sanitized.initialFoodCount = DEFAULT_CONFIG.initialFoodCount;
     sanitized.maxFood = DEFAULT_CONFIG.maxFood;
   }
 
-  // Backward compatibility: use legacy mutation values as fallbacks for new trait-specific fields (SSN-254)
-  // If source has legacy mutationRate/mutationStrength but not the new fields, propagate them
-  const sourceMutationRate = Number(source.mutationRate);
-  const sourceMutationStrength = Number(source.mutationStrength);
-  const hasValidLegacyMutationRate = isFiniteInRange(sourceMutationRate, 0, 1);
-  const hasValidLegacyMutationStrength = isFiniteInRange(sourceMutationStrength, 0, 1);
-
-  if (hasValidLegacyMutationRate) {
-    // If new fields not in source, use legacy values
-    if (!('physicalTraitsMutationRate' in source)) {
-      sanitized.physicalTraitsMutationRate = sourceMutationRate;
-    }
-    if (!('brainStructureMutationRate' in source)) {
-      sanitized.brainStructureMutationRate = sourceMutationRate;
-    }
-    if (!('brainWeightMutationRate' in source)) {
-      sanitized.brainWeightMutationRate = sourceMutationRate;
-    }
-  }
-
-  if (hasValidLegacyMutationStrength) {
-    if (!('physicalTraitsMutationStrength' in source)) {
-      sanitized.physicalTraitsMutationStrength = sourceMutationStrength;
-    }
-    if (!('brainWeightMutationStrength' in source)) {
-      sanitized.brainWeightMutationStrength = sourceMutationStrength;
-    }
-  }
-
-  const sourceTerrainGeneration = source.terrainZoneGeneration && typeof source.terrainZoneGeneration === 'object'
-    ? source.terrainZoneGeneration
-    : {};
-  const normalizedZoneTypes = Array.isArray(sourceTerrainGeneration.zoneTypes)
-    ? sourceTerrainGeneration.zoneTypes.map((zoneType) => String(zoneType).trim()).filter(Boolean)
-    : [];
+  // Handle terrain zone generation (nested config)
+  const tzSource = source.terrainZoneGeneration ?? {};
   sanitized.terrainZoneGeneration = {
-    enabled: typeof sourceTerrainGeneration.enabled === 'boolean'
-      ? sourceTerrainGeneration.enabled
-      : DEFAULT_TERRAIN_ZONE_GENERATION.enabled,
-    zoneCount: isFiniteInRange(Number(sourceTerrainGeneration.zoneCount), 0, 24)
-      ? Number(sourceTerrainGeneration.zoneCount)
-      : DEFAULT_TERRAIN_ZONE_GENERATION.zoneCount,
-    minimumZoneWidthRatio: isFiniteInRange(Number(sourceTerrainGeneration.minimumZoneWidthRatio), 0.05, 1)
-      ? Number(sourceTerrainGeneration.minimumZoneWidthRatio)
-      : DEFAULT_TERRAIN_ZONE_GENERATION.minimumZoneWidthRatio,
-    maximumZoneWidthRatio: isFiniteInRange(Number(sourceTerrainGeneration.maximumZoneWidthRatio), 0.05, 1)
-      ? Number(sourceTerrainGeneration.maximumZoneWidthRatio)
-      : DEFAULT_TERRAIN_ZONE_GENERATION.maximumZoneWidthRatio,
-    minimumZoneHeightRatio: isFiniteInRange(Number(sourceTerrainGeneration.minimumZoneHeightRatio), 0.05, 1)
-      ? Number(sourceTerrainGeneration.minimumZoneHeightRatio)
-      : DEFAULT_TERRAIN_ZONE_GENERATION.minimumZoneHeightRatio,
-    maximumZoneHeightRatio: isFiniteInRange(Number(sourceTerrainGeneration.maximumZoneHeightRatio), 0.05, 1)
-      ? Number(sourceTerrainGeneration.maximumZoneHeightRatio)
-      : DEFAULT_TERRAIN_ZONE_GENERATION.maximumZoneHeightRatio,
-    zoneTypes: normalizedZoneTypes.length > 0
-      ? normalizedZoneTypes
-      : [...DEFAULT_TERRAIN_ZONE_GENERATION.zoneTypes]
+    enabled: Boolean(tzSource.enabled ?? DEFAULT_CONFIG.terrainZoneGeneration.enabled),
+    zoneCount: isFiniteInRange(Number(tzSource.zoneCount), 1, 20) ? Number(tzSource.zoneCount) : DEFAULT_CONFIG.terrainZoneGeneration.zoneCount,
+    minZoneWidthRatio: isFiniteInRange(Number(tzSource.minZoneWidthRatio), 0.05, 0.5) ? Number(tzSource.minZoneWidthRatio) : DEFAULT_CONFIG.terrainZoneGeneration.minZoneWidthRatio,
+    maxZoneWidthRatio: isFiniteInRange(Number(tzSource.maxZoneWidthRatio), 0.05, 0.5) ? Number(tzSource.maxZoneWidthRatio) : DEFAULT_CONFIG.terrainZoneGeneration.maxZoneWidthRatio,
+    minZoneHeightRatio: isFiniteInRange(Number(tzSource.minZoneHeightRatio), 0.05, 0.5) ? Number(tzSource.minZoneHeightRatio) : DEFAULT_CONFIG.terrainZoneGeneration.minZoneHeightRatio,
+    maxZoneHeightRatio: isFiniteInRange(Number(tzSource.maxZoneHeightRatio), 0.05, 0.5) ? Number(tzSource.maxZoneHeightRatio) : DEFAULT_CONFIG.terrainZoneGeneration.maxZoneHeightRatio
+
   };
 
   return sanitized;
