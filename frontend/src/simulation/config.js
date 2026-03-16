@@ -10,6 +10,16 @@ export const STORAGE_KEY = 'snn-sandbox.latest-simulation-config';
 export const SEED_FALLBACK_COUNTER_KEY = 'snn-sandbox.seed-fallback-counter';
 export const CUSTOM_PRESETS_KEY = 'snn-sandbox.custom-presets';
 
+export const DEFAULT_TERRAIN_ZONE_GENERATION = {
+  enabled: true,
+  zoneCount: 4,
+  minimumZoneWidthRatio: 0.18,
+  maximumZoneWidthRatio: 0.42,
+  minimumZoneHeightRatio: 0.18,
+  maximumZoneHeightRatio: 0.42,
+  zoneTypes: ['plains', 'forest', 'wetland', 'rocky']
+};
+
 /**
  * Get all custom presets from localStorage
  * @returns {Array} Array of custom preset objects
@@ -71,7 +81,11 @@ export function saveCustomPreset(name, config) {
       maximumOrganismAge: config.maximumOrganismAge,
       initialPredatorCount: config.initialPredatorCount,
       predatorEnergyGain: config.predatorEnergyGain,
-      predatorHuntRadius: config.predatorHuntRadius
+      predatorHuntRadius: config.predatorHuntRadius,
+      terrainZoneGeneration: {
+        ...DEFAULT_TERRAIN_ZONE_GENERATION,
+        ...(config.terrainZoneGeneration ?? {})
+      }
     },
     createdAt: now
   };
@@ -257,7 +271,8 @@ export const DEFAULT_CONFIG = {
   // Predator settings
   initialPredatorCount: 0,
   predatorEnergyGain: 30,
-  predatorHuntRadius: 50
+  predatorHuntRadius: 50,
+  terrainZoneGeneration: { ...DEFAULT_TERRAIN_ZONE_GENERATION }
 };
 
 export function resolveSeed(seedInput) {
@@ -316,11 +331,23 @@ export function validateSimulationConfig(input) {
     ['obstacleMaxSize', 10, 200, 'Obstacle max size must be between 10 and 200.'],
     ['dangerZoneCount', 0, 10, 'Danger zone count must be between 0 and 10.'],
     ['dangerZoneRadius', 10, 200, 'Danger zone radius must be between 10 and 200.'],
-    ['dangerZoneDamage', 0, 5, 'Danger zone damage must be between 0 and 5.']
+    ['dangerZoneDamage', 0, 5, 'Danger zone damage must be between 0 and 5.'],
+    ['terrainZoneGeneration.zoneCount', 0, 24, 'Terrain zone count must be between 0 and 24.'],
+    ['terrainZoneGeneration.minimumZoneWidthRatio', 0.05, 1, 'Terrain minimum width ratio must be between 0.05 and 1.'],
+    ['terrainZoneGeneration.maximumZoneWidthRatio', 0.05, 1, 'Terrain maximum width ratio must be between 0.05 and 1.'],
+    ['terrainZoneGeneration.minimumZoneHeightRatio', 0.05, 1, 'Terrain minimum height ratio must be between 0.05 and 1.'],
+    ['terrainZoneGeneration.maximumZoneHeightRatio', 0.05, 1, 'Terrain maximum height ratio must be between 0.05 and 1.']
   ];
 
   for (const [field, min, max, message] of numericChecks) {
-    const value = Number(input[field]);
+    const sourceValue = field.includes('.')
+      ? field.split('.').reduce((acc, key) => acc?.[key], input)
+      : input[field];
+    const defaultValue = field.includes('.')
+      ? field.split('.').reduce((acc, key) => acc?.[key], DEFAULT_CONFIG)
+      : DEFAULT_CONFIG[field];
+    const value = Number(sourceValue ?? defaultValue);
+
     if (!Number.isFinite(value) || value < min || value > max) {
       errors[field] = message;
     }
@@ -338,6 +365,11 @@ export function validateSimulationConfig(input) {
 }
 
 export function normalizeSimulationConfig(input, resolvedSeed) {
+  const terrainZoneGeneration = {
+    ...DEFAULT_TERRAIN_ZONE_GENERATION,
+    ...(input.terrainZoneGeneration ?? {})
+  };
+
   return {
     name: String(input.name).trim(),
     seed: String(input.seed ?? '').trim(),
@@ -369,8 +401,57 @@ export function normalizeSimulationConfig(input, resolvedSeed) {
     dangerZoneDamage: Number(input.dangerZoneDamage ?? DEFAULT_CONFIG.dangerZoneDamage),
     initialPredatorCount: Number(input.initialPredatorCount ?? DEFAULT_CONFIG.initialPredatorCount),
     predatorEnergyGain: Number(input.predatorEnergyGain ?? DEFAULT_CONFIG.predatorEnergyGain),
-    predatorHuntRadius: Number(input.predatorHuntRadius ?? DEFAULT_CONFIG.predatorHuntRadius)
+    predatorHuntRadius: Number(input.predatorHuntRadius ?? DEFAULT_CONFIG.predatorHuntRadius),
+    terrainZoneGeneration: {
+      enabled: Boolean(terrainZoneGeneration.enabled),
+      zoneCount: Number(terrainZoneGeneration.zoneCount ?? DEFAULT_TERRAIN_ZONE_GENERATION.zoneCount),
+      minimumZoneWidthRatio: Number(terrainZoneGeneration.minimumZoneWidthRatio ?? DEFAULT_TERRAIN_ZONE_GENERATION.minimumZoneWidthRatio),
+      maximumZoneWidthRatio: Number(terrainZoneGeneration.maximumZoneWidthRatio ?? DEFAULT_TERRAIN_ZONE_GENERATION.maximumZoneWidthRatio),
+      minimumZoneHeightRatio: Number(terrainZoneGeneration.minimumZoneHeightRatio ?? DEFAULT_TERRAIN_ZONE_GENERATION.minimumZoneHeightRatio),
+      maximumZoneHeightRatio: Number(terrainZoneGeneration.maximumZoneHeightRatio ?? DEFAULT_TERRAIN_ZONE_GENERATION.maximumZoneHeightRatio),
+      zoneTypes: Array.isArray(terrainZoneGeneration.zoneTypes) && terrainZoneGeneration.zoneTypes.length > 0
+        ? terrainZoneGeneration.zoneTypes.map((zoneType) => String(zoneType))
+        : [...DEFAULT_TERRAIN_ZONE_GENERATION.zoneTypes]
+    }
   };
+}
+
+function generateTerrainZonesFromConfig(config, rng) {
+  const generation = {
+    ...DEFAULT_TERRAIN_ZONE_GENERATION,
+    ...(config.terrainZoneGeneration ?? {})
+  };
+
+  if (!generation.enabled || generation.zoneCount <= 0) {
+    return [];
+  }
+
+  const zoneTypes = Array.isArray(generation.zoneTypes) && generation.zoneTypes.length > 0
+    ? generation.zoneTypes
+    : DEFAULT_TERRAIN_ZONE_GENERATION.zoneTypes;
+
+  const minWidth = config.worldWidth * generation.minimumZoneWidthRatio;
+  const maxWidth = config.worldWidth * generation.maximumZoneWidthRatio;
+  const minHeight = config.worldHeight * generation.minimumZoneHeightRatio;
+  const maxHeight = config.worldHeight * generation.maximumZoneHeightRatio;
+
+  return Array.from({ length: generation.zoneCount }, (_, index) => {
+    const width = minWidth + (rng.nextFloat() * Math.max(0, maxWidth - minWidth));
+    const height = minHeight + (rng.nextFloat() * Math.max(0, maxHeight - minHeight));
+    const x = rng.nextFloat() * Math.max(0, config.worldWidth - width);
+    const y = rng.nextFloat() * Math.max(0, config.worldHeight - height);
+
+    return {
+      id: `terrain-zone-${index}`,
+      type: zoneTypes[index % zoneTypes.length],
+      bounds: {
+        x: Number(x.toFixed(3)),
+        y: Number(y.toFixed(3)),
+        width: Number(width.toFixed(3)),
+        height: Number(height.toFixed(3))
+      }
+    };
+  });
 }
 
 function createInitialBrain(rng, organismType = 'herbivore') {
@@ -643,13 +724,16 @@ export function createInitialWorldFromConfig(config) {
     }
   }
 
-  // Store hazards in the world state for rendering and engine access
+  // Store hazards and terrain zones in the world state for rendering and engine access
+  const terrainZones = generateTerrainZonesFromConfig(config, rng);
+
   return createWorldState({
     tick: 0,
     organisms,
     food,
     obstacles,
-    dangerZones
+    dangerZones,
+    terrainZones
   });
 }
 
@@ -768,6 +852,36 @@ function sanitizeLoadedConfigDraft(parsed) {
     sanitized.initialFoodCount = DEFAULT_CONFIG.initialFoodCount;
     sanitized.maxFood = DEFAULT_CONFIG.maxFood;
   }
+
+  const sourceTerrainGeneration = source.terrainZoneGeneration && typeof source.terrainZoneGeneration === 'object'
+    ? source.terrainZoneGeneration
+    : {};
+  const normalizedZoneTypes = Array.isArray(sourceTerrainGeneration.zoneTypes)
+    ? sourceTerrainGeneration.zoneTypes.map((zoneType) => String(zoneType).trim()).filter(Boolean)
+    : [];
+  sanitized.terrainZoneGeneration = {
+    enabled: typeof sourceTerrainGeneration.enabled === 'boolean'
+      ? sourceTerrainGeneration.enabled
+      : DEFAULT_TERRAIN_ZONE_GENERATION.enabled,
+    zoneCount: isFiniteInRange(Number(sourceTerrainGeneration.zoneCount), 0, 24)
+      ? Number(sourceTerrainGeneration.zoneCount)
+      : DEFAULT_TERRAIN_ZONE_GENERATION.zoneCount,
+    minimumZoneWidthRatio: isFiniteInRange(Number(sourceTerrainGeneration.minimumZoneWidthRatio), 0.05, 1)
+      ? Number(sourceTerrainGeneration.minimumZoneWidthRatio)
+      : DEFAULT_TERRAIN_ZONE_GENERATION.minimumZoneWidthRatio,
+    maximumZoneWidthRatio: isFiniteInRange(Number(sourceTerrainGeneration.maximumZoneWidthRatio), 0.05, 1)
+      ? Number(sourceTerrainGeneration.maximumZoneWidthRatio)
+      : DEFAULT_TERRAIN_ZONE_GENERATION.maximumZoneWidthRatio,
+    minimumZoneHeightRatio: isFiniteInRange(Number(sourceTerrainGeneration.minimumZoneHeightRatio), 0.05, 1)
+      ? Number(sourceTerrainGeneration.minimumZoneHeightRatio)
+      : DEFAULT_TERRAIN_ZONE_GENERATION.minimumZoneHeightRatio,
+    maximumZoneHeightRatio: isFiniteInRange(Number(sourceTerrainGeneration.maximumZoneHeightRatio), 0.05, 1)
+      ? Number(sourceTerrainGeneration.maximumZoneHeightRatio)
+      : DEFAULT_TERRAIN_ZONE_GENERATION.maximumZoneHeightRatio,
+    zoneTypes: normalizedZoneTypes.length > 0
+      ? normalizedZoneTypes
+      : [...DEFAULT_TERRAIN_ZONE_GENERATION.zoneTypes]
+  };
 
   return sanitized;
 }

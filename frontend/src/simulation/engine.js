@@ -60,12 +60,20 @@ import {
  */
 
 /**
+ * @typedef {object} WorldTerrainZone
+ * @property {string} id
+ * @property {string} type
+ * @property {{x:number,y:number,width:number,height:number}} bounds
+ */
+
+/**
  * @typedef {object} WorldState
  * @property {number} tick
  * @property {WorldOrganism[]} organisms
  * @property {WorldFood[]} food
  * @property {WorldObstacle[]} [obstacles]
  * @property {WorldDangerZone[]} [dangerZones]
+ * @property {WorldTerrainZone[]} [terrainZones]
  */
 
 /**
@@ -104,6 +112,7 @@ import {
  * @property {number} [brainRemoveSynapseChance=0.05] probability of removing a synapse (0-1)
  * @property {WorldObstacle[]} [obstacles] obstacles in the world
  * @property {WorldDangerZone[]} [dangerZones] danger zones in the world
+ * @property {WorldTerrainZone[]} [terrainZones] deterministic terrain zones in the world
  */
 
 /**
@@ -121,7 +130,13 @@ export function createWorldState(initial = {}) {
     })) : [],
     food: initial.food ? initial.food.map((f) => ({ ...f })) : [],
     obstacles: initial.obstacles ? initial.obstacles.map((o) => ({ ...o })) : [],
-    dangerZones: initial.dangerZones ? initial.dangerZones.map((d) => ({ ...d })) : []
+    dangerZones: initial.dangerZones ? initial.dangerZones.map((d) => ({ ...d })) : [],
+    terrainZones: initial.terrainZones
+      ? initial.terrainZones.map((zone) => ({
+        ...zone,
+        bounds: zone?.bounds ? { ...zone.bounds } : undefined
+      }))
+      : []
   };
 }
 
@@ -1707,6 +1722,7 @@ export function stepWorld(state, rng, params = {}) {
   const hazards = params;
   const obstacles = hazards.obstacles ?? state.obstacles ?? [];
   const dangerZones = hazards.dangerZones ?? state.dangerZones ?? [];
+  const terrainZones = hazards.terrainZones ?? state.terrainZones ?? [];
 
   // Apply danger zone damage
   let finalOrganisms = applyDangerZoneDamage(organisms, dangerZones);
@@ -1727,6 +1743,7 @@ export function stepWorld(state, rng, params = {}) {
   // Always include hazards for deterministic replay parity
   returnState.obstacles = obstacles || [];
   returnState.dangerZones = dangerZones || [];
+  returnState.terrainZones = terrainZones || [];
 
   return returnState;
 }
@@ -2047,6 +2064,7 @@ export function createTickSnapshot(state, params = {}) {
     })),
     obstacles: state.obstacles,
     dangerZones: state.dangerZones,
+    terrainZones: state.terrainZones,
     // Include params hash for replay verification
     paramsHash: hashParams(params)
   };

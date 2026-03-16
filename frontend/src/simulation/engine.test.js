@@ -177,7 +177,8 @@ function stepWorldWithLegacyFoodLookup(state, rng, params = {}) {
     organisms,
     food: nextFood,
     obstacles: state.obstacles || [],
-    dangerZones: state.dangerZones || []
+    dangerZones: state.dangerZones || [],
+    terrainZones: state.terrainZones || []
   };
 }
 
