@@ -35,6 +35,26 @@ const HAZARD_STYLES = {
   }
 };
 
+// Terrain zone type visual configurations
+const TERRAIN_ZONE_STYLES = {
+  plains: {
+    color: 'rgba(194, 178, 128, 0.25)',    // Light tan/sandy
+    borderColor: 'rgba(194, 178, 128, 0.5)'
+  },
+  forest: {
+    color: 'rgba(34, 139, 34, 0.25)',       // Forest green
+    borderColor: 'rgba(34, 139, 34, 0.5)'
+  },
+  wetland: {
+    color: 'rgba(72, 209, 204, 0.25)',      // Medium turquoise
+    borderColor: 'rgba(72, 209, 204, 0.5)'
+  },
+  rocky: {
+    color: 'rgba(128, 128, 128, 0.25)',     // Gray
+    borderColor: 'rgba(128, 128, 128, 0.5)'
+  }
+};
+
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
@@ -107,6 +127,23 @@ function drawHazardZone(ctx, zone, tick) {
   ctx.beginPath();
   ctx.arc(zone.x, zone.y, zone.radius * 0.6, 0, Math.PI * 2);
   ctx.stroke();
+}
+
+/**
+ * Draw a terrain zone with type-specific visual styling
+ */
+function drawTerrainZone(ctx, zone) {
+  const style = TERRAIN_ZONE_STYLES[zone.type] || TERRAIN_ZONE_STYLES.plains;
+  const bounds = zone.bounds;
+
+  // Draw filled rectangle with zone color
+  ctx.fillStyle = style.color;
+  ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+
+  // Draw border with zone border color
+  ctx.strokeStyle = style.borderColor;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
 }
 
 function drawSelectedOrganismOverlays(ctx, organism, radius) {
@@ -192,6 +229,13 @@ export function drawWorldSnapshot(ctx, snapshot, viewport, renderOptions = {}) {
         ctx.lineTo(x + i + h, y + h);
         ctx.stroke();
       }
+    }
+  }
+
+  // Draw terrain zones (under food and organisms but above background)
+  if (snapshot.terrainZones) {
+    for (const zone of snapshot.terrainZones) {
+      drawTerrainZone(ctx, zone);
     }
   }
 

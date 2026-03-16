@@ -13,7 +13,7 @@ function createMockContext() {
     lineToCalls: [],
     clearRect() {},
     fillRect(x, y, width, height) {
-      this.fillRectCalls.push({ x, y, width, height });
+      this.fillRectCalls.push({ x, y, width, height, fillStyle: currentFillStyle });
     },
     strokeRect(x, y, width, height) {
       this.strokeRectCalls.push({ x, y, width, height });
@@ -125,5 +125,68 @@ describe('drawWorldSnapshot viewport culling', () => {
 
     expect(ctx.fillCalls.some(({ fillStyle }) => fillStyle === '#123456')).toBe(true);
     expect(ctx.fillCalls.some(({ fillStyle }) => fillStyle === '#abcdef')).toBe(true);
+  });
+
+  it('renders terrain zones with correct colors', () => {
+    const ctx = createMockContext();
+    const snapshot = {
+      tick: 1,
+      food: [],
+      organisms: [],
+      terrainZones: [
+        { id: 'zone-1', type: 'plains', bounds: { x: 10, y: 10, width: 30, height: 20 } },
+        { id: 'zone-2', type: 'forest', bounds: { x: 50, y: 50, width: 25, height: 25 } },
+        { id: 'zone-3', type: 'wetland', bounds: { x: 80, y: 10, width: 15, height: 30 } },
+        { id: 'zone-4', type: 'rocky', bounds: { x: 10, y: 60, width: 20, height: 15 } }
+      ]
+    };
+
+    drawWorldSnapshot(ctx, snapshot, { width: 100, height: 100 }, { cullPadding: 0 });
+
+    // Check that terrain zones are rendered with correct fillRect calls
+    const terrainZoneFills = ctx.fillRectCalls.filter(
+      (call) => call.x === 10 && call.y === 10 && call.width === 30 && call.height === 20 && call.fillStyle === 'rgba(194, 178, 128, 0.25)'
+    );
+    expect(terrainZoneFills.length).toBe(1);
+
+    const forestZoneFills = ctx.fillRectCalls.filter(
+      (call) => call.x === 50 && call.y === 50 && call.width === 25 && call.height === 25 && call.fillStyle === 'rgba(34, 139, 34, 0.25)'
+    );
+    expect(forestZoneFills.length).toBe(1);
+  });
+
+  it('renders terrain zones under organisms and food', () => {
+    const ctx = createMockContext();
+    const snapshot = {
+      tick: 1,
+      food: [{ x: 25, y: 25 }],
+      organisms: [{ id: 'a', x: 30, y: 30, direction: 0, color: '#38bdf8', traits: { size: 1, visionRange: 0 } }],
+      terrainZones: [
+        { id: 'zone-1', type: 'plains', bounds: { x: 0, y: 0, width: 100, height: 100 } }
+      ]
+    };
+
+    drawWorldSnapshot(ctx, snapshot, { width: 100, height: 100 }, { cullPadding: 0 });
+
+    // Terrain zone fillRect should be called (drawn first, under organisms/food) - check for terrain zone color
+    const terrainZoneFills = ctx.fillRectCalls.filter(
+      (call) => call.x === 0 && call.y === 0 && call.width === 100 && call.height === 100 && call.fillStyle === 'rgba(194, 178, 128, 0.25)'
+    );
+    expect(terrainZoneFills.length).toBe(1);
+  });
+
+  it('handles missing terrain zones gracefully', () => {
+    const ctx = createMockContext();
+    const snapshot = {
+      tick: 1,
+      food: [],
+      organisms: []
+      // No terrainZones property
+    };
+
+    // Should not throw
+    expect(() => {
+      drawWorldSnapshot(ctx, snapshot, { width: 100, height: 100 });
+    }).not.toThrow();
   });
 });
