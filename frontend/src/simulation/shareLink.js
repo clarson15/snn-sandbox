@@ -12,12 +12,7 @@ const DETERMINISTIC_PARAM_RULES = [
   // Legacy mutation fields (backward compatibility)
   ['mutationRate', 0, 1],
   ['mutationStrength', 0, 1],
-  // Trait-specific mutation controls (SSN-254)
-  ['physicalTraitsMutationRate', 0, 1],
-  ['physicalTraitsMutationStrength', 0, 1],
-  ['brainStructureMutationRate', 0, 1],
-  ['brainWeightMutationRate', 0, 1],
-  ['brainWeightMutationStrength', 0, 1],
+
   ['reproductionThreshold', 1, 200],
   ['reproductionCost', 0, 200],
   ['offspringStartEnergy', 0, 200],

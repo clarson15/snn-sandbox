@@ -396,10 +396,10 @@ export function validateSimulationConfig(input) {
     ['dangerZoneRadius', 10, 200, 'Danger zone radius must be between 10 and 200.'],
     ['dangerZoneDamage', 0, 5, 'Danger zone damage must be between 0 and 5.'],
     ['terrainZoneGeneration.zoneCount', 0, 24, 'Terrain zone count must be between 0 and 24.'],
-    ['terrainZoneGeneration.minimumZoneWidthRatio', 0.05, 1, 'Terrain minimum width ratio must be between 0.05 and 1.'],
-    ['terrainZoneGeneration.maximumZoneWidthRatio', 0.05, 1, 'Terrain maximum width ratio must be between 0.05 and 1.'],
-    ['terrainZoneGeneration.minimumZoneHeightRatio', 0.05, 1, 'Terrain minimum height ratio must be between 0.05 and 1.'],
-    ['terrainZoneGeneration.maximumZoneHeightRatio', 0.05, 1, 'Terrain maximum height ratio must be between 0.05 and 1.']
+    ['terrainZoneGeneration.minZoneWidthRatio', 0.05, 1, 'Terrain minimum width ratio must be between 0.05 and 1.'],
+    ['terrainZoneGeneration.maxZoneWidthRatio', 0.05, 1, 'Terrain maximum width ratio must be between 0.05 and 1.'],
+    ['terrainZoneGeneration.minZoneHeightRatio', 0.05, 1, 'Terrain minimum height ratio must be between 0.05 and 1.'],
+    ['terrainZoneGeneration.maxZoneHeightRatio', 0.05, 1, 'Terrain maximum height ratio must be between 0.05 and 1.']
   ];
 
   // Terrain zone generation validation
@@ -975,6 +975,28 @@ function sanitizeLoadedConfigDraft(parsed) {
   for (const [field, [min, max]] of Object.entries(numericConstraints)) {
     const candidate = Number(source[field]);
     sanitized[field] = isFiniteInRange(candidate, min, max) ? candidate : DEFAULT_CONFIG[field];
+  }
+
+  // Legacy mutation fallback: hydrate trait-specific controls from legacy mutation
+  // values when trait-specific values are absent/invalid in stored drafts.
+  const legacyMutationRate = Number(source.mutationRate);
+  const legacyMutationStrength = Number(source.mutationStrength);
+  if (isFiniteInRange(legacyMutationRate, 0, 1)) {
+    for (const field of ['physicalTraitsMutationRate', 'brainStructureMutationRate', 'brainWeightMutationRate']) {
+      const candidate = Number(source[field]);
+      if (!isFiniteInRange(candidate, 0, 1)) {
+        sanitized[field] = legacyMutationRate;
+      }
+    }
+  }
+
+  if (isFiniteInRange(legacyMutationStrength, 0, 1)) {
+    for (const field of ['physicalTraitsMutationStrength', 'brainWeightMutationStrength']) {
+      const candidate = Number(source[field]);
+      if (!isFiniteInRange(candidate, 0, 1)) {
+        sanitized[field] = legacyMutationStrength;
+      }
+    }
   }
 
   if (sanitized.maxFood < sanitized.initialFoodCount) {
