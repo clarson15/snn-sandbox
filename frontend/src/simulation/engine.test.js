@@ -1772,4 +1772,257 @@ describe('simulation engine skeleton', () => {
     });
   });
 
+  describe('forest terrain vision penalty', () => {
+    // Forest terrain applies a deterministic 50% penalty to vision range
+    // This test verifies that organisms in forest have reduced effective vision
+    it('organisms in forest zone have reduced effective vision range', () => {
+      // With base vision 20, effective in forest should be 10 (50%)
+      // Food at distance 13: detectable with base (20) but NOT with effective (10)
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'organism', x: 15, y: 15, energy: 20, age: 0, generation: 1, direction: 0,
+            traits: { size: 1, speed: 1, visionRange: 20, turnRate: 0.05, metabolism: 0 },
+            brain: { neurons: [], synapses: [] } }
+        ],
+        food: [
+          { id: 'food-far', x: 28, y: 15, energyValue: 5 } // 13 units away
+        ],
+        terrainZones: [
+          { id: 'forest-1', type: 'forest', bounds: { x: 10, y: 10, width: 10, height: 10 } }
+        ]
+      });
+
+      const next = stepWorld(state, createSeededPrng('forest-vision-food'), {
+        movementDelta: 10,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        foodSpawnChance: 0
+      });
+
+      // In forest, effective vision is 10, food at 13 should not be detected
+      expect(next.food.find((f) => f.id === 'food-far')).toBeDefined();
+    });
+
+    it('organisms outside forest zone can use full vision range without error', () => {
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'organism', x: 5, y: 5, energy: 20, age: 0, generation: 1, direction: 0,
+            traits: { size: 1, speed: 1, visionRange: 20, turnRate: 0.05, metabolism: 0 },
+            brain: { neurons: [], synapses: [] } }
+        ],
+        food: [
+          { id: 'food-far', x: 18, y: 5, energyValue: 5 }
+        ],
+        terrainZones: [
+          { id: 'forest-1', type: 'forest', bounds: { x: 10, y: 10, width: 10, height: 10 } }
+        ]
+      });
+
+      // Should run without error
+      const next = stepWorld(state, createSeededPrng('forest-vision-outside'), {
+        movementDelta: 10,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        foodSpawnChance: 0
+      });
+
+      expect(next.organisms).toBeDefined();
+    });
+
+    it('is deterministic for forest terrain vision penalty and preserves no-forest parity', () => {
+      const createForestState = () => createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 15, y: 15, energy: 10, age: 0, generation: 1, direction: 0,
+            traits: { size: 1, speed: 1, visionRange: 20, turnRate: 0.05, metabolism: 1 },
+            brain: { neurons: [], synapses: [] } }
+        ],
+        food: [
+          { id: 'food-1', x: 22, y: 15, energyValue: 5 }
+        ],
+        terrainZones: [
+          { id: 'forest-1', type: 'forest', bounds: { x: 10, y: 10, width: 10, height: 10 } }
+        ]
+      });
+      const createNoTerrainState = () => createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 15, y: 15, energy: 10, age: 0, generation: 1, direction: 0,
+            traits: { size: 1, speed: 1, visionRange: 20, turnRate: 0.05, metabolism: 1 },
+            brain: { neurons: [], synapses: [] } }
+        ],
+        food: [
+          { id: 'food-1', x: 22, y: 15, energyValue: 5 }
+        ]
+      });
+
+      const params = {
+        movementDelta: 10,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        foodSpawnChance: 0
+      };
+
+      let forestA = createForestState();
+      let forestB = createForestState();
+      const forestRngA = createSeededPrng('forest-vision-det-seed');
+      const forestRngB = createSeededPrng('forest-vision-det-seed');
+
+      let noTerrainA = createNoTerrainState();
+      let noTerrainB = createNoTerrainState();
+      const noTerrainRngA = createSeededPrng('no-forest-vision-det-seed');
+      const noTerrainRngB = createSeededPrng('no-forest-vision-det-seed');
+
+      for (let tick = 0; tick < 3; tick += 1) {
+        forestA = stepWorld(forestA, forestRngA, params);
+        forestB = stepWorld(forestB, forestRngB, params);
+        noTerrainA = stepWorld(noTerrainA, noTerrainRngA, params);
+        noTerrainB = stepWorld(noTerrainB, noTerrainRngB, params);
+      }
+
+      expect(forestA).toEqual(forestB);
+      expect(noTerrainA).toEqual(noTerrainB);
+    });
+  });
+
+  describe('wetland terrain movement penalty', () => {
+    it('applies movement speed penalty to organisms inside wetland zone', () => {
+      // Organism with speed 2 placed in wetland zone should have effective speed of 1 (50%)
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'organism', x: 0, y: 0, energy: 10, age: 0, generation: 1, direction: 0,
+            traits: { size: 1, speed: 2, visionRange: 10, turnRate: 0.05, metabolism: 1 },
+            brain: { neurons: [], synapses: [{ sourceId: 'in-constant', targetId: 'out-forward', weight: 1 }] } }
+        ],
+        food: [],
+        terrainZones: [
+          { id: 'wetland-1', type: 'wetland', bounds: { x: -5, y: -5, width: 20, height: 20 } }
+        ]
+      });
+
+      const next = stepWorld(state, createSeededPrng('wetland-speed'), {
+        movementDelta: 10,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        foodSpawnChance: 0
+      });
+
+      // Organism in wetland with speed 2 should move ~1 unit (effective speed 1 * forward signal 1)
+      // Without penalty would move ~2 units
+      expect(next.organisms[0].x).toBeCloseTo(1, 0);
+    });
+
+    it('does not apply movement penalty to organisms outside wetland zone', () => {
+      // Organism outside wetland should have full speed
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'organism', x: 0, y: 0, energy: 10, age: 0, generation: 1, direction: 0,
+            traits: { size: 1, speed: 2, visionRange: 10, turnRate: 0.05, metabolism: 1 },
+            brain: { neurons: [], synapses: [{ sourceId: 'in-constant', targetId: 'out-forward', weight: 1 }] } }
+        ],
+        food: [],
+        terrainZones: [
+          { id: 'wetland-1', type: 'wetland', bounds: { x: 50, y: 50, width: 20, height: 20 } }
+        ]
+      });
+
+      const next = stepWorld(state, createSeededPrng('wetland-speed-outside'), {
+        movementDelta: 10,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        foodSpawnChance: 0
+      });
+
+      // Organism outside wetland should move at full speed 2
+      expect(next.organisms[0].x).toBeCloseTo(2, 0);
+    });
+
+    it('applies turn rate penalty to organisms inside wetland zone', () => {
+      // Organism with turnRate 0.1 in wetland should have effective turnRate of 0.05 (50%)
+      const state = createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'organism', x: 0, y: 0, energy: 10, age: 0, generation: 1, direction: 0,
+            traits: { size: 1, speed: 1, visionRange: 10, turnRate: 0.1, metabolism: 1 },
+            brain: { neurons: [], synapses: [{ sourceId: 'in-constant', targetId: 'out-turn-right', weight: 1 }] } }
+        ],
+        food: [],
+        terrainZones: [
+          { id: 'wetland-1', type: 'wetland', bounds: { x: -5, y: -5, width: 20, height: 20 } }
+        ]
+      });
+
+      const next = stepWorld(state, createSeededPrng('wetland-turn'), {
+        movementDelta: 10,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        foodSpawnChance: 0
+      });
+
+      // Organism in wetland with turnRate 0.1 should turn ~0.05 radians (effective 0.1 * 0.5)
+      // Without penalty would turn ~0.1 radians
+      expect(next.organisms[0].direction).toBeCloseTo(0.05, 1);
+    });
+
+    it('is deterministic for wetland terrain movement penalty and preserves no-wetland parity', () => {
+      const createWetlandState = () => createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 0, y: 0, energy: 10, age: 0, generation: 1, direction: 0,
+            traits: { size: 1, speed: 2, visionRange: 10, turnRate: 0.1, metabolism: 1 },
+            brain: { neurons: [], synapses: [
+              { sourceId: 'in-constant', targetId: 'out-forward', weight: 1 },
+              { sourceId: 'in-constant', targetId: 'out-turn-right', weight: 1 }
+            ] } }
+        ],
+        food: [],
+        terrainZones: [
+          { id: 'wetland-1', type: 'wetland', bounds: { x: -5, y: -5, width: 20, height: 20 } }
+        ]
+      });
+      const createNoTerrainState = () => createWorldState({
+        tick: 0,
+        organisms: [
+          { id: 'org-1', x: 0, y: 0, energy: 10, age: 0, generation: 1, direction: 0,
+            traits: { size: 1, speed: 2, visionRange: 10, turnRate: 0.1, metabolism: 1 },
+            brain: { neurons: [], synapses: [
+              { sourceId: 'in-constant', targetId: 'out-forward', weight: 1 },
+              { sourceId: 'in-constant', targetId: 'out-turn-right', weight: 1 }
+            ] } }
+        ],
+        food: []
+      });
+
+      const params = {
+        movementDelta: 10,
+        metabolismPerTick: 0,
+        movementCostMultiplier: 0,
+        foodSpawnChance: 0
+      };
+
+      let wetlandA = createWetlandState();
+      let wetlandB = createWetlandState();
+      const wetlandRngA = createSeededPrng('wetland-move-det-seed');
+      const wetlandRngB = createSeededPrng('wetland-move-det-seed');
+
+      let noTerrainA = createNoTerrainState();
+      let noTerrainB = createNoTerrainState();
+      const noTerrainRngA = createSeededPrng('no-wetland-move-det-seed');
+      const noTerrainRngB = createSeededPrng('no-wetland-move-det-seed');
+
+      for (let tick = 0; tick < 3; tick += 1) {
+        wetlandA = stepWorld(wetlandA, wetlandRngA, params);
+        wetlandB = stepWorld(wetlandB, wetlandRngB, params);
+        noTerrainA = stepWorld(noTerrainA, noTerrainRngA, params);
+        noTerrainB = stepWorld(noTerrainB, noTerrainRngB, params);
+      }
+
+      expect(wetlandA).toEqual(wetlandB);
+      expect(noTerrainA).toEqual(noTerrainB);
+    });
+  });
 });

@@ -145,6 +145,9 @@ const BRAIN_SIGNAL_SUBSTEPS = 2;
 const BRAIN_POTENTIAL_MIN = -4;
 const BRAIN_POTENTIAL_MAX = 4;
 const ROCKY_TERRAIN_ENERGY_DRAIN_PER_TICK = 0.2;
+const FOREST_TERRAIN_VISION_PENALTY_MULTIPLIER = 0.5; // 50% vision range in forest zones
+const WETLAND_TERRAIN_SPEED_PENALTY_MULTIPLIER = 0.5; // 50% speed in wetland zones
+const WETLAND_TERRAIN_TURN_PENALTY_MULTIPLIER = 0.5; // 50% turn rate in wetland zones
 const LEGACY_CONSTANT_INPUT_ID = 'in-constant';
 const NORMALIZED_BRAIN_VERSION = 2;
 const INCOMING_SYNAPSE_CACHE = new WeakMap();
@@ -312,9 +315,9 @@ function buildIncomingSynapseMap(synapses) {
   return incoming;
 }
 
-function evaluateBrain(organism, food, worldWidth, worldHeight, organismContext = {}) {
+function evaluateBrain(organism, food, worldWidth, worldHeight, organismContext = {}, terrainZones = null) {
   const normalizedBrain = normalizeBrain(organism?.brain, organism?.type);
-  const inputValues = computeInputNeuronValues(organism, food, worldWidth, worldHeight, organismContext);
+  const inputValues = computeInputNeuronValues(organism, food, worldWidth, worldHeight, organismContext, terrainZones);
   const incomingSynapses = buildIncomingSynapseMap(normalizedBrain.synapses);
   const dynamicNeurons = normalizedBrain.neurons.filter((neuron) => neuron.type !== 'input');
   const nextNeuronById = new Map();
@@ -541,9 +544,10 @@ function buildPreySpatialIndex(organisms, cellSize) {
  * @param {Object} [organismContext] - context for predator prey detection
  * @param {WorldOrganism[]} [organismContext.organisms] - all organisms in the world
  * @param {{cellsByKey: Map<string, Set<string>>, preyById: Map<string, WorldOrganism>, cellSize: number}} [organismContext.preyIndex] - pre-built spatial index for prey
+ * @param {WorldTerrainZone[]} [terrainZones] - terrain zones for forest vision penalty
  * @returns {Map<string, number>} Map of input neuron ID -> value (typically 0-1 range)
  */
-function computeInputNeuronValues(organism, food, worldWidth, worldHeight, organismContext = null) {
+function computeInputNeuronValues(organism, food, worldWidth, worldHeight, organismContext = null, terrainZones = null) {
   const inputs = new Map();
   const expressedTraits = resolveExpressedTraits(organism);
 
@@ -568,7 +572,8 @@ function computeInputNeuronValues(organism, food, worldWidth, worldHeight, organ
   inputs.set('in-vision-range', Math.min(1, (expressedTraits.visionRange ?? 25) / 100));
 
   // Food sensors: find nearest food within vision range
-  const visionRange = expressedTraits.visionRange ?? 25;
+  // Apply forest terrain vision penalty if organism is in a forest zone
+  const visionRange = getEffectiveVisionRange(organism, terrainZones);
   const visionRangeSquared = visionRange * visionRange;
 
   let nearestFoodDist = Infinity;
@@ -611,7 +616,8 @@ function computeInputNeuronValues(organism, food, worldWidth, worldHeight, organ
   if (organism.type === 'predator') {
     const preyIndex = organismContext?.preyIndex ?? null;
     const organisms = organismContext?.organisms ?? [];
-    const visionRange = organism.traits?.visionRange ?? 25;
+    // Apply forest terrain vision penalty for prey detection
+    const visionRange = getEffectiveVisionRange(organism, terrainZones);
     const visionRangeSquared = visionRange * visionRange;
 
     // Use spatial index if available, otherwise fall back to full scan (for backward compatibility)
@@ -700,8 +706,9 @@ function computeInputNeuronValues(organism, food, worldWidth, worldHeight, organ
   return inputs;
 }
 
-function deriveRotationDelta(organism, outputSignals = null, inputValues = null) {
-  const turnRate = Number(organism?.traits?.turnRate ?? 0);
+function deriveRotationDelta(organism, outputSignals = null, inputValues = null, terrainZones = null) {
+  // Apply wetland terrain turn rate penalty
+  const turnRate = getEffectiveTurnRate(organism, terrainZones);
   if (!Number.isFinite(turnRate) || turnRate === 0) {
     return 0;
   }
@@ -744,8 +751,9 @@ function deriveRotationDelta(organism, outputSignals = null, inputValues = null)
   return (rightSignal - leftSignal) * turnRate;
 }
 
-function deriveForwardDelta(organism, outputSignals = null, inputValues = null) {
-  const speed = Number(resolveExpressedTraits(organism).speed ?? 1);
+function deriveForwardDelta(organism, outputSignals = null, inputValues = null, terrainZones = null) {
+  // Apply wetland terrain speed penalty
+  const speed = getEffectiveSpeed(organism, terrainZones);
   if (!Number.isFinite(speed) || speed === 0) {
     return 0;
   }
@@ -791,7 +799,7 @@ function deriveForwardDelta(organism, outputSignals = null, inputValues = null) 
   return Math.max(-1, Math.min(1, forwardSignal)) * speed;
 }
 
-function moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMultiplier, outputSignals = null, inputValues = null) {
+function moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMultiplier, outputSignals = null, inputValues = null, terrainZones = null) {
   const expressedTraits = resolveExpressedTraits(organism);
   // Use organism's metabolism trait for deterministic energy loss, fallback to param for backward compatibility
   const organismMetabolism = Number.isFinite(expressedTraits.metabolism)
@@ -801,7 +809,7 @@ function moveAndSpendEnergy(organism, dx, dy, metabolismPerTick, movementCostMul
   const movementCostScale = Number.isFinite(expressedTraits.movementCostScale) ? expressedTraits.movementCostScale : 1;
   const energySpent = organismMetabolism + movementDistance * movementCostMultiplier * movementCostScale;
   const baseDirection = organism.direction ?? 0;
-  const rotationDelta = deriveRotationDelta(organism, outputSignals, inputValues);
+  const rotationDelta = deriveRotationDelta(organism, outputSignals, inputValues, terrainZones);
   const direction = normalizeAngle(baseDirection + rotationDelta);
 
   return {
@@ -887,6 +895,92 @@ function applyRockyTerrainEnergyDrain(organisms, terrainZones) {
       energy: Math.max(0, organism.energy - ROCKY_TERRAIN_ENERGY_DRAIN_PER_TICK)
     };
   });
+}
+
+/**
+ * Check if an organism is inside any forest terrain zone.
+ * @param {WorldOrganism} organism
+ * @param {WorldTerrainZone[]} terrainZones
+ * @returns {boolean}
+ */
+function isInForestZone(organism, terrainZones) {
+  if (!terrainZones || terrainZones.length === 0) {
+    return false;
+  }
+  const forestZones = terrainZones.filter((zone) => zone?.type === 'forest');
+  if (forestZones.length === 0) {
+    return false;
+  }
+  return forestZones.some((zone) => isInTerrainZoneBounds(organism, zone));
+}
+
+/**
+ * Check if an organism is inside any wetland terrain zone.
+ * @param {WorldOrganism} organism
+ * @param {WorldTerrainZone[]} terrainZones
+ * @returns {boolean}
+ */
+function isInWetlandZone(organism, terrainZones) {
+  if (!terrainZones || terrainZones.length === 0) {
+    return false;
+  }
+  const wetlandZones = terrainZones.filter((zone) => zone?.type === 'wetland');
+  if (wetlandZones.length === 0) {
+    return false;
+  }
+  return wetlandZones.some((zone) => isInTerrainZoneBounds(organism, zone));
+}
+
+/**
+ * Compute effective vision range accounting for forest terrain penalty.
+ * Returns the base vision range if organism is not in a forest zone,
+ * otherwise returns reduced vision range (deterministic, no randomness).
+ * Uses resolveExpressedTraits to get the expressed trait values (including juvenile growth scaling).
+ * @param {WorldOrganism} organism
+ * @param {WorldTerrainZone[]} terrainZones
+ * @returns {number} effective vision range
+ */
+function getEffectiveVisionRange(organism, terrainZones) {
+  const expressedTraits = resolveExpressedTraits(organism);
+  const baseVisionRange = expressedTraits.visionRange ?? 25;
+  if (!isInForestZone(organism, terrainZones)) {
+    return baseVisionRange;
+  }
+  return baseVisionRange * FOREST_TERRAIN_VISION_PENALTY_MULTIPLIER;
+}
+
+/**
+ * Compute effective speed accounting for wetland terrain penalty.
+ * Returns the base speed if organism is not in a wetland zone,
+ * otherwise returns reduced speed (deterministic, no randomness).
+ * Uses resolveExpressedTraits to get the expressed trait values (including juvenile growth scaling).
+ * @param {WorldOrganism} organism
+ * @param {WorldTerrainZone[]} terrainZones
+ * @returns {number} effective speed
+ */
+function getEffectiveSpeed(organism, terrainZones) {
+  const expressedTraits = resolveExpressedTraits(organism);
+  const baseSpeed = expressedTraits.speed ?? 1;
+  if (!isInWetlandZone(organism, terrainZones)) {
+    return baseSpeed;
+  }
+  return baseSpeed * WETLAND_TERRAIN_SPEED_PENALTY_MULTIPLIER;
+}
+
+/**
+ * Compute effective turn rate accounting for wetland terrain penalty.
+ * Returns the base turn rate if organism is not in a wetland zone,
+ * otherwise returns reduced turn rate (deterministic, no randomness).
+ * @param {WorldOrganism} organism
+ * @param {WorldTerrainZone[]} terrainZones
+ * @returns {number} effective turn rate
+ */
+function getEffectiveTurnRate(organism, terrainZones) {
+  const baseTurnRate = organism.traits?.turnRate ?? 0;
+  if (!isInWetlandZone(organism, terrainZones)) {
+    return baseTurnRate;
+  }
+  return baseTurnRate * WETLAND_TERRAIN_TURN_PENALTY_MULTIPLIER;
 }
 
 /**
@@ -1312,6 +1406,7 @@ export function stepWorld(state, rng, params = {}) {
   const brainMutationMagnitude = params.brainMutationMagnitude ?? 0.2;
   const brainAddSynapseChance = params.brainAddSynapseChance ?? 0.05;
   const brainRemoveSynapseChance = params.brainRemoveSynapseChance ?? 0.05;
+  const terrainZones = params.terrainZones ?? state.terrainZones ?? [];
   const currentTick = state.tick + 1;
 
   const eggs = [];
@@ -1357,15 +1452,18 @@ export function stepWorld(state, rng, params = {}) {
         0,
         0,
         metabolismPerTick,
-        movementCostMultiplier
+        movementCostMultiplier,
+        null,
+        null,
+        terrainZones
       );
     }
 
-    const brainEvaluation = evaluateBrain(organism, state.food, worldWidth, worldHeight, organismContext);
+    const brainEvaluation = evaluateBrain(organism, state.food, worldWidth, worldHeight, organismContext, terrainZones);
     const baseDirection = organism.direction ?? 0;
-    const rotationDelta = deriveRotationDelta(organism, brainEvaluation.outputs, brainEvaluation.inputs);
+    const rotationDelta = deriveRotationDelta(organism, brainEvaluation.outputs, brainEvaluation.inputs, terrainZones);
     const direction = normalizeAngle(baseDirection + rotationDelta);
-    const forwardDelta = deriveForwardDelta(organism, brainEvaluation.outputs, brainEvaluation.inputs);
+    const forwardDelta = deriveForwardDelta(organism, brainEvaluation.outputs, brainEvaluation.inputs, terrainZones);
     const boundedForwardDelta = Math.max(-movementDelta, Math.min(movementDelta, forwardDelta));
     const dx = Math.cos(direction) * boundedForwardDelta;
     const dy = Math.sin(direction) * boundedForwardDelta;
@@ -1381,7 +1479,8 @@ export function stepWorld(state, rng, params = {}) {
       metabolismPerTick,
       movementCostMultiplier,
       brainEvaluation.outputs,
-      brainEvaluation.inputs
+      brainEvaluation.inputs,
+      terrainZones
     );
   });
 
@@ -1770,7 +1869,7 @@ export function stepWorld(state, rng, params = {}) {
   const hazards = params;
   const obstacles = hazards.obstacles ?? state.obstacles ?? [];
   const dangerZones = hazards.dangerZones ?? state.dangerZones ?? [];
-  const terrainZones = hazards.terrainZones ?? state.terrainZones ?? [];
+  // Note: terrainZones is extracted earlier in the function for use in movement calculations
 
   // Apply danger-zone damage first, then rocky passive drain.
   let finalOrganisms = applyDangerZoneDamage(organisms, dangerZones);
