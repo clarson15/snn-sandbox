@@ -121,9 +121,9 @@ docker build -t snn-sandbox:local .
 `APP_VERSION` is injected at Docker build time and available at runtime.
 
 Version source:
-- **Main branch CI (`main-build.yml`)**: use semver tag on `HEAD` (for example `v1.2.3`) when present; otherwise fallback to `0.0.0+sha.<shortsha>`. Build timestamp is appended as semver build metadata.
-- **PR CI (`pr-build.yml`)**: use `0.0.0-pr.<pr-number>+sha.<shortsha>+build.<timestamp>`. Timestamp is in UTC (ISO 8601 format: `YYYYMMDDTHHMMSSZ`).
-- **Local Docker build**: defaults to `0.0.0-local` unless overridden.
+- **Main branch CI (`main-build.yml`)**: Finds the latest semver tag (e.g., `v1.2.0`), increments the patch version, and appends the UTC build timestamp as semver build metadata (`+build.<UTC timestamp>`). If no semver tags exist, starts at `0.0.1+build.<UTC timestamp>`.
+- **PR CI (`pr-build.yml`)**: Uses `0.0.0-pr.<pr-number>+sha.<shortsha>+build.<UTC timestamp>`. Timestamp is in UTC (ISO 8601 format: `YYYYMMDDTHHMMSSZ`).
+- **Local Docker build**: Defaults to `0.0.0-local` unless overridden.
 
 The version format uses semver build metadata (`+build.<timestamp>`) to include the UTC build timestamp in a format that is:
 - Readable in logs and UI
@@ -135,6 +135,9 @@ Examples:
 ```bash
 # Main branch build (with latest tag v1.2.0)
 # APP_VERSION = 1.2.1+build.20240316T120000Z
+
+# Main branch build (no existing tags)
+# APP_VERSION = 0.0.1+build.20240316T120000Z
 
 # PR build (PR #123, sha abc1234, built at 2024-03-16 12:00:00 UTC)
 # APP_VERSION = 0.0.0-pr.123+sha.abc1234+build.20240316T120000Z

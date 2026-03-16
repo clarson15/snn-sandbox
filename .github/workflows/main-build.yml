@@ -50,6 +50,12 @@ jobs:
             echo "sha_tag=0.0.1" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Validate APP_VERSION format
+        run: |
+          echo "Validating APP_VERSION format..."
+          scripts/validate-app-version.sh "${{ steps.app_version.outputs.value }}"
+          echo "APP_VERSION format validated successfully"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
