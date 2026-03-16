@@ -475,7 +475,6 @@ describe('simulation config helpers', () => {
       physicalTraitsMutationRate: 0.3,
       physicalTraitsMutationStrength: 0.4,
       brainStructureMutationRate: 0.3,
-      brainStructureMutationStrength: 0.4,
       brainWeightMutationRate: 0.3,
       brainWeightMutationStrength: 0.4,
       resolvedSeed: undefined,
@@ -539,7 +538,6 @@ describe('simulation config helpers', () => {
       physicalTraitsMutationRate: 0.05,
       physicalTraitsMutationStrength: 0.1,
       brainStructureMutationRate: 0.05,
-      brainStructureMutationStrength: 0.1,
       brainWeightMutationRate: 0.05,
       brainWeightMutationStrength: 0.1,
       resolvedSeed: undefined,
@@ -749,7 +747,6 @@ describe('simulation config helpers', () => {
           physicalTraitsMutationRate: 0.15,
           physicalTraitsMutationStrength: 0.25,
           brainStructureMutationRate: 0.08,
-          brainStructureMutationStrength: 0.12,
           brainWeightMutationRate: 0.2,
           brainWeightMutationStrength: 0.35
         },
@@ -803,7 +800,6 @@ describe('simulation config helpers', () => {
           physicalTraitsMutationRate: 0.3,
           physicalTraitsMutationStrength: 0.4,
           brainStructureMutationRate: 0.25,
-          brainStructureMutationStrength: 0.35,
           brainWeightMutationRate: 0.45,
           brainWeightMutationStrength: 0.55
         },

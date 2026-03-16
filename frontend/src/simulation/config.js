@@ -78,7 +78,6 @@ export function saveCustomPreset(name, config) {
       physicalTraitsMutationRate: config.physicalTraitsMutationRate,
       physicalTraitsMutationStrength: config.physicalTraitsMutationStrength,
       brainStructureMutationRate: config.brainStructureMutationRate,
-      brainStructureMutationStrength: config.brainStructureMutationStrength,
       brainWeightMutationRate: config.brainWeightMutationRate,
       brainWeightMutationStrength: config.brainWeightMutationStrength,
       reproductionThreshold: config.reproductionThreshold,
@@ -152,7 +151,6 @@ export const SIMULATION_PRESETS = [
       physicalTraitsMutationRate: 0.05,
       physicalTraitsMutationStrength: 0.1,
       brainStructureMutationRate: 0.05,
-      brainStructureMutationStrength: 0.1,
       brainWeightMutationRate: 0.05,
       brainWeightMutationStrength: 0.1
     }
@@ -177,7 +175,6 @@ export const SIMULATION_PRESETS = [
       physicalTraitsMutationRate: 0.03,
       physicalTraitsMutationStrength: 0.05,
       brainStructureMutationRate: 0.03,
-      brainStructureMutationStrength: 0.05,
       brainWeightMutationRate: 0.03,
       brainWeightMutationStrength: 0.05
     }
@@ -202,7 +199,6 @@ export const SIMULATION_PRESETS = [
       physicalTraitsMutationRate: 0.2,
       physicalTraitsMutationStrength: 0.3,
       brainStructureMutationRate: 0.2,
-      brainStructureMutationStrength: 0.3,
       brainWeightMutationRate: 0.2,
       brainWeightMutationStrength: 0.3
     }
@@ -227,7 +223,6 @@ export const SIMULATION_PRESETS = [
       physicalTraitsMutationRate: 0.1,
       physicalTraitsMutationStrength: 0.15,
       brainStructureMutationRate: 0.1,
-      brainStructureMutationStrength: 0.15,
       brainWeightMutationRate: 0.1,
       brainWeightMutationStrength: 0.15
     }
@@ -252,7 +247,6 @@ export const SIMULATION_PRESETS = [
       physicalTraitsMutationRate: 0.05,
       physicalTraitsMutationStrength: 0.1,
       brainStructureMutationRate: 0.05,
-      brainStructureMutationStrength: 0.1,
       brainWeightMutationRate: 0.05,
       brainWeightMutationStrength: 0.1
     }
@@ -305,7 +299,6 @@ export const DEFAULT_CONFIG = {
   physicalTraitsMutationRate: 0.05,
   physicalTraitsMutationStrength: 0.1,
   brainStructureMutationRate: 0.05,
-  brainStructureMutationStrength: 0.1,
   brainWeightMutationRate: 0.05,
   brainWeightMutationStrength: 0.1,
   // Reproduction settings
@@ -377,7 +370,6 @@ export function validateSimulationConfig(input) {
     ['physicalTraitsMutationRate', 0, 1, 'Physical traits mutation rate must be between 0 and 1.'],
     ['physicalTraitsMutationStrength', 0, 1, 'Physical traits mutation strength must be between 0 and 1.'],
     ['brainStructureMutationRate', 0, 1, 'Brain structure mutation rate must be between 0 and 1.'],
-    ['brainStructureMutationStrength', 0, 1, 'Brain structure mutation strength must be between 0 and 1.'],
     ['brainWeightMutationRate', 0, 1, 'Brain weight mutation rate must be between 0 and 1.'],
     ['brainWeightMutationStrength', 0, 1, 'Brain weight mutation strength must be between 0 and 1.'],
     ['reproductionThreshold', 1, 200, 'Reproduction threshold must be between 1 and 200.'],
@@ -454,7 +446,6 @@ export function normalizeSimulationConfig(input, resolvedSeed) {
     physicalTraitsMutationRate: Number(input.physicalTraitsMutationRate ?? input.mutationRate ?? DEFAULT_CONFIG.physicalTraitsMutationRate),
     physicalTraitsMutationStrength: Number(input.physicalTraitsMutationStrength ?? input.mutationStrength ?? DEFAULT_CONFIG.physicalTraitsMutationStrength),
     brainStructureMutationRate: Number(input.brainStructureMutationRate ?? input.mutationRate ?? DEFAULT_CONFIG.brainStructureMutationRate),
-    brainStructureMutationStrength: Number(input.brainStructureMutationStrength ?? input.mutationStrength ?? DEFAULT_CONFIG.brainStructureMutationStrength),
     brainWeightMutationRate: Number(input.brainWeightMutationRate ?? input.mutationRate ?? DEFAULT_CONFIG.brainWeightMutationRate),
     brainWeightMutationStrength: Number(input.brainWeightMutationStrength ?? input.mutationStrength ?? DEFAULT_CONFIG.brainWeightMutationStrength),
     reproductionThreshold: Number(input.reproductionThreshold ?? DEFAULT_CONFIG.reproductionThreshold),
@@ -917,7 +908,6 @@ function sanitizeLoadedConfigDraft(parsed) {
     physicalTraitsMutationRate: [0, 1],
     physicalTraitsMutationStrength: [0, 1],
     brainStructureMutationRate: [0, 1],
-    brainStructureMutationStrength: [0, 1],
     brainWeightMutationRate: [0, 1],
     brainWeightMutationStrength: [0, 1],
     reproductionThreshold: [1, 200],
@@ -975,9 +965,6 @@ function sanitizeLoadedConfigDraft(parsed) {
   if (hasValidLegacyMutationStrength) {
     if (!('physicalTraitsMutationStrength' in source)) {
       sanitized.physicalTraitsMutationStrength = sourceMutationStrength;
-    }
-    if (!('brainStructureMutationStrength' in source)) {
-      sanitized.brainStructureMutationStrength = sourceMutationStrength;
     }
     if (!('brainWeightMutationStrength' in source)) {
       sanitized.brainWeightMutationStrength = sourceMutationStrength;

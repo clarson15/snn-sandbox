@@ -16,7 +16,6 @@ const DETERMINISTIC_PARAM_RULES = [
   ['physicalTraitsMutationRate', 0, 1],
   ['physicalTraitsMutationStrength', 0, 1],
   ['brainStructureMutationRate', 0, 1],
-  ['brainStructureMutationStrength', 0, 1],
   ['brainWeightMutationRate', 0, 1],
   ['brainWeightMutationStrength', 0, 1],
   ['reproductionThreshold', 1, 200],

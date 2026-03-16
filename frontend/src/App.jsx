@@ -114,6 +114,11 @@ const FORM_FIELDS = [
   'maxFood',
   'mutationRate',
   'mutationStrength',
+  'physicalTraitsMutationRate',
+  'physicalTraitsMutationStrength',
+  'brainStructureMutationRate',
+  'brainWeightMutationRate',
+  'brainWeightMutationStrength',
   'reproductionThreshold',
   'reproductionCost',
   'offspringStartEnergy',
@@ -1187,6 +1192,11 @@ function App() {
       maxFood: String(preset.config.maxFood),
       mutationRate: String(preset.config.mutationRate),
       mutationStrength: String(preset.config.mutationStrength),
+      physicalTraitsMutationRate: String(preset.config.physicalTraitsMutationRate ?? DEFAULT_CONFIG.physicalTraitsMutationRate),
+      physicalTraitsMutationStrength: String(preset.config.physicalTraitsMutationStrength ?? DEFAULT_CONFIG.physicalTraitsMutationStrength),
+      brainStructureMutationRate: String(preset.config.brainStructureMutationRate ?? DEFAULT_CONFIG.brainStructureMutationRate),
+      brainWeightMutationRate: String(preset.config.brainWeightMutationRate ?? DEFAULT_CONFIG.brainWeightMutationRate),
+      brainWeightMutationStrength: String(preset.config.brainWeightMutationStrength ?? DEFAULT_CONFIG.brainWeightMutationStrength),
       reproductionThreshold: String(preset.config.reproductionThreshold ?? DEFAULT_CONFIG.reproductionThreshold),
       reproductionCost: String(preset.config.reproductionCost ?? DEFAULT_CONFIG.reproductionCost),
       offspringStartEnergy: String(preset.config.offspringStartEnergy ?? DEFAULT_CONFIG.offspringStartEnergy),
@@ -1218,6 +1228,11 @@ function App() {
       maxFood: toFiniteNumberOrDefault(formState.maxFood, DEFAULT_CONFIG.maxFood),
       mutationRate: toFiniteNumberOrDefault(formState.mutationRate, DEFAULT_CONFIG.mutationRate),
       mutationStrength: toFiniteNumberOrDefault(formState.mutationStrength, DEFAULT_CONFIG.mutationStrength),
+      physicalTraitsMutationRate: toFiniteNumberOrDefault(formState.physicalTraitsMutationRate, DEFAULT_CONFIG.physicalTraitsMutationRate),
+      physicalTraitsMutationStrength: toFiniteNumberOrDefault(formState.physicalTraitsMutationStrength, DEFAULT_CONFIG.physicalTraitsMutationStrength),
+      brainStructureMutationRate: toFiniteNumberOrDefault(formState.brainStructureMutationRate, DEFAULT_CONFIG.brainStructureMutationRate),
+      brainWeightMutationRate: toFiniteNumberOrDefault(formState.brainWeightMutationRate, DEFAULT_CONFIG.brainWeightMutationRate),
+      brainWeightMutationStrength: toFiniteNumberOrDefault(formState.brainWeightMutationStrength, DEFAULT_CONFIG.brainWeightMutationStrength),
       reproductionThreshold: toFiniteNumberOrDefault(formState.reproductionThreshold, DEFAULT_CONFIG.reproductionThreshold),
       reproductionCost: toFiniteNumberOrDefault(formState.reproductionCost, DEFAULT_CONFIG.reproductionCost),
       offspringStartEnergy: toFiniteNumberOrDefault(formState.offspringStartEnergy, DEFAULT_CONFIG.offspringStartEnergy),
@@ -2625,7 +2640,12 @@ function App() {
       foodEnergyValue: String(validatedPreset.parameters.foodEnergyValue),
       maxFood: String(validatedPreset.parameters.maxFood),
       mutationRate: String(validatedPreset.parameters.mutationRate ?? DEFAULT_CONFIG.mutationRate),
-      mutationStrength: String(validatedPreset.parameters.mutationStrength ?? DEFAULT_CONFIG.mutationStrength)
+      mutationStrength: String(validatedPreset.parameters.mutationStrength ?? DEFAULT_CONFIG.mutationStrength),
+      physicalTraitsMutationRate: String(validatedPreset.parameters.physicalTraitsMutationRate ?? DEFAULT_CONFIG.physicalTraitsMutationRate),
+      physicalTraitsMutationStrength: String(validatedPreset.parameters.physicalTraitsMutationStrength ?? DEFAULT_CONFIG.physicalTraitsMutationStrength),
+      brainStructureMutationRate: String(validatedPreset.parameters.brainStructureMutationRate ?? DEFAULT_CONFIG.brainStructureMutationRate),
+      brainWeightMutationRate: String(validatedPreset.parameters.brainWeightMutationRate ?? DEFAULT_CONFIG.brainWeightMutationRate),
+      brainWeightMutationStrength: String(validatedPreset.parameters.brainWeightMutationStrength ?? DEFAULT_CONFIG.brainWeightMutationStrength)
     }));
 
     setReplayPresetStatus(`Applied preset: ${validatedPreset.name}.`);
@@ -3218,17 +3238,48 @@ function App() {
               </label>
 
               <h3>Evolution settings</h3>
-              <p className="field-hint">Mutation controls are deterministic and seed-driven (range 0–1).</p>
+              <p className="field-hint">Mutation controls are deterministic and seed-driven (range 0–1). Legacy controls apply to all buckets when new controls are not set.</p>
               <div className="field-row">
                 <label>
-                  Mutation rate
+                  Mutation rate (legacy)
                   <input type="number" step="0.01" value={formState.mutationRate} onChange={onFieldChange('mutationRate')} />
                   {errors.mutationRate ? <span className="error-text">{errors.mutationRate}</span> : null}
                 </label>
                 <label>
-                  Mutation strength
+                  Mutation strength (legacy)
                   <input type="number" step="0.01" value={formState.mutationStrength} onChange={onFieldChange('mutationStrength')} />
                   {errors.mutationStrength ? <span className="error-text">{errors.mutationStrength}</span> : null}
+                </label>
+              </div>
+              <div className="field-row">
+                <label>
+                  Physical traits mutation rate
+                  <input type="number" step="0.01" value={formState.physicalTraitsMutationRate} onChange={onFieldChange('physicalTraitsMutationRate')} />
+                  {errors.physicalTraitsMutationRate ? <span className="error-text">{errors.physicalTraitsMutationRate}</span> : null}
+                </label>
+                <label>
+                  Physical traits mutation strength
+                  <input type="number" step="0.01" value={formState.physicalTraitsMutationStrength} onChange={onFieldChange('physicalTraitsMutationStrength')} />
+                  {errors.physicalTraitsMutationStrength ? <span className="error-text">{errors.physicalTraitsMutationStrength}</span> : null}
+                </label>
+              </div>
+              <div className="field-row">
+                <label>
+                  Brain structure mutation rate
+                  <input type="number" step="0.01" value={formState.brainStructureMutationRate} onChange={onFieldChange('brainStructureMutationRate')} />
+                  {errors.brainStructureMutationRate ? <span className="error-text">{errors.brainStructureMutationRate}</span> : null}
+                </label>
+              </div>
+              <div className="field-row">
+                <label>
+                  Brain weight mutation rate
+                  <input type="number" step="0.01" value={formState.brainWeightMutationRate} onChange={onFieldChange('brainWeightMutationRate')} />
+                  {errors.brainWeightMutationRate ? <span className="error-text">{errors.brainWeightMutationRate}</span> : null}
+                </label>
+                <label>
+                  Brain weight mutation strength
+                  <input type="number" step="0.01" value={formState.brainWeightMutationStrength} onChange={onFieldChange('brainWeightMutationStrength')} />
+                  {errors.brainWeightMutationStrength ? <span className="error-text">{errors.brainWeightMutationStrength}</span> : null}
                 </label>
               </div>
 
