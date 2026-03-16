@@ -6,6 +6,7 @@ import {
   applyPreset,
   createDeterministicRunBootstrap,
   createInitialWorldFromConfig,
+  DEFAULT_TERRAIN_ZONE_GENERATION,
   getCustomPresets,
   loadSimulationConfig,
   normalizeSimulationConfig,
@@ -142,6 +143,46 @@ describe('simulation config helpers', () => {
     const firstTicksB = runTicks(restartB.initialWorld, restartB.rng, 40, restartB.stepParams);
 
     expect(firstTicksA).toEqual(firstTicksB);
+  });
+
+  it('creates deterministic terrain zones from seed and terrain settings', () => {
+    const config = normalizeSimulationConfig(
+      {
+        name: 'Terrain determinism',
+        seed: 'terrain-seed',
+        worldWidth: '640',
+        worldHeight: '360',
+        initialPopulation: '4',
+        minimumPopulation: '4',
+        initialFoodCount: '8',
+        terrainZoneGeneration: {
+          enabled: true,
+          zoneCount: 3,
+          minimumZoneWidthRatio: 0.2,
+          maximumZoneWidthRatio: 0.35,
+          minimumZoneHeightRatio: 0.15,
+          maximumZoneHeightRatio: 0.4,
+          zoneTypes: ['plains', 'wetland']
+        }
+      },
+      'terrain-seed'
+    );
+
+    const worldA = createInitialWorldFromConfig(config);
+    const worldB = createInitialWorldFromConfig(config);
+
+    expect(worldA.terrainZones).toEqual(worldB.terrainZones);
+    expect(worldA.terrainZones).toHaveLength(3);
+    expect(worldA.terrainZones[0]).toMatchObject({
+      id: 'terrain-zone-0',
+      type: expect.any(String),
+      bounds: {
+        x: expect.any(Number),
+        y: expect.any(Number),
+        width: expect.any(Number),
+        height: expect.any(Number)
+      }
+    });
   });
 
   it('assigns deterministic distinct colors to initially generated organisms', () => {
@@ -447,7 +488,8 @@ describe('simulation config helpers', () => {
       dangerZoneDamage: 0.5,
       initialPredatorCount: 0,
       predatorEnergyGain: 30,
-      predatorHuntRadius: 50
+      predatorHuntRadius: 50,
+      terrainZoneGeneration: { ...DEFAULT_TERRAIN_ZONE_GENERATION }
     });
   });
 
@@ -503,7 +545,8 @@ describe('simulation config helpers', () => {
       dangerZoneDamage: 0.5,
       initialPredatorCount: 0,
       predatorEnergyGain: 30,
-      predatorHuntRadius: 50
+      predatorHuntRadius: 50,
+      terrainZoneGeneration: { ...DEFAULT_TERRAIN_ZONE_GENERATION }
     });
   });
 
