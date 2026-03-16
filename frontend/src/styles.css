@@ -294,6 +294,49 @@ a {
   align-items: start;
 }
 
+.stats-graph {
+  position: relative;
+  background: rgba(8, 18, 34, 0.35);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-top: 0.5rem;
+}
+
+.stats-graph svg {
+  display: block;
+}
+
+.stats-graph-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.stats-graph-legend {
+  display: flex;
+  gap: 0.75rem;
+  padding: 4px 4px 6px;
+  justify-content: center;
+}
+
+.stats-graph-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.stats-graph-swatch {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 1px;
+}
+
 .hud-playback-controls,
 .hud-runtime-copy {
   display: flex;

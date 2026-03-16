@@ -51,6 +51,7 @@ import {
   formatTrendIndicator,
   reduceStatsTrendHistory
 } from './simulation/stats';
+import { StatsGraph } from './simulation/statsGraph';
 import { deriveRunMetadata, serializeReproducibilityMetadata } from './simulation/metadata';
 import { replaySnapshotToTick } from './simulation/replay';
 import {
@@ -2982,6 +2983,7 @@ function App() {
                     <p>Tick budget clamp: {schedulerClampState.active ? `Active (dropped ${schedulerClampState.droppedTicks} ticks this frame)` : 'Inactive'}</p>
                   ) : null}
                 </div>
+                <StatsGraph history={statsTrendHistory} />
                 <div className="hud-runtime-row">
                   <div className="hud-playback-controls">
                     <strong>Playback speed</strong>
