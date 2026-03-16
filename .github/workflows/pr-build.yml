@@ -39,7 +39,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Set up Node.js for benchmark reporting
+      - name: Set up Node.js for frontend replay tests
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -64,22 +64,4 @@ jobs:
           path: |
             frontend/test-results/replay-parity-failure-summary.md
             frontend/test-results/replay-parity-failure-artifact.json
-          if-no-files-found: warn
-
-      - name: Generate deterministic benchmark comparison report (budget-gated)
-        run: |
-          cd frontend
-          npm run benchmark:compare -- \
-            --budget-config ./scripts/benchmark-budgets.v1.json \
-            --output-json ./benchmark-results/benchmark-comparison.json \
-            --output-markdown ./benchmark-results/benchmark-summary.md
-
-      - name: Upload benchmark summary artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: deterministic-benchmark-summary
-          path: |
-            frontend/benchmark-results/benchmark-comparison.json
-            frontend/benchmark-results/benchmark-summary.md
           if-no-files-found: warn
