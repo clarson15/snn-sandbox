@@ -1,5 +1,5 @@
 /**
- * Deterministic simulation tick engine.
+ * Deterministic simulation tick engine skeleton.
  *
  * Contract:
  * - Input: current world state + seeded RNG + optional parameters
@@ -7,7 +7,13 @@
  * - No ambient randomness (Math.random / Date.now)
  */
 
-import { createNeuronDefinition, INPUT_NEURON_IDS, isInputNeuronId, isOutputNeuronId, OUTPUT_NEURON_IDS } from './brainSchema.js';
+import {
+  createNeuronDefinition,
+  getInputNeuronIdsForOrganismType,
+  isInputNeuronId,
+  isOutputNeuronId,
+  OUTPUT_NEURON_IDS
+} from './brainSchema.js';
 
 /**
  * @typedef {object} WorldOrganism
@@ -206,7 +212,7 @@ function createNormalizedNeuron(source = {}) {
   };
 }
 
-function normalizeBrain(organismBrain) {
+function normalizeBrain(organismBrain, organismType = 'herbivore') {
   if (
     organismBrain?.schemaVersion === NORMALIZED_BRAIN_VERSION
     && Array.isArray(organismBrain.neurons)
@@ -219,8 +225,9 @@ function normalizeBrain(organismBrain) {
   const neurons = Array.isArray(brain.neurons) ? brain.neurons : [];
   const synapses = Array.isArray(brain.synapses) ? brain.synapses : [];
   const neuronById = new Map();
+  const inputNeuronIds = getInputNeuronIdsForOrganismType(organismType);
 
-  for (const inputId of INPUT_NEURON_IDS) {
+  for (const inputId of inputNeuronIds) {
     neuronById.set(inputId, createNeuronDefinition(inputId, 'input'));
   }
 
@@ -289,9 +296,9 @@ function buildIncomingSynapseMap(synapses) {
   return incoming;
 }
 
-function evaluateBrain(organism, food, worldWidth, worldHeight) {
-  const normalizedBrain = normalizeBrain(organism?.brain);
-  const inputValues = computeInputNeuronValues(organism, food, worldWidth, worldHeight);
+function evaluateBrain(organism, food, worldWidth, worldHeight, organismContext = {}) {
+  const normalizedBrain = normalizeBrain(organism?.brain, organism?.type);
+  const inputValues = computeInputNeuronValues(organism, food, worldWidth, worldHeight, organismContext);
   const incomingSynapses = buildIncomingSynapseMap(normalizedBrain.synapses);
   const dynamicNeurons = normalizedBrain.neurons.filter((neuron) => neuron.type !== 'input');
   const nextNeuronById = new Map();
@@ -479,14 +486,48 @@ export function resolveExpressedTraits(organism) {
 }
 
 /**
+ * Build spatial index for prey organisms (non-predators) for efficient predator sensing.
+ * @param {WorldOrganism[]} organisms - all organisms
+ * @param {number} cellSize - spatial cell size (use max vision range)
+ * @returns {{cellsByKey: Map<string, Set<string>>, preyById: Map<string, WorldOrganism>, cellSize: number}}
+ */
+function buildPreySpatialIndex(organisms, cellSize) {
+  const cellsByKey = new Map();
+  const preyById = new Map();
+
+  for (const organism of organisms) {
+    // Skip predators - they are the hunters, not prey
+    if (organism.type === 'predator') {
+      continue;
+    }
+
+    preyById.set(organism.id, organism);
+
+    const cellX = toCellIndex(organism.x, cellSize);
+    const cellY = toCellIndex(organism.y, cellSize);
+    const key = toCellKey(cellX, cellY);
+
+    if (!cellsByKey.has(key)) {
+      cellsByKey.set(key, new Set());
+    }
+    cellsByKey.get(key).add(organism.id);
+  }
+
+  return { cellsByKey, preyById, cellSize };
+}
+
+/**
  * Compute input neuron values based on organism state and environment.
  * @param {WorldOrganism} organism
  * @param {WorldFood[]} food - all food items in the world
  * @param {number} worldWidth
  * @param {number} worldHeight
+ * @param {Object} [organismContext] - context for predator prey detection
+ * @param {WorldOrganism[]} [organismContext.organisms] - all organisms in the world
+ * @param {{cellsByKey: Map<string, Set<string>>, preyById: Map<string, WorldOrganism>, cellSize: number}} [organismContext.preyIndex] - pre-built spatial index for prey
  * @returns {Map<string, number>} Map of input neuron ID -> value (typically 0-1 range)
  */
-function computeInputNeuronValues(organism, food, worldWidth, worldHeight) {
+function computeInputNeuronValues(organism, food, worldWidth, worldHeight, organismContext = null) {
   const inputs = new Map();
   const expressedTraits = resolveExpressedTraits(organism);
 
@@ -548,6 +589,96 @@ function computeInputNeuronValues(organism, food, worldWidth, worldHeight) {
     inputs.set('in-food-direction', (relativeAngle - Math.PI) / Math.PI);
 
     inputs.set('in-food-detected', 1);
+  }
+
+  // Predator-specific prey sensors
+  if (organism.type === 'predator') {
+    const preyIndex = organismContext?.preyIndex ?? null;
+    const organisms = organismContext?.organisms ?? [];
+    const visionRange = organism.traits?.visionRange ?? 25;
+    const visionRangeSquared = visionRange * visionRange;
+
+    // Use spatial index if available, otherwise fall back to full scan (for backward compatibility)
+    let nearestPreyDist = Infinity;
+    let nearestPreyDx = 0;
+    let nearestPreyDy = 0;
+
+    if (preyIndex && preyIndex.cellsByKey && preyIndex.preyById) {
+      // Use spatial index for O(1) average lookup per cell instead of O(n) full scan
+      const { cellsByKey, preyById, cellSize } = preyIndex;
+
+      const minCellX = toCellIndex(organism.x - visionRange, cellSize);
+      const maxCellX = toCellIndex(organism.x + visionRange, cellSize);
+      const minCellY = toCellIndex(organism.y - visionRange, cellSize);
+      const maxCellY = toCellIndex(organism.y + visionRange, cellSize);
+
+      for (let cellX = minCellX; cellX <= maxCellX; cellX += 1) {
+        for (let cellY = minCellY; cellY <= maxCellY; cellY += 1) {
+          const cellPreyIds = cellsByKey.get(toCellKey(cellX, cellY));
+          if (!cellPreyIds || cellPreyIds.size === 0) {
+            continue;
+          }
+
+          for (const preyId of cellPreyIds) {
+            // Skip self
+            if (preyId === organism.id) {
+              continue;
+            }
+
+            const prey = preyById.get(preyId);
+            if (!prey) {
+              continue;
+            }
+
+            const dx = prey.x - organism.x;
+            const dy = prey.y - organism.y;
+            const distSquared = dx * dx + dy * dy;
+
+            if (distSquared < visionRangeSquared && distSquared < nearestPreyDist) {
+              nearestPreyDist = distSquared;
+              nearestPreyDx = dx;
+              nearestPreyDy = dy;
+            }
+          }
+        }
+      }
+    } else {
+      // Fallback: full scan (slower, for backward compatibility)
+      for (const prey of organisms) {
+        // Skip self and other predators
+        if (prey.id === organism.id || prey.type === 'predator') {
+          continue;
+        }
+
+        const dx = prey.x - organism.x;
+        const dy = prey.y - organism.y;
+        const distSquared = dx * dx + dy * dy;
+
+        if (distSquared < visionRangeSquared && distSquared < nearestPreyDist) {
+          nearestPreyDist = distSquared;
+          nearestPreyDx = dx;
+          nearestPreyDy = dy;
+        }
+      }
+    }
+
+    if (nearestPreyDist === Infinity) {
+      // No prey in vision range
+      inputs.set('in-prey-distance', 1);
+      inputs.set('in-prey-direction', 0);
+      inputs.set('in-prey-detected', 0);
+    } else {
+      const dist = Math.sqrt(nearestPreyDist);
+      // Distance: normalized (0 = directly on top, 1 = at vision edge)
+      inputs.set('in-prey-distance', dist / visionRange);
+
+      // Direction to prey relative to current heading
+      const preyAngle = Math.atan2(nearestPreyDy, nearestPreyDx);
+      const relativeAngle = normalizeAngle(preyAngle - direction);
+      inputs.set('in-prey-direction', (relativeAngle - Math.PI) / Math.PI);
+
+      inputs.set('in-prey-detected', 1);
+    }
   }
 
   return inputs;
@@ -966,8 +1097,8 @@ function createHiddenNeuronId(neurons) {
  * @param {number} removeSynapseChance - probability of removing a synapse
  * @returns {object} mutated brain
  */
-function mutateBrain(parentBrain, rng, mutationRate, mutationMagnitude, addSynapseChance, removeSynapseChance) {
-  const baseBrain = normalizeBrain(parentBrain);
+function mutateBrain(parentBrain, organismType, rng, mutationRate, mutationMagnitude, addSynapseChance, removeSynapseChance) {
+  const baseBrain = normalizeBrain(parentBrain, organismType);
   const neurons = baseBrain.neurons.map((neuron) => ({ ...neuron }));
   let synapses = baseBrain.synapses.map((synapse) => ({ ...synapse }));
 
@@ -1077,7 +1208,7 @@ function mutateBrain(parentBrain, rng, mutationRate, mutationMagnitude, addSynap
     signalSubsteps: baseBrain.signalSubsteps,
     neurons,
     synapses
-  });
+  }, organismType);
 
   return nextBrain;
 }
@@ -1130,6 +1261,32 @@ export function stepWorld(state, rng, params = {}) {
     }
   }
 
+  let predatorCount = 0;
+  for (const organism of activeOrganisms) {
+    if (organism.type === 'predator') {
+      predatorCount += 1;
+    }
+  }
+
+  const hasPredators = predatorCount > 0;
+  let organismContext = null;
+  if (hasPredators) {
+    const shouldBuildPredatorPreyIndex = activeOrganisms.length >= 48 && predatorCount >= 4;
+    const maxVisionRange = shouldBuildPredatorPreyIndex
+      ? activeOrganisms.reduce((max, organism) => {
+        const visionRange = organism.traits?.visionRange ?? 25;
+        return visionRange > max ? visionRange : max;
+      }, 25)
+      : null;
+
+    organismContext = {
+      organisms: activeOrganisms,
+      preyIndex: shouldBuildPredatorPreyIndex
+        ? buildPreySpatialIndex(activeOrganisms, maxVisionRange)
+        : null
+    };
+  }
+
   const movedOrganisms = activeOrganisms.map((organism) => {
     if (!organism?.brain) {
       return moveAndSpendEnergy(
@@ -1141,7 +1298,7 @@ export function stepWorld(state, rng, params = {}) {
       );
     }
 
-    const brainEvaluation = evaluateBrain(organism, state.food, worldWidth, worldHeight);
+    const brainEvaluation = evaluateBrain(organism, state.food, worldWidth, worldHeight, organismContext);
     const baseDirection = organism.direction ?? 0;
     const rotationDelta = deriveRotationDelta(organism, brainEvaluation.outputs, brainEvaluation.inputs);
     const direction = normalizeAngle(baseDirection + rotationDelta);
@@ -1279,8 +1436,122 @@ export function stepWorld(state, rng, params = {}) {
     .map((organism) => ({
       ...organism,
       energy: organism.energy + (consumedEnergyByOrganismId.get(organism.id) ?? 0)
-    }))
-    .map((organism) => {
+    }));
+
+  const predatorEnergyGain = params.predatorEnergyGain ?? 30;
+  const predatorHuntRadius = params.predatorHuntRadius ?? 50;
+  const predatorHuntRadiusSquared = predatorHuntRadius * predatorHuntRadius;
+
+  const predators = hasPredators ? [] : null;
+
+  if (predators) {
+    const preyCandidates = [];
+    for (const organism of organisms) {
+      if (organism.type === 'predator') {
+        predators.push(organism);
+      } else {
+        preyCandidates.push(organism);
+      }
+    }
+
+    if (preyCandidates.length > 0) {
+      const consumedPreyIds = new Set();
+      const predatorEnergyGains = new Map();
+
+      let predatorsByStableOrder = predators;
+      const predatorsNeedSort = predators.length > 1
+        && predators.some((predator, index) => index > 0 && predator.id.localeCompare(predators[index - 1].id) < 0);
+      if (predatorsNeedSort) {
+        predatorsByStableOrder = [...predators].sort((a, b) => a.id.localeCompare(b.id));
+      }
+
+      const shouldUseSpatialPredatorHuntLookup = predatorsByStableOrder.length >= 4 && preyCandidates.length >= 48;
+
+      if (shouldUseSpatialPredatorHuntLookup) {
+        const preyById = new Map(preyCandidates.map((prey) => [prey.id, prey]));
+        const preyCellSize = Math.max(predatorHuntRadius, 1);
+        const { cells: preyCellsByKey } = buildFoodSpatialIndex(preyCandidates, preyCellSize);
+
+        for (const predator of predatorsByStableOrder) {
+          let chosenPreyId = null;
+          let chosenDistance = Number.POSITIVE_INFINITY;
+          const minCellX = toCellIndex(predator.x - predatorHuntRadius, preyCellSize);
+          const maxCellX = toCellIndex(predator.x + predatorHuntRadius, preyCellSize);
+          const minCellY = toCellIndex(predator.y - predatorHuntRadius, preyCellSize);
+          const maxCellY = toCellIndex(predator.y + predatorHuntRadius, preyCellSize);
+
+          for (let cellX = minCellX; cellX <= maxCellX; cellX += 1) {
+            for (let cellY = minCellY; cellY <= maxCellY; cellY += 1) {
+              const cellPreyIds = preyCellsByKey.get(toCellKey(cellX, cellY));
+              if (!cellPreyIds || cellPreyIds.size === 0) {
+                continue;
+              }
+
+              for (const preyId of cellPreyIds) {
+                if (consumedPreyIds.has(preyId)) {
+                  continue;
+                }
+
+                const prey = preyById.get(preyId);
+                if (!prey) {
+                  continue;
+                }
+
+                const distance = squaredDistance(predator, prey);
+                if (distance > predatorHuntRadiusSquared) {
+                  continue;
+                }
+
+                if (distance < chosenDistance || (distance === chosenDistance && (chosenPreyId === null || preyId < chosenPreyId))) {
+                  chosenDistance = distance;
+                  chosenPreyId = preyId;
+                }
+              }
+            }
+          }
+
+          if (chosenPreyId !== null) {
+            consumedPreyIds.add(chosenPreyId);
+            predatorEnergyGains.set(predator.id, (predatorEnergyGains.get(predator.id) ?? 0) + predatorEnergyGain);
+          }
+        }
+      } else {
+        for (const predator of predatorsByStableOrder) {
+          let chosenPreyId = null;
+          let chosenDistance = Number.POSITIVE_INFINITY;
+
+          for (const prey of preyCandidates) {
+            if (consumedPreyIds.has(prey.id)) {
+              continue;
+            }
+
+            const distance = squaredDistance(predator, prey);
+            if (distance > predatorHuntRadiusSquared) {
+              continue;
+            }
+
+            if (distance < chosenDistance || (distance === chosenDistance && (chosenPreyId === null || prey.id < chosenPreyId))) {
+              chosenDistance = distance;
+              chosenPreyId = prey.id;
+            }
+          }
+
+          if (chosenPreyId !== null) {
+            consumedPreyIds.add(chosenPreyId);
+            predatorEnergyGains.set(predator.id, (predatorEnergyGains.get(predator.id) ?? 0) + predatorEnergyGain);
+          }
+        }
+      }
+
+      organisms = organisms
+        .filter((organism) => !consumedPreyIds.has(organism.id))
+        .map((organism) => organism.type === 'predator'
+          ? { ...organism, energy: organism.energy + (predatorEnergyGains.get(organism.id) ?? 0) }
+          : organism);
+    }
+  }
+
+  organisms = organisms.map((organism) => {
       if (!shouldApplyInteractionCost) {
         return organism;
       }
@@ -1343,7 +1614,15 @@ export function stepWorld(state, rng, params = {}) {
 
       // Apply deterministic mutations to traits and brain
       const mutatedTraits = mutateTraits(organism.traits, rng, traitMutationRate, traitMutationMagnitude);
-      const mutatedBrain = mutateBrain(organism.brain, rng, brainMutationRate, brainMutationMagnitude, brainAddSynapseChance, brainRemoveSynapseChance);
+      const mutatedBrain = mutateBrain(
+        organism.brain,
+        organism.type,
+        rng,
+        brainMutationRate,
+        brainMutationMagnitude,
+        brainAddSynapseChance,
+        brainRemoveSynapseChance
+      );
 
       const offspringBase = {
         id: offspringId,
