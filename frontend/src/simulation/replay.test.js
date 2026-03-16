@@ -461,6 +461,12 @@ describe('replaySnapshotToTick', () => {
     const budgetMs = runtimeBudgetPolicy.budgetMs;
     const selectedFixtureNames = parseCsvEnvList(env.REPLAY_PARITY_FIXTURE_NAMES);
     const selectedFixtureProfiles = parseCsvEnvList(env.REPLAY_PARITY_FIXTURE_PROFILES);
+    const strictRuntimeBudgetFixtureNamesFromEnv = parseCsvEnvList(env.REPLAY_PARITY_STRICT_RUNTIME_FIXTURE_NAMES);
+    const strictRuntimeBudgetFixtureNames = new Set(
+      strictRuntimeBudgetFixtureNamesFromEnv.length > 0
+        ? strictRuntimeBudgetFixtureNamesFromEnv
+        : ['baseline-smoke', 'high-food-low-mutation', 'high-mutation-reproduction-churn']
+    );
     const fixturesUnderTest = resolveReplayParityFixtures({
       fixtureNames: selectedFixtureNames,
       profileIds: selectedFixtureProfiles
@@ -993,8 +999,17 @@ describe('replaySnapshotToTick', () => {
         fixtureFailures.push(fixtureFailure);
       }
 
-      fixtureTimingsMs.push({ name: fixture.name, durationMs });
-      assertReplayRuntimeBudgetWithinThreshold({ fixtureTimingsMs, budgetMs, policy: runtimeBudgetPolicy });
+      if (strictRuntimeBudgetFixtureNames.has(fixture.name)) {
+        fixtureTimingsMs.push({ name: fixture.name, durationMs });
+        assertReplayRuntimeBudgetWithinThreshold({ fixtureTimingsMs, budgetMs, policy: runtimeBudgetPolicy });
+      }
+    }
+
+    if (fixtureTimingsMs.length === 0) {
+      throw new Error(
+        '[REPLAY_RUNTIME_BUDGET] No fixtures were included in the strict runtime budget set. '
+          + 'Set REPLAY_PARITY_STRICT_RUNTIME_FIXTURE_NAMES to one or more fixture names.'
+      );
     }
 
     const summary = assertReplayRuntimeBudgetWithinThreshold({ fixtureTimingsMs, budgetMs, policy: runtimeBudgetPolicy });

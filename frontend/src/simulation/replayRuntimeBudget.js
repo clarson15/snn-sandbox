@@ -69,7 +69,7 @@ function defaultLocalMultiplierForHostClass(hostClass) {
   return 1.35;
 }
 
-export function readReplayRuntimeBudgetPolicy(defaultStrictBudgetMs = 1900) {
+export function readReplayRuntimeBudgetPolicy(defaultStrictBudgetMs = 1700) {
   const runtimeEnvironment = detectReplayRuntimeEnvironment();
   const hostClass = resolveHostClass(runtimeEnvironment);
   const mode = resolveBudgetMode(runtimeEnvironment);
@@ -99,7 +99,7 @@ export function readReplayRuntimeBudgetPolicy(defaultStrictBudgetMs = 1900) {
   };
 }
 
-export function readReplayRuntimeBudgetMs(defaultBudgetMs = 1900) {
+export function readReplayRuntimeBudgetMs(defaultBudgetMs = 1700) {
   return readReplayRuntimeBudgetPolicy(defaultBudgetMs).budgetMs;
 }
 
