@@ -500,7 +500,10 @@ export function normalizeSimulationConfig(input, resolvedSeed) {
     obstacleCount: Number(input.obstacleCount ?? DEFAULT_CONFIG.obstacleCount),
     obstacleMinSize: Number(input.obstacleMinSize ?? DEFAULT_CONFIG.obstacleMinSize),
     obstacleMaxSize: Number(input.obstacleMaxSize ?? DEFAULT_CONFIG.obstacleMaxSize),
-    enableDangerZones: Boolean(input.enableDangerZones ?? DEFAULT_CONFIG.enableDangerZones),
+    // Danger zones - check flat field first (from UI form), then fall back to default
+    enableDangerZones: input.dangerZoneEnabled !== undefined
+      ? input.dangerZoneEnabled === 'true' || input.dangerZoneEnabled === true
+      : Boolean(input.enableDangerZones ?? DEFAULT_CONFIG.enableDangerZones),
     dangerZoneCount: Number(input.dangerZoneCount ?? DEFAULT_CONFIG.dangerZoneCount),
     dangerZoneRadius: Number(input.dangerZoneRadius ?? DEFAULT_CONFIG.dangerZoneRadius),
     dangerZoneDamage: Number(input.dangerZoneDamage ?? DEFAULT_CONFIG.dangerZoneDamage),

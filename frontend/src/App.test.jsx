@@ -341,6 +341,111 @@ describe('App', () => {
     expect(terrainToggleAfterStart).toBeChecked();
   });
 
+  it('prefills danger zone generation controls from query params', () => {
+    window.history.replaceState({}, '', '/?seed=danger-seed-42&dangerZoneEnabled=true&dangerZoneCount=3&dangerZoneRadius=50&dangerZoneDamage=1.5');
+
+    render(<App />);
+
+    expect(screen.getByLabelText(/^seed \(optional\)$/i)).toHaveValue('danger-seed-42');
+    expect(screen.getByLabelText(/enable danger zones/i)).toBeChecked();
+    expect(screen.getByLabelText(/zone count/i)).toHaveValue(3);
+    expect(screen.getByLabelText(/zone radius/i)).toHaveValue(50);
+    expect(screen.getByLabelText(/damage per tick/i)).toHaveValue(1.5);
+
+    window.history.replaceState({}, '', '/');
+  });
+
+  it('saves and reapplies custom presets with danger zone controls', async () => {
+    render(<App />);
+
+    // Enable danger zones
+    const dangerZoneToggle = screen.getByLabelText(/enable danger zones/i);
+    if (!dangerZoneToggle.checked) {
+      fireEvent.click(dangerZoneToggle);
+    }
+
+    fireEvent.change(screen.getByLabelText(/zone count/i), { target: { value: '5' } });
+    fireEvent.change(screen.getByLabelText(/zone radius/i), { target: { value: '60' } });
+    fireEvent.change(screen.getByLabelText(/damage per tick/i), { target: { value: '2.0' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /save current as preset/i }));
+    fireEvent.change(screen.getByPlaceholderText(/preset name/i), { target: { value: 'Danger zone tuning preset' } });
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    // Disable danger zones
+    fireEvent.click(screen.getByLabelText(/enable danger zones/i));
+    expect(screen.queryByLabelText(/zone count/i)).not.toBeInTheDocument();
+
+    // Apply custom preset
+    const presetSelect = screen.getByLabelText(/quick-start preset/i);
+    const customOption = screen.getByRole('option', { name: /danger zone tuning preset/i });
+    fireEvent.change(presetSelect, { target: { value: customOption.getAttribute('value') } });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/enable danger zones/i)).toBeChecked();
+    });
+
+    expect(screen.getByLabelText(/zone count/i)).toHaveValue(5);
+    expect(screen.getByLabelText(/zone radius/i)).toHaveValue(60);
+    expect(screen.getByLabelText(/damage per tick/i)).toHaveValue(2.0);
+  });
+
+  it('generates danger zones when enabled and starts simulation', async () => {
+    window.history.replaceState({}, '', '/?seed=danger-gen-test&dangerZoneEnabled=true&dangerZoneCount=2&dangerZoneRadius=40&dangerZoneDamage=0.5');
+
+    render(<App />);
+
+    // Enable danger zones and verify controls are visible
+    const dangerZoneToggle = screen.getByLabelText(/enable danger zones/i);
+    expect(dangerZoneToggle).toBeChecked();
+    expect(screen.getByLabelText(/zone count/i)).toHaveValue(2);
+    expect(screen.getByLabelText(/zone radius/i)).toHaveValue(40);
+    expect(screen.getByLabelText(/damage per tick/i)).toHaveValue(0.5);
+
+    // Start simulation
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/tick: 0/i)).toBeInTheDocument();
+    }, { timeout: 10000 });
+
+    // Get initial world state
+    const app = screen.getByRole('application');
+    const initialWorld = JSON.parse(app.getAttribute('data-initial-world'));
+    expect(initialWorld.dangerZones).toHaveLength(2);
+    expect(initialWorld.dangerZones[0]).toMatchObject({
+      radius: 40,
+      damagePerTick: 0.5
+    });
+
+    window.history.replaceState({}, '', '/');
+  });
+
+  it('generates no danger zones when disabled (default)', async () => {
+    window.history.replaceState({}, '', '/?seed=no-danger-test');
+
+    render(<App />);
+
+    // Verify danger zones are disabled by default
+    expect(screen.getByLabelText(/enable danger zones/i)).not.toBeChecked();
+    expect(screen.queryByLabelText(/zone count/i)).not.toBeInTheDocument();
+
+    // Start simulation
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/tick: 0/i)).toBeInTheDocument();
+    }, { timeout: 10000 });
+
+    // Get initial world state
+    const app = screen.getByRole('application');
+    const initialWorld = JSON.parse(app.getAttribute('data-initial-world'));
+    expect(initialWorld.dangerZones).toHaveLength(0);
+
+    window.history.replaceState({}, '', '/');
+  });
+  });
+
   it('shows non-blocking feedback when shared query values are missing or invalid', () => {
     window.history.replaceState({}, '', '/?seed=seed-1&worldWidth=invalid&worldHeight=640');
 
