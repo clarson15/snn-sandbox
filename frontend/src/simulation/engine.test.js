@@ -587,6 +587,137 @@ describe('simulation engine skeleton', () => {
     expect(runA).toEqual(runB);
   });
 
+  it('spawns food in biome-weighted zones when biomeSpawnMultipliers provided (SSN-284)', () => {
+    const state = createWorldState({
+      tick: 0,
+      organisms: [],
+      food: [],
+      terrainZones: [
+        { id: 'zone-forest', type: 'forest', bounds: { x: 0, y: 0, width: 50, height: 100 } },
+        { id: 'zone-plains', type: 'plains', bounds: { x: 50, y: 0, width: 50, height: 100 } }
+      ]
+    });
+
+    // Forest has 2x spawn chance, plains has 0.5x
+    const params = {
+      foodSpawnChance: 1.0, // Always spawn
+      worldWidth: 100,
+      worldHeight: 100,
+      biomeSpawnMultipliers: { forest: 2.0, plains: 0.5 }
+    };
+
+    // Run multiple ticks to accumulate food
+    const result = runTicks(state, createSeededPrng('biome-food-test'), 20, params);
+
+    // Count food in each zone
+    let forestCount = 0;
+    let plainsCount = 0;
+
+    for (const food of result.food) {
+      if (food.x < 50) {
+        forestCount++;
+      } else {
+        plainsCount++;
+      }
+    }
+
+    // Forest has 2x weight (area 50*100=5000 * 2 = 10000)
+    // Plains has 0.5x weight (area 50*100=5000 * 0.5 = 2500)
+    // Expected ratio: 10000:2500 = 4:1
+    // With 20 food items, expect roughly 16 in forest, 4 in plains
+    expect(forestCount).toBeGreaterThan(plainsCount);
+    // Should have most food in forest
+    expect(forestCount).toBeGreaterThanOrEqual(15);
+  });
+
+  it('falls back to uniform spawn when biomeSpawnMultipliers is empty (SSN-284)', () => {
+    const state = createWorldState({
+      tick: 0,
+      organisms: [],
+      food: [],
+      terrainZones: [
+        { id: 'zone-forest', type: 'forest', bounds: { x: 0, y: 0, width: 10, height: 100 } },
+        { id: 'zone-plains', type: 'plains', bounds: { x: 10, y: 0, width: 90, height: 100 } }
+      ]
+    });
+
+    // No biome multipliers - should use uniform random
+    const params = {
+      foodSpawnChance: 1.0,
+      worldWidth: 100,
+      worldHeight: 100,
+      biomeSpawnMultipliers: {}
+    };
+
+    const result = runTicks(state, createSeededPrng('uniform-spawn-test'), 20, params);
+
+    // With uniform spawn and zones of different sizes:
+    // Small zone (10% area) should get ~2 food
+    // Large zone (90% area) should get ~18 food
+    let smallZoneCount = 0;
+    let largeZoneCount = 0;
+
+    for (const food of result.food) {
+      if (food.x < 10) {
+        smallZoneCount++;
+      } else {
+        largeZoneCount++;
+      }
+    }
+
+    // Should be roughly proportional to area (not weighted)
+    expect(largeZoneCount).toBeGreaterThan(smallZoneCount);
+    expect(largeZoneCount).toBeGreaterThanOrEqual(15);
+  });
+
+  it('produces identical food placement with same seed + params (SSN-284)', () => {
+    const state = createWorldState({
+      tick: 0,
+      organisms: [],
+      food: [],
+      terrainZones: [
+        { id: 'zone-forest', type: 'forest', bounds: { x: 0, y: 0, width: 50, height: 50 } },
+        { id: 'zone-wetland', type: 'wetland', bounds: { x: 50, y: 0, width: 50, height: 50 } }
+      ]
+    });
+
+    const params = {
+      foodSpawnChance: 0.5,
+      worldWidth: 100,
+      worldHeight: 100,
+      biomeSpawnMultipliers: { forest: 1.5, wetland: 1.5 }
+    };
+
+    const runA = runTicks(state, createSeededPrng('deterministic-biome'), 10, params);
+    const runB = runTicks(state, createSeededPrng('deterministic-biome'), 10, params);
+
+    expect(runA.food).toEqual(runB.food);
+  });
+
+  it('matches food spawning behavior when terrainZones absent (backward compatibility) (SSN-284)', () => {
+    const state = createWorldState({
+      tick: 0,
+      organisms: [],
+      food: []
+      // No terrainZones
+    });
+
+    const params = {
+      foodSpawnChance: 1.0,
+      worldWidth: 100,
+      worldHeight: 100,
+      biomeSpawnMultipliers: { forest: 2.0 } // Should be ignored when no terrainZones
+    };
+
+    const result = runTicks(state, createSeededPrng('no-zones-test'), 10, params);
+
+    // Should spawn 10 food items uniformly across 100x100 world
+    expect(result.food.length).toBe(10);
+    // Food should be spread across the world
+    const xs = result.food.map(f => f.x);
+    expect(Math.max(...xs)).toBeGreaterThan(90);
+  });
+
   it('keeps heading unchanged when rotate outputs have no effective input signal', () => {
     const state = createWorldState({
       tick: 0,
