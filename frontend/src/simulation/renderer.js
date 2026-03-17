@@ -67,6 +67,13 @@ const BIOME_LABELS = {
   rocky: 'Rocky'
 };
 
+// Hazard type to display label mapping
+const HAZARD_LABELS = {
+  lava: 'Lava',
+  acid: 'Acid',
+  radiation: 'Radiation'
+};
+
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
@@ -104,7 +111,7 @@ function drawBar(ctx, x, y, width, height, ratio, fillStyle) {
 }
 
 /**
- * Draw a hazard zone with type-specific visual styling
+ * Draw a hazard zone with type-specific visual styling and label
  */
 function drawHazardZone(ctx, zone, tick) {
   const style = HAZARD_STYLES[zone.type] || HAZARD_STYLES.lava;
@@ -139,6 +146,21 @@ function drawHazardZone(ctx, zone, tick) {
   ctx.beginPath();
   ctx.arc(zone.x, zone.y, zone.radius * 0.6, 0, Math.PI * 2);
   ctx.stroke();
+
+  // Draw hazard label centered in the zone
+  const label = deriveHazardLabel(zone.type);
+  if (label) {
+    const pos = calculateHazardLabelPosition(zone);
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    // Draw text shadow for better readability
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    ctx.shadowBlur = 3;
+    ctx.fillText(label, pos.x, pos.y);
+    ctx.shadowBlur = 0;
+  }
 }
 
 /**
@@ -151,6 +173,15 @@ export function deriveBiomeLabel(biomeType) {
 }
 
 /**
+ * Derive the display label text for a hazard type
+ * @param {string} hazardType - The hazard zone type (e.g., 'lava', 'acid', 'radiation')
+ * @returns {string} The display label (e.g., 'Lava', 'Acid', 'Radiation') or empty string if unknown
+ */
+export function deriveHazardLabel(hazardType) {
+  return HAZARD_LABELS[hazardType] ?? '';
+}
+
+/**
  * Calculate the center position for a biome label based on zone bounds
  * @param {{x: number, y: number, width: number, height: number}} bounds - Zone bounds
  * @returns {{x: number, y: number}} Center coordinates for the label
@@ -159,6 +190,18 @@ export function calculateBiomeLabelPosition(bounds) {
   return {
     x: bounds.x + bounds.width / 2,
     y: bounds.y + bounds.height / 2
+  };
+}
+
+/**
+ * Calculate the center position for a hazard label based on zone center and radius
+ * @param {{x: number, y: number, radius: number}} zone - Zone with center and radius
+ * @returns {{x: number, y: number}} Center coordinates for the label
+ */
+export function calculateHazardLabelPosition(zone) {
+  return {
+    x: zone.x,
+    y: zone.y
   };
 }
 
