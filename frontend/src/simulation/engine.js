@@ -2033,15 +2033,16 @@ export function stepWorld(state, rng, params = {}) {
 
     // Use biome-weighted zone selection if terrain zones exist and multipliers are provided
     if (terrainZones.length > 0 && Object.keys(biomeSpawnMultipliers).length > 0) {
-      // Calculate total zone coverage to determine non-zone spawn probability (SSN-288)
-      // This ensures food can spawn in non-zone areas when terrain zones don't cover the full world
-      const totalZoneArea = terrainZones.reduce((sum, zone) => {
-        const bounds = zone?.bounds;
-        return sum + (bounds ? bounds.width * bounds.height : 0);
-      }, 0);
+      // Compute non-zone regions once (SSN-288)
+      // This gives us both the actual covered area (accounting for overlap and out-of-bounds)
+      // and the regions available for outside-zone spawning
+      const nonZoneRegions = computeNonZoneRegions(terrainZones, worldWidth, worldHeight);
+      const nonZoneArea = nonZoneRegions.reduce((sum, r) => sum + r.width * r.height, 0);
       const worldArea = worldWidth * worldHeight;
-      const zoneCoverageFraction = Math.min(1, totalZoneArea / worldArea);
-      const nonZoneSpawnProbability = 1 - zoneCoverageFraction;
+      
+      // Calculate non-zone spawn probability based on ACTUAL in-bounds uncovered area
+      // This correctly handles overlapping zones and zones extending outside world bounds
+      const nonZoneSpawnProbability = nonZoneArea / worldArea;
 
       // Determine if we should spawn outside zones (proportional to uncovered area)
       const shouldSpawnOutsideZones = rng.nextFloat() < nonZoneSpawnProbability;
@@ -2049,7 +2050,6 @@ export function stepWorld(state, rng, params = {}) {
       if (shouldSpawnOutsideZones) {
         // Spawn outside all terrain zones using deterministic non-region sampling (SSN-288)
         // This guarantees the point is outside ALL zones with deterministic behavior
-        const nonZoneRegions = computeNonZoneRegions(terrainZones, worldWidth, worldHeight);
         
         if (nonZoneRegions.length > 0) {
           // Weight regions by area for proportional sampling
@@ -2082,8 +2082,11 @@ export function stepWorld(state, rng, params = {}) {
 
         if (selectedZone && selectedZone.bounds) {
           const bounds = selectedZone.bounds;
-          spawnX = bounds.x + rng.nextFloat() * bounds.width;
-          spawnY = bounds.y + rng.nextFloat() * bounds.height;
+          // Sample within zone, then clip to world bounds (handles zones extending outside world)
+          const rawX = bounds.x + rng.nextFloat() * bounds.width;
+          const rawY = bounds.y + rng.nextFloat() * bounds.height;
+          spawnX = Math.max(0, Math.min(worldWidth, rawX));
+          spawnY = Math.max(0, Math.min(worldHeight, rawY));
         } else {
           // Fallback if zone has no bounds or selection fails
           spawnX = rng.nextFloat() * worldWidth;

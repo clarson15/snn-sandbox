@@ -931,6 +931,148 @@ describe('simulation engine skeleton', () => {
     expect(forestCount).toBeGreaterThan(40);
   });
 
+  // SSN-288: Test overlapping zones where naive area summation overcounts
+  // Zone 1: 0-50 (width 50), Zone 2: 40-90 (width 50), overlap 40-50 (width 10)
+  // World 100x100 = 10000 area
+  // Naive sum: 5000 + 5000 = 10000 (100% - wrong!)
+  // Actual: 50 + 50 - 10 = 90 width covered = 9000 (90% covered)
+  // Non-zone: 10% = 1000 area
+  it('handles overlapping zones without overcounting area (SSN-288)', () => {
+    const terrainZones = [
+      // Zone 1: x 0-50
+      { id: 'zone-forest', type: 'forest', bounds: { x: 0, y: 0, width: 50, height: 100 } },
+      // Zone 2: x 40-90, overlaps with zone 1 from 40-50
+      { id: 'zone-wetland', type: 'wetland', bounds: { x: 40, y: 0, width: 50, height: 100 } }
+    ];
+
+    const state = createWorldState({
+      tick: 0,
+      organisms: [],
+      food: [],
+      terrainZones
+    });
+
+    const params = {
+      foodSpawnChance: 1.0,
+      worldWidth: 100,
+      worldHeight: 100,
+      biomeSpawnMultipliers: { forest: 1.0, wetland: 1.0 }
+    };
+
+    const result = runTicks(state, createSeededPrng('ssn-288-overlapping-zones'), 100, params);
+
+    expect(result.food.length).toBe(100);
+
+    // Helper: check if in any zone (in-bounds portion)
+    const isInAnyZone = (x, y) => {
+      const w = 100; // worldWidth
+      const h = 100; // worldHeight
+      return terrainZones.some(zone => {
+        const b = zone.bounds;
+        // Clip bounds to world for check
+        const bx = Math.max(0, b.x);
+        const by = Math.max(0, b.y);
+        const bw = Math.min(w - bx, b.width);
+        const bh = Math.min(h - by, b.height);
+        return x >= bx && x < bx + bw && y >= by && y < by + bh;
+      });
+    };
+
+    const inZoneCount = result.food.filter(f => isInAnyZone(f.x, f.y)).length;
+    const outsideZoneCount = result.food.filter(f => !isInAnyZone(f.x, f.y)).length;
+
+    // With actual 90% coverage, expect ~10% outside zones
+    // This proves the probability is based on actual covered area, not naive sum
+    expect(outsideZoneCount).toBeGreaterThan(0);
+    // And most should be in zones
+    expect(inZoneCount).toBeGreaterThan(50);
+
+    // Verify all food is in world bounds
+    for (const food of result.food) {
+      expect(food.x).toBeGreaterThanOrEqual(0);
+      expect(food.x).toBeLessThan(100);
+    }
+
+    // Verify every outside-zone food is actually outside all zones
+    for (const food of result.food) {
+      if (!isInAnyZone(food.x, food.y)) {
+        for (const zone of terrainZones) {
+          const b = zone.bounds;
+          const bx = Math.max(0, b.x);
+          const bw = Math.min(100 - bx, b.width);
+          const isInsideThisZone = 
+            food.x >= bx && food.x < bx + bw &&
+            food.y >= b.y && food.y < b.y + b.height;
+          expect(isInsideThisZone).toBe(false);
+        }
+      }
+    }
+  });
+
+  // SSN-288: Test zone extending outside world bounds
+  // A zone can extend beyond world bounds - should still work correctly
+  it('handles zones extending outside world bounds (SSN-288)', () => {
+    // World 100x100, but zone extends from -20 to 60 (80 in-bounds width)
+    // Naive area: 80 * 100 = 8000
+    // But if zone goes from x=-20 to x=60, in-bounds is x=0 to x=60 = 60 * 100 = 6000
+    // Non-zone should be 10000 - 6000 = 4000 (40%)
+    const state = createWorldState({
+      tick: 0,
+      organisms: [],
+      food: [],
+      terrainZones: [
+        // Zone extends outside left boundary
+        { id: 'zone-forest', type: 'forest', bounds: { x: -20, y: 0, width: 80, height: 100 } }
+      ]
+    });
+
+    const params = {
+      foodSpawnChance: 1.0,
+      worldWidth: 100,
+      worldHeight: 100,
+      biomeSpawnMultipliers: { forest: 1.0 }
+    };
+
+    const result = runTicks(state, createSeededPrng('ssn-288-out-of-bounds-zone'), 100, params);
+
+    expect(result.food.length).toBe(100);
+
+    // Helper: check if in zone (using in-bounds portion)
+    const isInZone = (x, y) => {
+      const b = state.terrainZones[0].bounds;
+      // Zone is -20 to 60, so in-bounds is 0 to 60
+      return x >= Math.max(0, b.x) && x < b.x + b.width && y >= b.y && y < b.y + b.height;
+    };
+
+    const inZoneCount = result.food.filter(f => isInZone(f.x, f.y)).length;
+    const outsideZoneCount = result.food.filter(f => !isInZone(f.x, f.y)).length;
+
+    // With 60% in-bounds coverage, expect ~40% outside zones
+    expect(outsideZoneCount).toBeGreaterThan(0);
+    // And some in zone
+    expect(inZoneCount).toBeGreaterThan(0);
+
+    // Verify all food is in bounds
+    for (const food of result.food) {
+      expect(food.x).toBeGreaterThanOrEqual(0);
+      expect(food.x).toBeLessThan(100);
+      expect(food.y).toBeGreaterThanOrEqual(0);
+      expect(food.y).toBeLessThan(100);
+    }
+
+    // Verify every outside-zone food is actually outside the zone's in-bounds portion
+    for (const food of result.food) {
+      if (!isInZone(food.x, food.y)) {
+        const b = state.terrainZones[0].bounds;
+        const inBoundsX = Math.max(0, b.x);
+        const isInsideInBoundsZone = 
+          food.x >= inBoundsX && food.x < b.x + b.width &&
+          food.y >= b.y && food.y < b.y + b.height;
+        expect(isInsideInBoundsZone).toBe(false);
+      }
+    }
+  });
+
   it('keeps heading unchanged when rotate outputs have no effective input signal', () => {
     const state = createWorldState({
       tick: 0,
