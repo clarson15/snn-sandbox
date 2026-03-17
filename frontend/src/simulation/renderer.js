@@ -39,20 +39,32 @@ const HAZARD_STYLES = {
 const TERRAIN_ZONE_STYLES = {
   plains: {
     color: 'rgba(194, 178, 128, 0.25)',    // Light tan/sandy
-    borderColor: 'rgba(194, 178, 128, 0.5)'
+    borderColor: 'rgba(194, 178, 128, 0.5)',
+    labelColor: '#c2b280'
   },
   forest: {
     color: 'rgba(34, 139, 34, 0.25)',       // Forest green
-    borderColor: 'rgba(34, 139, 34, 0.5)'
+    borderColor: 'rgba(34, 139, 34, 0.5)',
+    labelColor: '#228b22'
   },
   wetland: {
     color: 'rgba(72, 209, 204, 0.25)',      // Medium turquoise
-    borderColor: 'rgba(72, 209, 204, 0.5)'
+    borderColor: 'rgba(72, 209, 204, 0.5)',
+    labelColor: '#48d1d0'
   },
   rocky: {
     color: 'rgba(128, 128, 128, 0.25)',     // Gray
-    borderColor: 'rgba(128, 128, 128, 0.5)'
+    borderColor: 'rgba(128, 128, 128, 0.5)',
+    labelColor: '#a8a8a8'
   }
+};
+
+// Biome type to display label mapping
+const BIOME_LABELS = {
+  plains: 'Plains',
+  forest: 'Forest',
+  wetland: 'Wetland',
+  rocky: 'Rocky'
 };
 
 function clamp(value, min, max) {
@@ -130,6 +142,27 @@ function drawHazardZone(ctx, zone, tick) {
 }
 
 /**
+ * Derive the display label text for a biome type
+ * @param {string} biomeType - The terrain zone type (e.g., 'plains', 'forest')
+ * @returns {string} The display label (e.g., 'Plains', 'Forest') or empty string if unknown
+ */
+export function deriveBiomeLabel(biomeType) {
+  return BIOME_LABELS[biomeType] ?? '';
+}
+
+/**
+ * Calculate the center position for a biome label based on zone bounds
+ * @param {{x: number, y: number, width: number, height: number}} bounds - Zone bounds
+ * @returns {{x: number, y: number}} Center coordinates for the label
+ */
+export function calculateBiomeLabelPosition(bounds) {
+  return {
+    x: bounds.x + bounds.width / 2,
+    y: bounds.y + bounds.height / 2
+  };
+}
+
+/**
  * Draw a terrain zone with type-specific visual styling
  */
 function drawTerrainZone(ctx, zone) {
@@ -144,6 +177,17 @@ function drawTerrainZone(ctx, zone) {
   ctx.strokeStyle = style.borderColor;
   ctx.lineWidth = 1;
   ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+
+  // Draw biome label centered in the zone
+  const label = deriveBiomeLabel(zone.type);
+  if (label) {
+    const pos = calculateBiomeLabelPosition(bounds);
+    ctx.font = '12px sans-serif';
+    ctx.fillStyle = style.labelColor || '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, pos.x, pos.y);
+  }
 }
 
 function drawSelectedOrganismOverlays(ctx, organism, radius) {

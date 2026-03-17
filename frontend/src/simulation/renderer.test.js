@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { drawWorldSnapshot } from './renderer';
+import { drawWorldSnapshot, deriveBiomeLabel, calculateBiomeLabelPosition } from './renderer';
 
 function createMockContext() {
   let currentFillStyle = null;
+  let currentFont = null;
+  let currentTextAlign = null;
+  let currentTextBaseline = null;
   return {
     arcCalls: [],
     fillRectCalls: [],
@@ -11,6 +14,7 @@ function createMockContext() {
     strokeRectCalls: [],
     moveToCalls: [],
     lineToCalls: [],
+    fillTextCalls: [],
     clearRect() {},
     fillRect(x, y, width, height) {
       this.fillRectCalls.push({ x, y, width, height, fillStyle: currentFillStyle });
@@ -32,11 +36,23 @@ function createMockContext() {
     lineTo(x, y) {
       this.lineToCalls.push({ x, y });
     },
+    fillText(text, x, y) {
+      this.fillTextCalls.push({ text, x, y, fillStyle: currentFillStyle, font: currentFont, textAlign: currentTextAlign, textBaseline: currentTextBaseline });
+    },
     set fillStyle(value) {
       currentFillStyle = value;
     },
     set strokeStyle(_value) {},
-    set lineWidth(_value) {}
+    set lineWidth(_value) {},
+    set font(value) {
+      currentFont = value;
+    },
+    set textAlign(value) {
+      currentTextAlign = value;
+    },
+    set textBaseline(value) {
+      currentTextBaseline = value;
+    }
   };
 }
 
@@ -188,5 +204,111 @@ describe('drawWorldSnapshot viewport culling', () => {
     expect(() => {
       drawWorldSnapshot(ctx, snapshot, { width: 100, height: 100 });
     }).not.toThrow();
+  });
+});
+
+describe('deriveBiomeLabel', () => {
+  it('returns correct label for known biome types', () => {
+    expect(deriveBiomeLabel('plains')).toBe('Plains');
+    expect(deriveBiomeLabel('forest')).toBe('Forest');
+    expect(deriveBiomeLabel('wetland')).toBe('Wetland');
+    expect(deriveBiomeLabel('rocky')).toBe('Rocky');
+  });
+
+  it('returns empty string for unknown biome types', () => {
+    expect(deriveBiomeLabel('unknown')).toBe('');
+    expect(deriveBiomeLabel('')).toBe('');
+    expect(deriveBiomeLabel('desert')).toBe('');
+  });
+});
+
+describe('calculateBiomeLabelPosition', () => {
+  it('calculates center position correctly', () => {
+    const bounds = { x: 10, y: 20, width: 100, height: 50 };
+    const pos = calculateBiomeLabelPosition(bounds);
+    expect(pos.x).toBe(60);  // 10 + 100/2
+    expect(pos.y).toBe(45);  // 20 + 50/2
+  });
+
+  it('handles small zones', () => {
+    const bounds = { x: 0, y: 0, width: 10, height: 10 };
+    const pos = calculateBiomeLabelPosition(bounds);
+    expect(pos.x).toBe(5);
+    expect(pos.y).toBe(5);
+  });
+
+  it('handles non-zero origin', () => {
+    const bounds = { x: 50, y: 50, width: 20, height: 20 };
+    const pos = calculateBiomeLabelPosition(bounds);
+    expect(pos.x).toBe(60);
+    expect(pos.y).toBe(60);
+  });
+});
+
+describe('drawWorldSnapshot biome labels', () => {
+  it('renders biome labels centered in terrain zones', () => {
+    const ctx = createMockContext();
+    const snapshot = {
+      tick: 1,
+      food: [],
+      organisms: [],
+      terrainZones: [
+        { id: 'zone-1', type: 'plains', bounds: { x: 10, y: 10, width: 40, height: 30 } },
+        { id: 'zone-2', type: 'forest', bounds: { x: 60, y: 60, width: 30, height: 30 } }
+      ]
+    };
+
+    drawWorldSnapshot(ctx, snapshot, { width: 100, height: 100 }, { cullPadding: 0 });
+
+    // Check that labels are drawn at the center of each zone
+    const plainsLabel = ctx.fillTextCalls.find(call => call.text === 'Plains');
+    expect(plainsLabel).toBeDefined();
+    expect(plainsLabel.x).toBe(30);  // 10 + 40/2
+    expect(plainsLabel.y).toBe(25);  // 10 + 30/2
+
+    const forestLabel = ctx.fillTextCalls.find(call => call.text === 'Forest');
+    expect(forestLabel).toBeDefined();
+    expect(forestLabel.x).toBe(75);  // 60 + 30/2
+    expect(forestLabel.y).toBe(75);  // 60 + 30/2
+  });
+
+  it('does not render labels for unknown biome types', () => {
+    const ctx = createMockContext();
+    const snapshot = {
+      tick: 1,
+      food: [],
+      organisms: [],
+      terrainZones: [
+        { id: 'zone-1', type: 'unknown', bounds: { x: 0, y: 0, width: 50, height: 50 } }
+      ]
+    };
+
+    drawWorldSnapshot(ctx, snapshot, { width: 100, height: 100 }, { cullPadding: 0 });
+
+    // No text should be drawn for unknown biome types
+    expect(ctx.fillTextCalls.length).toBe(0);
+  });
+
+  it('renders labels for all supported biome types', () => {
+    const ctx = createMockContext();
+    const snapshot = {
+      tick: 1,
+      food: [],
+      organisms: [],
+      terrainZones: [
+        { id: 'p', type: 'plains', bounds: { x: 0, y: 0, width: 20, height: 20 } },
+        { id: 'f', type: 'forest', bounds: { x: 25, y: 0, width: 20, height: 20 } },
+        { id: 'w', type: 'wetland', bounds: { x: 50, y: 0, width: 20, height: 20 } },
+        { id: 'r', type: 'rocky', bounds: { x: 75, y: 0, width: 20, height: 20 } }
+      ]
+    };
+
+    drawWorldSnapshot(ctx, snapshot, { width: 100, height: 100 }, { cullPadding: 0 });
+
+    const labels = ctx.fillTextCalls.map(call => call.text);
+    expect(labels).toContain('Plains');
+    expect(labels).toContain('Forest');
+    expect(labels).toContain('Wetland');
+    expect(labels).toContain('Rocky');
   });
 });
