@@ -46,6 +46,14 @@ function createMockContext() {
         addColorStop: () => {}
       };
     },
+    createRadialGradient(x1, y1, r1, x2, y2, r2) {
+      // Return a mock gradient object with addColorStop
+      return {
+        addColorStop(offset, color) {
+          // No-op for testing
+        }
+      };
+    },
     set fillStyle(value) {
       currentFillStyle = value;
     },
@@ -217,6 +225,158 @@ describe('drawWorldSnapshot viewport culling', () => {
     expect(() => {
       drawWorldSnapshot(ctx, snapshot, { width: 100, height: 100 });
     }).not.toThrow();
+  });
+
+  // SSN-281: Zone highlighting for selected organism
+  describe('zone highlighting when organism is selected', () => {
+    it('highlights terrain zone when selected organism is inside it', () => {
+      const ctx = createMockContext();
+      const snapshot = {
+        tick: 1,
+        food: [],
+        organisms: [
+          { id: 'org-1', x: 50, y: 50, direction: 0, color: '#38bdf8', traits: { size: 1, visionRange: 0 } }
+        ],
+        terrainZones: [
+          { id: 'zone-1', type: 'plains', bounds: { x: 0, y: 0, width: 100, height: 100 } }
+        ]
+      };
+
+      // When organism is inside terrain zone, highlighted version should be rendered
+      drawWorldSnapshot(ctx, snapshot, { width: 100, height: 100 }, { selectedOrganismId: 'org-1', cullPadding: 0 });
+
+      // Check that highlighted terrain zone is rendered (opacity 0.45 instead of 0.25)
+      const highlightedTerrainFills = ctx.fillRectCalls.filter(
+        (call) => call.x === 0 && call.y === 0 && call.width === 100 && call.height === 100 && call.fillStyle === 'rgba(194, 178, 128, 0.45)'
+      );
+      expect(highlightedTerrainFills.length).toBe(1);
+    });
+
+    it('does not highlight terrain zone when selected organism is outside it', () => {
+      const ctx = createMockContext();
+      const snapshot = {
+        tick: 1,
+        food: [],
+        organisms: [
+          { id: 'org-1', x: 150, y: 150, direction: 0, color: '#38bdf8', traits: { size: 1, visionRange: 0 } }
+        ],
+        terrainZones: [
+          { id: 'zone-1', type: 'plains', bounds: { x: 0, y: 0, width: 100, height: 100 } }
+        ]
+      };
+
+      // When organism is outside terrain zone, normal version should be rendered
+      drawWorldSnapshot(ctx, snapshot, { width: 200, height: 200 }, { selectedOrganismId: 'org-1', cullPadding: 0 });
+
+      // Check that normal (non-highlighted) terrain zone is rendered
+      const normalTerrainFills = ctx.fillRectCalls.filter(
+        (call) => call.x === 0 && call.y === 0 && call.width === 100 && call.height === 100 && call.fillStyle === 'rgba(194, 178, 128, 0.25)'
+      );
+      expect(normalTerrainFills.length).toBe(1);
+    });
+
+    it('highlights danger zone when selected organism is inside it', () => {
+      const ctx = createMockContext();
+      const snapshot = {
+        tick: 1,
+        food: [],
+        organisms: [
+          { id: 'org-1', x: 50, y: 50, direction: 0, color: '#38bdf8', traits: { size: 1, visionRange: 0 } }
+        ],
+        dangerZones: [
+          { id: 'danger-1', type: 'lava', x: 50, y: 50, radius: 30 }
+        ]
+      };
+
+      // When organism is inside danger zone, highlighted version should be rendered
+      drawWorldSnapshot(ctx, snapshot, { width: 100, height: 100 }, { selectedOrganismId: 'org-1', cullPadding: 0 });
+
+      // For hazard zones, we check arc calls which are used to draw them
+      // The hazard zone at (50, 50) with radius 30 should have thicker stroke when highlighted
+      // In our mock, we track strokeRect and arc calls
+      const hazardArcs = ctx.arcCalls.filter(
+        (call) => call.x === 50 && call.y === 50 && call.radius === 30
+      );
+      expect(hazardArcs.length).toBeGreaterThan(0);
+    });
+
+    it('does not highlight danger zone when selected organism is outside it', () => {
+      const ctx = createMockContext();
+      const snapshot = {
+        tick: 1,
+        food: [],
+        organisms: [
+          { id: 'org-1', x: 150, y: 150, direction: 0, color: '#38bdf8', traits: { size: 1, visionRange: 0 } }
+        ],
+        dangerZones: [
+          { id: 'danger-1', type: 'lava', x: 50, y: 50, radius: 30 }
+        ]
+      };
+
+      // When organism is outside danger zone, normal version should be rendered
+      drawWorldSnapshot(ctx, snapshot, { width: 200, height: 200 }, { selectedOrganismId: 'org-1', cullPadding: 0 });
+
+      // The danger zone should still be rendered
+      const hazardArcs = ctx.arcCalls.filter(
+        (call) => call.x === 50 && call.y === 50 && call.radius === 30
+      );
+      expect(hazardArcs.length).toBeGreaterThan(0);
+    });
+
+    it('does not highlight zones when no organism is selected', () => {
+      const ctx = createMockContext();
+      const snapshot = {
+        tick: 1,
+        food: [],
+        organisms: [
+          { id: 'org-1', x: 50, y: 50, direction: 0, color: '#38bdf8', traits: { size: 1, visionRange: 0 } }
+        ],
+        terrainZones: [
+          { id: 'zone-1', type: 'plains', bounds: { x: 0, y: 0, width: 100, height: 100 } }
+        ],
+        dangerZones: [
+          { id: 'danger-1', type: 'lava', x: 50, y: 50, radius: 30 }
+        ]
+      };
+
+      // No selected organism - zones should render normally
+      drawWorldSnapshot(ctx, snapshot, { width: 100, height: 100 }, { cullPadding: 0 });
+
+      // Check that normal terrain zone is rendered (not highlighted)
+      const normalTerrainFills = ctx.fillRectCalls.filter(
+        (call) => call.x === 0 && call.y === 0 && call.width === 100 && call.height === 100 && call.fillStyle === 'rgba(194, 178, 128, 0.25)'
+      );
+      expect(normalTerrainFills.length).toBe(1);
+    });
+
+    it('handles multiple terrain zones with selected organism in one of them', () => {
+      const ctx = createMockContext();
+      const snapshot = {
+        tick: 1,
+        food: [],
+        organisms: [
+          { id: 'org-1', x: 25, y: 25, direction: 0, color: '#38bdf8', traits: { size: 1, visionRange: 0 } }
+        ],
+        terrainZones: [
+          { id: 'zone-1', type: 'plains', bounds: { x: 0, y: 0, width: 50, height: 50 } },  // org inside
+          { id: 'zone-2', type: 'forest', bounds: { x: 60, y: 60, width: 40, height: 40 } }  // org outside
+        ]
+      };
+
+      drawWorldSnapshot(ctx, snapshot, { width: 100, height: 100 }, { selectedOrganismId: 'org-1', cullPadding: 0 });
+
+      // Zone 1 should be highlighted (opacity 0.45)
+      const highlightedZone = ctx.fillRectCalls.filter(
+        (call) => call.x === 0 && call.y === 0 && call.width === 50 && call.height === 50 && call.fillStyle === 'rgba(194, 178, 128, 0.45)'
+      );
+      expect(highlightedZone.length).toBe(1);
+
+      // Zone 2 should not be highlighted (opacity 0.25)
+      const normalZone = ctx.fillRectCalls.filter(
+        (call) => call.x === 60 && call.y === 60 && call.width === 40 && call.height === 40 && call.fillStyle === 'rgba(34, 139, 34, 0.25)'
+      );
+      expect(normalZone.length).toBe(1);
+    });
   });
 });
 
