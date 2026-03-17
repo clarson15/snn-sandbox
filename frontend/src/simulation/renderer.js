@@ -78,6 +78,36 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+/**
+ * Check if an organism is inside a danger zone (circle).
+ * @param {Object} organism
+ * @param {Object} dangerZone
+ * @returns {boolean}
+ */
+function isOrganismInDangerZone(organism, dangerZone) {
+  const dx = organism.x - dangerZone.x;
+  const dy = organism.y - dangerZone.y;
+  return (dx * dx + dy * dy) < (dangerZone.radius * dangerZone.radius);
+}
+
+/**
+ * Check if an organism is inside a terrain zone (rectangle).
+ * @param {Object} organism
+ * @param {Object} terrainZone
+ * @returns {boolean}
+ */
+function isOrganismInTerrainZone(organism, terrainZone) {
+  const bounds = terrainZone?.bounds;
+  if (!bounds) {
+    return false;
+  }
+
+  return organism.x >= bounds.x
+    && organism.x <= bounds.x + bounds.width
+    && organism.y >= bounds.y
+    && organism.y <= bounds.y + bounds.height;
+}
+
 function deriveOrganismRadius(organism) {
   const sizeTrait = resolveExpressedTraits(organism).size ?? 1;
   return clamp(ORGANISM_BASE_RADIUS * sizeTrait, 3, 18);
@@ -111,15 +141,37 @@ function drawBar(ctx, x, y, width, height, ratio, fillStyle) {
 }
 
 /**
- * Draw a hazard zone with type-specific visual styling and label
+ * Adjust opacity in an rgba color string for de-emphasis
+ * @param {string} rgbaColor - rgba(r, g, b, a) format
+ * @param {number} factor - multiplication factor for alpha (e.g., 0.5 for half opacity)
+ * @returns {string} Adjusted rgba color string
  */
-function drawHazardZone(ctx, zone, tick) {
+function adjustRgbaOpacity(rgbaColor, factor) {
+  const match = rgbaColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+  if (match) {
+    const r = match[1], g = match[2], b = match[3];
+    const currentAlpha = parseFloat(match[4]) || 1;
+    return `rgba(${r}, ${g}, ${b}, ${currentAlpha * factor})`;
+  }
+  return rgbaColor;
+}
+
+/**
+ * Draw a hazard zone with type-specific visual styling, label, and optional emphasis
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {Object} zone
+ * @param {number} tick
+ * @param {boolean} [highlighted=false] - if true, apply emphasis styling
+ * @param {boolean} [deEmphasized=false] - if true, apply de-emphasis styling (lower opacity, thinner borders)
+ */
+function drawHazardZone(ctx, zone, tick, highlighted = false, deEmphasized = false) {
   const style = HAZARD_STYLES[zone.type] || HAZARD_STYLES.lava;
   const [innerR, innerG, innerB] = style.innerColor;
   const [outerR, outerG, outerB] = style.outerColor;
   
-  // Pulsing effect based on tick
-  const pulseAlpha = 0.15 + 0.1 * Math.sin(tick * 0.1);
+  // Pulsing effect based on tick (more intense when highlighted, reduced when de-emphasized)
+  const basePulseAlpha = highlighted ? 0.25 : (deEmphasized ? 0.08 : 0.15);
+  const pulseAlpha = basePulseAlpha + 0.1 * Math.sin(tick * 0.1);
   
   // Create radial gradient for the hazard
   const gradient = ctx.createRadialGradient(zone.x, zone.y, 0, zone.x, zone.y, zone.radius);
@@ -133,16 +185,17 @@ function drawHazardZone(ctx, zone, tick) {
   ctx.arc(zone.x, zone.y, zone.radius, 0, Math.PI * 2);
   ctx.fill();
 
-  // Draw border with accent color
-  ctx.strokeStyle = style.accentColor;
-  ctx.lineWidth = 2;
+  // Draw border with accent color (thicker when highlighted, thinner when de-emphasized)
+  ctx.strokeStyle = adjustRgbaOpacity(style.accentColor, deEmphasized ? 0.5 : 1);
+  ctx.lineWidth = highlighted ? 4 : (deEmphasized ? 1 : 2);
   ctx.beginPath();
   ctx.arc(zone.x, zone.y, zone.radius, 0, Math.PI * 2);
   ctx.stroke();
 
-  // Draw inner circle for additional visual depth
-  ctx.strokeStyle = `rgba(${innerR}, ${innerG}, ${innerB}, 0.4)`;
-  ctx.lineWidth = 1;
+  // Draw inner circle for additional visual depth (more visible when highlighted, less when de-emphasized)
+  const innerOpacity = highlighted ? 0.7 : (deEmphasized ? 0.2 : 0.4);
+  ctx.strokeStyle = `rgba(${innerR}, ${innerG}, ${innerB}, ${innerOpacity})`;
+  ctx.lineWidth = highlighted ? 2 : (deEmphasized ? 0.5 : 1);
   ctx.beginPath();
   ctx.arc(zone.x, zone.y, zone.radius * 0.6, 0, Math.PI * 2);
   ctx.stroke();
@@ -207,26 +260,41 @@ export function calculateHazardLabelPosition(zone) {
 
 /**
  * Draw a terrain zone with type-specific visual styling
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {Object} zone
+ * @param {boolean} [highlighted=false] - if true, apply emphasis styling
+ * @param {boolean} [deEmphasized=false] - if true, apply de-emphasis styling (lower opacity, thinner borders)
  */
-function drawTerrainZone(ctx, zone) {
+function drawTerrainZone(ctx, zone, highlighted = false, deEmphasized = false) {
   const style = TERRAIN_ZONE_STYLES[zone.type] || TERRAIN_ZONE_STYLES.plains;
   const bounds = zone.bounds;
 
-  // Draw filled rectangle with zone color
-  ctx.fillStyle = style.color;
+  // Draw filled rectangle with zone color (more opaque when highlighted, less when de-emphasized)
+  let fillStyle;
+  if (highlighted) {
+    fillStyle = style.color.replace(/[\d.]+\)$/, '0.45)');  // Increase opacity
+  } else if (deEmphasized) {
+    fillStyle = adjustRgbaOpacity(style.color, 0.4);  // Reduce opacity to 40%
+  } else {
+    fillStyle = style.color;
+  }
+  ctx.fillStyle = fillStyle;
   ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
 
-  // Draw border with zone border color
-  ctx.strokeStyle = style.borderColor;
-  ctx.lineWidth = 1;
+  // Draw border with zone border color (thicker when highlighted, thinner when de-emphasized)
+  ctx.strokeStyle = adjustRgbaOpacity(style.borderColor, deEmphasized ? 0.5 : 1);
+  ctx.lineWidth = highlighted ? 3 : (deEmphasized ? 0.5 : 1);
   ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
 
-  // Draw biome label centered in the zone
+  // Draw biome label centered in the zone (always show labels for readability per SSN-282 requirement)
   const label = deriveBiomeLabel(zone.type);
   if (label) {
     const pos = calculateBiomeLabelPosition(bounds);
     ctx.font = '12px sans-serif';
-    ctx.fillStyle = style.labelColor || '#ffffff';
+    // Keep label visible even when de-emphasized (reduced opacity but still readable)
+    ctx.fillStyle = deEmphasized 
+      ? adjustRgbaOpacity(style.labelColor || '#ffffff', 0.7) 
+      : (style.labelColor || '#ffffff');
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(label, pos.x, pos.y);
@@ -279,6 +347,30 @@ export function drawWorldSnapshot(ctx, snapshot, viewport, renderOptions = {}) {
     : DEFAULT_VIEWPORT_CULL_PADDING;
   const viewportCullingEnabled = renderOptions.enableViewportCulling ?? true;
 
+  // Find selected organism for zone highlighting
+  const selectedOrganism = selectedOrganismId
+    ? snapshot.organisms?.find((org) => org.id === selectedOrganismId)
+    : null;
+
+  // Determine if selected organism has any active environmental zones (SSN-282)
+  // If yes, non-active zones will be de-emphasized
+  let hasActiveTerrainZone = false;
+  let hasActiveDangerZone = false;
+  
+  if (selectedOrganism && snapshot.terrainZones) {
+    hasActiveTerrainZone = snapshot.terrainZones.some(
+      (zone) => isOrganismInTerrainZone(selectedOrganism, zone)
+    );
+  }
+  
+  if (selectedOrganism && snapshot.dangerZones) {
+    hasActiveDangerZone = snapshot.dangerZones.some(
+      (zone) => isOrganismInDangerZone(selectedOrganism, zone)
+    );
+  }
+  
+  const hasAnyActiveZone = hasActiveTerrainZone || hasActiveDangerZone;
+
   ctx.clearRect(0, 0, width, height);
 
   ctx.fillStyle = '#020617';
@@ -287,7 +379,9 @@ export function drawWorldSnapshot(ctx, snapshot, viewport, renderOptions = {}) {
   // Draw danger zones (under everything)
   if (snapshot.dangerZones) {
     for (const zone of snapshot.dangerZones) {
-      drawHazardZone(ctx, zone, snapshot.tick ?? 0);
+      const isHighlighted = selectedOrganism && isOrganismInDangerZone(selectedOrganism, zone);
+      const isDeEmphasized = !isHighlighted && hasAnyActiveZone;
+      drawHazardZone(ctx, zone, snapshot.tick ?? 0, isHighlighted, isDeEmphasized);
     }
   }
 
@@ -322,7 +416,9 @@ export function drawWorldSnapshot(ctx, snapshot, viewport, renderOptions = {}) {
   // Draw terrain zones (under food and organisms but above background)
   if (snapshot.terrainZones) {
     for (const zone of snapshot.terrainZones) {
-      drawTerrainZone(ctx, zone);
+      const isHighlighted = selectedOrganism && isOrganismInTerrainZone(selectedOrganism, zone);
+      const isDeEmphasized = !isHighlighted && hasAnyActiveZone;
+      drawTerrainZone(ctx, zone, isHighlighted, isDeEmphasized);
     }
   }
 
