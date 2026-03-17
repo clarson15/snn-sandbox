@@ -969,9 +969,37 @@ function App() {
 
     return Number.isFinite(nearestDistance) ? nearestDistance : null;
   }, [displayWorld, inspectorOrganism]);
+
+  // Derive terrain effect for inspector organism (handles pinned/stale context correctly)
+  const inspectorOrganismTerrainEffect = useMemo(() => {
+    if (!inspectorOrganism || !displayWorld?.terrainZones) {
+      return null;
+    }
+    return deriveOrganismTerrainEffect(inspectorOrganism, displayWorld.terrainZones);
+  }, [inspectorOrganism, displayWorld?.terrainZones]);
+
+  // Derive hazard effect for inspector organism (handles pinned/stale context correctly)
+  const inspectorOrganismHazardEffect = useMemo(() => {
+    if (!inspectorOrganism || !displayWorld?.dangerZones) {
+      return null;
+    }
+    return deriveOrganismHazardEffect(inspectorOrganism, displayWorld.dangerZones);
+  }, [inspectorOrganism, displayWorld?.dangerZones]);
+
+  // Formatted versions for HUD overlay (derives from inspectorOrganism for pinned/stale support)
+  const formattedInspectorOrganismTerrainEffect = useMemo(
+    () => formatOrganismTerrainEffect(inspectorOrganismTerrainEffect),
+    [inspectorOrganismTerrainEffect]
+  );
+
+  const formattedInspectorOrganismHazardEffect = useMemo(
+    () => formatOrganismHazardEffect(inspectorOrganismHazardEffect),
+    [inspectorOrganismHazardEffect]
+  );
+
   const formattedInspector = useMemo(
-    () => formatInspectorSnapshot(inspectorOrganism, inspectorNearestFoodDistance, selectedOrganismTerrainEffect, selectedOrganismHazardEffect),
-    [inspectorOrganism, inspectorNearestFoodDistance, selectedOrganismTerrainEffect, selectedOrganismHazardEffect]
+    () => formatInspectorSnapshot(inspectorOrganism, inspectorNearestFoodDistance, inspectorOrganismTerrainEffect, inspectorOrganismHazardEffect),
+    [inspectorOrganism, inspectorNearestFoodDistance, inspectorOrganismTerrainEffect, inspectorOrganismHazardEffect]
   );
   const isHudSelectedOrganismEggLaying = Number.isFinite(Number(inspectorOrganism?.traits?.eggHatchTime))
     && Number(inspectorOrganism?.traits?.eggHatchTime) > 0;
@@ -2923,18 +2951,18 @@ function App() {
                       {inspectorOrganismSpeciesId ? (
                         <p><strong>Species:</strong> <span style={{ color: getSpeciesColor(inspectorOrganismSpeciesId) }}>{inspectorOrganismSpeciesId}</span></p>
                       ) : null}
-                      {formattedSelectedOrganismHazardEffect ? (
+                      {formattedInspectorOrganismHazardEffect ? (
                         <p className="hazard-indicator">
-                          <strong>Hazard:</strong> {formattedSelectedOrganismHazardEffect.hazardLabel} ({formattedSelectedOrganismHazardEffect.damageLabel})
+                          <strong>Hazard:</strong> {formattedInspectorOrganismHazardEffect.hazardLabel} ({formattedInspectorOrganismHazardEffect.damageLabel})
                         </p>
                       ) : (
                         <p className="no-hazard-indicator">
                           <strong>Hazard:</strong> None
                         </p>
                       )}
-                      {formattedSelectedOrganismTerrainEffect ? (
+                      {formattedInspectorOrganismTerrainEffect ? (
                         <p className="terrain-indicator">
-                          <strong>Terrain:</strong> {formattedSelectedOrganismTerrainEffect.zoneLabel}: {formattedSelectedOrganismTerrainEffect.effectLabel}
+                          <strong>Terrain:</strong> {formattedInspectorOrganismTerrainEffect.zoneLabel}: {formattedInspectorOrganismTerrainEffect.effectLabel}
                         </p>
                       ) : (
                         <p className="no-terrain-indicator">
