@@ -339,7 +339,6 @@ function App() {
   const [initialFormState] = useState(() => {
     const saved = loadSimulationConfig();
     const baseFormState = createFormStateFromConfig(saved ?? DEFAULT_CONFIG);
-
     if (!initialQueryPrefill.prefill) {
       return baseFormState;
     }

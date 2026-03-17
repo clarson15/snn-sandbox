@@ -365,6 +365,35 @@ describe('simulation config helpers', () => {
     expect(errors.terrainZoneHeightRatio).toBeUndefined();
   });
 
+  // Regression test: flat form state (terrainZoneEnabled) should take precedence
+  // over nested terrainZoneGeneration when the nested value is false (from defaults)
+  it('normalizes flat terrainZoneEnabled over nested false terrainZoneGeneration', () => {
+    // Simulates form state where checkbox is enabled but config has defaults
+    const normalized = normalizeSimulationConfig(
+      {
+        name: 'Form state test',
+        seed: 'form-seed',
+        worldWidth: '800',
+        worldHeight: '600',
+        initialPopulation: '20',
+        terrainZoneEnabled: 'true', // UI checkbox value
+        // Simulate spread from DEFAULT_CONFIG which has enabled: false
+        terrainZoneGeneration: {
+          enabled: false,
+          zoneCount: 4,
+          minZoneWidthRatio: 0.15,
+          maxZoneWidthRatio: 0.3,
+          minZoneHeightRatio: 0.15,
+          maxZoneHeightRatio: 0.3
+        }
+      },
+      'form-seed'
+    );
+
+    // The flat terrainZoneEnabled should win since it represents explicit UI choice
+    expect(normalized.terrainZoneGeneration.enabled).toBe(true);
+  });
+
   it('exposes a deterministic 2000-organism stress preset', () => {
     const stressPresetConfig = applyPreset('stress-test-2000');
 
