@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { drawWorldSnapshot, deriveBiomeLabel, calculateBiomeLabelPosition } from './renderer';
+import { drawWorldSnapshot, deriveBiomeLabel, calculateBiomeLabelPosition, deriveHazardLabel, calculateHazardLabelPosition } from './renderer';
 
 function createMockContext() {
   let currentFillStyle = null;
   let currentFont = null;
   let currentTextAlign = null;
   let currentTextBaseline = null;
+  let currentShadowColor = null;
+  let currentShadowBlur = null;
   return {
     arcCalls: [],
     fillRectCalls: [],
@@ -37,7 +39,12 @@ function createMockContext() {
       this.lineToCalls.push({ x, y });
     },
     fillText(text, x, y) {
-      this.fillTextCalls.push({ text, x, y, fillStyle: currentFillStyle, font: currentFont, textAlign: currentTextAlign, textBaseline: currentTextBaseline });
+      this.fillTextCalls.push({ text, x, y, fillStyle: currentFillStyle, font: currentFont, textAlign: currentTextAlign, textBaseline: currentTextBaseline, shadowColor: currentShadowColor, shadowBlur: currentShadowBlur });
+    },
+    createRadialGradient(x1, y1, r1, x2, y2, r2) {
+      return {
+        addColorStop: () => {}
+      };
     },
     set fillStyle(value) {
       currentFillStyle = value;
@@ -52,6 +59,12 @@ function createMockContext() {
     },
     set textBaseline(value) {
       currentTextBaseline = value;
+    },
+    set shadowColor(value) {
+      currentShadowColor = value;
+    },
+    set shadowBlur(value) {
+      currentShadowBlur = value;
     }
   };
 }
@@ -310,5 +323,172 @@ describe('drawWorldSnapshot biome labels', () => {
     expect(labels).toContain('Forest');
     expect(labels).toContain('Wetland');
     expect(labels).toContain('Rocky');
+  });
+});
+
+describe('deriveHazardLabel', () => {
+  it('returns correct label for known hazard types', () => {
+    expect(deriveHazardLabel('lava')).toBe('Lava');
+    expect(deriveHazardLabel('acid')).toBe('Acid');
+    expect(deriveHazardLabel('radiation')).toBe('Radiation');
+  });
+
+  it('returns empty string for unknown hazard types', () => {
+    expect(deriveHazardLabel('unknown')).toBe('');
+    expect(deriveHazardLabel('')).toBe('');
+    expect(deriveHazardLabel('fire')).toBe('');
+  });
+
+  it('returns empty string for undefined or null', () => {
+    expect(deriveHazardLabel(undefined)).toBe('');
+    expect(deriveHazardLabel(null)).toBe('');
+  });
+});
+
+describe('calculateHazardLabelPosition', () => {
+  it('calculates center position from zone center', () => {
+    const zone = { x: 50, y: 75, radius: 20 };
+    const pos = calculateHazardLabelPosition(zone);
+    expect(pos.x).toBe(50);
+    expect(pos.y).toBe(75);
+  });
+
+  it('handles zone at origin', () => {
+    const zone = { x: 0, y: 0, radius: 10 };
+    const pos = calculateHazardLabelPosition(zone);
+    expect(pos.x).toBe(0);
+    expect(pos.y).toBe(0);
+  });
+
+  it('uses zone center regardless of radius', () => {
+    const zone = { x: 100, y: 200, radius: 50 };
+    const pos = calculateHazardLabelPosition(zone);
+    expect(pos.x).toBe(100);
+    expect(pos.y).toBe(200);
+  });
+});
+
+describe('drawWorldSnapshot hazard labels', () => {
+  it('renders hazard labels centered in danger zones', () => {
+    const ctx = createMockContext();
+    const snapshot = {
+      tick: 1,
+      food: [],
+      organisms: [],
+      dangerZones: [
+        { id: 'lava-zone', type: 'lava', x: 25, y: 25, radius: 20, damagePerTick: 5 },
+        { id: 'acid-zone', type: 'acid', x: 75, y: 75, radius: 15, damagePerTick: 3 }
+      ]
+    };
+
+    drawWorldSnapshot(ctx, snapshot, { width: 100, height: 100 }, { cullPadding: 0 });
+
+    // Check that labels are drawn at the center of each zone
+    const lavaLabel = ctx.fillTextCalls.find(call => call.text === 'Lava');
+    expect(lavaLabel).toBeDefined();
+    expect(lavaLabel.x).toBe(25);
+    expect(lavaLabel.y).toBe(25);
+
+    const acidLabel = ctx.fillTextCalls.find(call => call.text === 'Acid');
+    expect(acidLabel).toBeDefined();
+    expect(acidLabel.x).toBe(75);
+    expect(acidLabel.y).toBe(75);
+  });
+
+  it('does not render labels for unknown hazard types', () => {
+    const ctx = createMockContext();
+    const snapshot = {
+      tick: 1,
+      food: [],
+      organisms: [],
+      dangerZones: [
+        { id: 'unknown-zone', type: 'unknown', x: 50, y: 50, radius: 20, damagePerTick: 5 }
+      ]
+    };
+
+    drawWorldSnapshot(ctx, snapshot, { width: 100, height: 100 }, { cullPadding: 0 });
+
+    // No text should be drawn for unknown hazard types
+    expect(ctx.fillTextCalls.length).toBe(0);
+  });
+
+  it('renders labels for all supported hazard types', () => {
+    const ctx = createMockContext();
+    const snapshot = {
+      tick: 1,
+      food: [],
+      organisms: [],
+      dangerZones: [
+        { id: 'lava', type: 'lava', x: 20, y: 20, radius: 10, damagePerTick: 5 },
+        { id: 'acid', type: 'acid', x: 50, y: 20, radius: 10, damagePerTick: 3 },
+        { id: 'radiation', type: 'radiation', x: 80, y: 20, radius: 10, damagePerTick: 2 }
+      ]
+    };
+
+    drawWorldSnapshot(ctx, snapshot, { width: 100, height: 100 }, { cullPadding: 0 });
+
+    const labels = ctx.fillTextCalls.map(call => call.text);
+    expect(labels).toContain('Lava');
+    expect(labels).toContain('Acid');
+    expect(labels).toContain('Radiation');
+  });
+
+  it('handles missing danger zones gracefully', () => {
+    const ctx = createMockContext();
+    const snapshot = {
+      tick: 1,
+      food: [],
+      organisms: []
+      // No dangerZones property
+    };
+
+    // Should not throw
+    expect(() => {
+      drawWorldSnapshot(ctx, snapshot, { width: 100, height: 100 });
+    }).not.toThrow();
+  });
+
+  it('handles danger zones without type property (legacy)', () => {
+    const ctx = createMockContext();
+    const snapshot = {
+      tick: 1,
+      food: [],
+      organisms: [],
+      dangerZones: [
+        // Legacy zone without type - should use default styling and not crash
+        { id: 'legacy-zone', x: 50, y: 50, radius: 20, damagePerTick: 5 }
+      ]
+    };
+
+    // Should not throw and should render with fallback (empty label for unknown type)
+    expect(() => {
+      drawWorldSnapshot(ctx, snapshot, { width: 100, height: 100 });
+    }).not.toThrow();
+    
+    // No label should be drawn for legacy zones without type
+    expect(ctx.fillTextCalls.length).toBe(0);
+  });
+
+  it('renders hazard labels with bold font and white fill', () => {
+    const ctx = createMockContext();
+    const snapshot = {
+      tick: 1,
+      food: [],
+      organisms: [],
+      dangerZones: [
+        { id: 'lava-zone', type: 'lava', x: 50, y: 50, radius: 20, damagePerTick: 5 }
+      ]
+    };
+
+    drawWorldSnapshot(ctx, snapshot, { width: 100, height: 100 }, { cullPadding: 0 });
+
+    const label = ctx.fillTextCalls.find(call => call.text === 'Lava');
+    expect(label).toBeDefined();
+    expect(label.font).toBe('bold 12px sans-serif');
+    expect(label.fillStyle).toBe('#ffffff');
+    expect(label.textAlign).toBe('center');
+    expect(label.textBaseline).toBe('middle');
+    expect(label.shadowColor).toBe('rgba(0, 0, 0, 0.8)');
+    expect(label.shadowBlur).toBe(3);
   });
 });
