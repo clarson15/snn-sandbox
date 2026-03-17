@@ -4,6 +4,7 @@
  */
 
 const GRAPH_HEIGHT = 80;
+const LEGEND_HEIGHT = 24;
 const GRAPH_PADDING = 4;
 const GRAPH_POINT_RADIUS = 2;
 const GRAPH_STROKE_WIDTH = 1.5;
@@ -41,6 +42,8 @@ function scaleY(value, minVal, maxVal, height) {
 
 export function StatsGraph({ history, metrics = ['population', 'foodCount', 'averageGeneration'], width = 280 }) {
   const safeHistory = Array.isArray(history) ? history : [];
+  
+  const totalHeight = GRAPH_HEIGHT + LEGEND_HEIGHT;
   
   if (safeHistory.length < 2) {
     return (
@@ -94,7 +97,7 @@ export function StatsGraph({ history, metrics = ['population', 'foodCount', 'ave
   });
 
   return (
-    <div className="stats-graph" style={{ width, height: GRAPH_HEIGHT }} aria-hidden="true">
+    <div className="stats-graph" style={{ width, height: totalHeight }} aria-hidden="true">
       <svg width={width} height={GRAPH_HEIGHT} viewBox={`0 0 ${width} ${GRAPH_HEIGHT}`}>
         {paths}
       </svg>
