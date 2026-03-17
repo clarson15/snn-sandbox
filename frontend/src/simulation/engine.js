@@ -113,6 +113,7 @@ import {
  * @property {WorldObstacle[]} [obstacles] obstacles in the world
  * @property {WorldDangerZone[]} [dangerZones] danger zones in the world
  * @property {WorldTerrainZone[]} [terrainZones] deterministic terrain zones in the world
+ * @property {Object} [biomeSpawnMultipliers] map of terrain type to food spawn weight multiplier
  */
 
 /**
@@ -984,6 +985,87 @@ function getEffectiveTurnRate(organism, terrainZones) {
 }
 
 /**
+ * Find the terrain zone that contains a given point, if any.
+ * @param {number} x - x coordinate
+ * @param {number} y - y coordinate
+ * @param {WorldTerrainZone[]} terrainZones
+ * @returns {WorldTerrainZone|null}
+ */
+function findZoneAtPoint(x, y, terrainZones) {
+  if (!terrainZones || terrainZones.length === 0) {
+    return null;
+  }
+
+  for (const zone of terrainZones) {
+    const bounds = zone?.bounds;
+    if (!bounds) {
+      continue;
+    }
+
+    if (x >= bounds.x && x <= bounds.x + bounds.width &&
+        y >= bounds.y && y <= bounds.y + bounds.height) {
+      return zone;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Compute weighted zone selection for biome-biased food spawning.
+ * Returns an array of zones with their computed weights (zone area * biome multiplier).
+ * @param {WorldTerrainZone[]} terrainZones
+ * @param {Object} biomeSpawnMultipliers - map of terrain type to spawn weight multiplier
+ * @returns {Array<{zone: WorldTerrainZone, weight: number}>}
+ */
+function computeZoneWeights(terrainZones, biomeSpawnMultipliers = {}) {
+  if (!terrainZones || terrainZones.length === 0) {
+    return [];
+  }
+
+  return terrainZones.map((zone) => {
+    const bounds = zone?.bounds;
+    const area = bounds ? bounds.width * bounds.height : 0;
+    const multiplier = biomeSpawnMultipliers[zone.type] ?? 1.0;
+    return {
+      zone,
+      weight: area * multiplier
+    };
+  });
+}
+
+/**
+ * Select a terrain zone based on weighted random selection.
+ * Uses deterministic random number for reproducible results.
+ * @param {Array<{zone: WorldTerrainZone, weight: number}>} zoneWeights
+ * @param {StepRng} rng
+ * @returns {WorldTerrainZone|null}
+ */
+function selectWeightedZone(zoneWeights, rng) {
+  if (!zoneWeights || zoneWeights.length === 0) {
+    return null;
+  }
+
+  const totalWeight = zoneWeights.reduce((sum, zw) => sum + zw.weight, 0);
+  if (totalWeight <= 0) {
+    return null;
+  }
+
+  const randomValue = rng.nextFloat() * totalWeight;
+  let cumulative = 0;
+
+  for (const zw of zoneWeights) {
+    cumulative += zw.weight;
+    if (randomValue <= cumulative) {
+      return zw.zone;
+    }
+  }
+
+  // Fallback to last zone due to floating point rounding
+  return zoneWeights[zoneWeights.length - 1].zone;
+}
+
+/**
  * Apply danger zone damage to organisms
  * @param {WorldOrganism[]} organisms
  * @param {WorldDangerZone[]} dangerZones
@@ -1407,6 +1489,7 @@ export function stepWorld(state, rng, params = {}) {
   const brainAddSynapseChance = params.brainAddSynapseChance ?? 0.05;
   const brainRemoveSynapseChance = params.brainRemoveSynapseChance ?? 0.05;
   const terrainZones = params.terrainZones ?? state.terrainZones ?? [];
+  const biomeSpawnMultipliers = params.biomeSpawnMultipliers ?? {};
   const currentTick = state.tick + 1;
 
   const eggs = [];
@@ -1857,10 +1940,33 @@ export function stepWorld(state, rng, params = {}) {
   const nextFood = Array.from(foodById.values()).sort((a, b) => a.id.localeCompare(b.id));
 
   if (nextFood.length < maxFood && rng.nextFloat() < foodSpawnChance) {
+    let spawnX;
+    let spawnY;
+
+    // Use biome-weighted zone selection if terrain zones exist and multipliers are provided
+    if (terrainZones.length > 0 && Object.keys(biomeSpawnMultipliers).length > 0) {
+      const zoneWeights = computeZoneWeights(terrainZones, biomeSpawnMultipliers);
+      const selectedZone = selectWeightedZone(zoneWeights, rng);
+
+      if (selectedZone && selectedZone.bounds) {
+        const bounds = selectedZone.bounds;
+        spawnX = bounds.x + rng.nextFloat() * bounds.width;
+        spawnY = bounds.y + rng.nextFloat() * bounds.height;
+      } else {
+        // Fallback if zone has no bounds
+        spawnX = rng.nextFloat() * worldWidth;
+        spawnY = rng.nextFloat() * worldHeight;
+      }
+    } else {
+      // Default: uniform random spawn across entire world
+      spawnX = rng.nextFloat() * worldWidth;
+      spawnY = rng.nextFloat() * worldHeight;
+    }
+
     nextFood.push({
       id: `food-${state.tick + 1}-${nextFood.length}`,
-      x: rng.nextFloat() * worldWidth,
-      y: rng.nextFloat() * worldHeight,
+      x: spawnX,
+      y: spawnY,
       energyValue: foodEnergyValue
     });
   }
