@@ -45,9 +45,11 @@ import {
 } from './inspectorTrend';
 import { INSPECTOR_PLACEHOLDER, formatInspectorSnapshot } from './inspectorFormatting';
 import {
+  deriveOrganismHazardEffect,
   deriveOrganismTerrainEffect,
   deriveSimulationStats,
   deriveStatsTrends,
+  formatOrganismHazardEffect,
   formatOrganismTerrainEffect,
   formatSimulationStats,
   formatTrendIndicator,
@@ -736,6 +738,19 @@ function App() {
   const formattedSelectedOrganismTerrainEffect = useMemo(
     () => formatOrganismTerrainEffect(selectedOrganismTerrainEffect),
     [selectedOrganismTerrainEffect]
+  );
+
+  // Derive hazard effect for selected organism (SSN-269)
+  const selectedOrganismHazardEffect = useMemo(() => {
+    if (!selectedOrganism || !displayWorld?.dangerZones) {
+      return null;
+    }
+    return deriveOrganismHazardEffect(selectedOrganism, displayWorld.dangerZones);
+  }, [selectedOrganism, displayWorld?.dangerZones]);
+
+  const formattedSelectedOrganismHazardEffect = useMemo(
+    () => formatOrganismHazardEffect(selectedOrganismHazardEffect),
+    [selectedOrganismHazardEffect]
   );
 
   useEffect(() => {
@@ -2879,6 +2894,15 @@ function App() {
                       {selectedOrganismSpeciesId ? (
                         <p><strong>Species:</strong> <span style={{ color: getSpeciesColor(selectedOrganismSpeciesId) }}>{selectedOrganismSpeciesId}</span></p>
                       ) : null}
+                      {formattedSelectedOrganismHazardEffect ? (
+                        <p className="hazard-indicator">
+                          <strong>Hazard:</strong> {formattedSelectedOrganismHazardEffect.hazardLabel} ({formattedSelectedOrganismHazardEffect.damageLabel})
+                        </p>
+                      ) : (
+                        <p className="no-hazard-indicator">
+                          <strong>Hazard:</strong> None
+                        </p>
+                      )}
                     </div>
                     {brainGraphModel && brainGraphModel.nodes.length > 0 ? (
                       <div className="organism-hud-brain">

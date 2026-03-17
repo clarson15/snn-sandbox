@@ -513,6 +513,17 @@ canvas {
   filter: drop-shadow(0 0 8px rgba(248, 250, 252, 0.55));
 }
 
+/* Hazard indicator in organism HUD */
+.hazard-indicator {
+  color: #fca5a5;
+  font-size: 0.9rem;
+}
+
+.no-hazard-indicator {
+  color: #86efac;
+  font-size: 0.9rem;
+}
+
 .brain-graph-legend {
   display: grid;
   gap: 0.75rem;
