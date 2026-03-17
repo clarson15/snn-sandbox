@@ -1295,8 +1295,6 @@ describe('App', () => {
     expect(within(runMetadataPanel).getByText(/^run start tick marker:/i)).toHaveTextContent('Run start tick marker: 0');
     expect(within(runMetadataPanel).getByText(/^speed multiplier:/i)).toHaveTextContent('Speed multiplier: 1x');
     expect(within(runMetadataPanel).getByText(/^snapshot id:/i)).toHaveTextContent('Snapshot ID: No snapshot');
-    expect(within(runMetadataPanel).getByText(/^config fingerprint:/i)).toBeInTheDocument();
-    expect(within(runMetadataPanel).getByText(/^config fingerprint hash:/i)).toBeInTheDocument();
 
     await waitFor(() => {
       const tickValue = Number.parseInt(within(runMetadataPanel).getByText(/^current tick:/i).textContent.replace(/\D+/g, ''), 10);
@@ -1315,8 +1313,8 @@ describe('App', () => {
 
     const copiedPayload = clipboardWriteText.mock.calls[0][0];
     expect(copiedPayload).toContain('"seed":"meta-seed"');
-    expect(copiedPayload).toContain('"configFingerprint":"');
-    expect(copiedPayload).toContain('"configFingerprintHash":"');
+    expect(copiedPayload).not.toContain('configFingerprint');
+    expect(copiedPayload).not.toContain('configFingerprintHash');
   });
 
   it('loads a saved snapshot and shows active snapshot metadata', async () => {

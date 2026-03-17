@@ -20,8 +20,6 @@ export function serializeRunMetadata(metadata) {
 
 export function serializeReproducibilityMetadata(metadata) {
   return JSON.stringify({
-    seed: String(metadata?.seed ?? ''),
-    configFingerprint: String(metadata?.configFingerprint ?? ''),
-    configFingerprintHash: String(metadata?.configFingerprintHash ?? '')
+    seed: String(metadata?.seed ?? '')
   });
 }
