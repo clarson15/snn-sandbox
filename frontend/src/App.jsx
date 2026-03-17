@@ -950,8 +950,8 @@ function App() {
     return Number.isFinite(nearestDistance) ? nearestDistance : null;
   }, [displayWorld, inspectorOrganism]);
   const formattedInspector = useMemo(
-    () => formatInspectorSnapshot(inspectorOrganism, inspectorNearestFoodDistance, selectedOrganismTerrainEffect),
-    [inspectorOrganism, inspectorNearestFoodDistance, selectedOrganismTerrainEffect]
+    () => formatInspectorSnapshot(inspectorOrganism, inspectorNearestFoodDistance, selectedOrganismTerrainEffect, selectedOrganismHazardEffect),
+    [inspectorOrganism, inspectorNearestFoodDistance, selectedOrganismTerrainEffect, selectedOrganismHazardEffect]
   );
   const isHudSelectedOrganismEggLaying = Number.isFinite(Number(selectedOrganism?.traits?.eggHatchTime))
     && Number(selectedOrganism?.traits?.eggHatchTime) > 0;

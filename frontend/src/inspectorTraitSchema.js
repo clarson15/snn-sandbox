@@ -26,7 +26,8 @@ const INSPECTOR_TRAIT_SECTION_SCHEMA = Object.freeze([
       Object.freeze({ key: 'visionRange', label: 'Vision range' }),
       Object.freeze({ key: 'nearestFoodDistance', label: 'Food distance' }),
       Object.freeze({ key: 'metabolism', label: 'Metabolism' }),
-      Object.freeze({ key: 'terrain', label: 'Terrain' })
+      Object.freeze({ key: 'terrain', label: 'Terrain' }),
+      Object.freeze({ key: 'hazard', label: 'Hazard' })
     ])
   }),
   Object.freeze({

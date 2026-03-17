@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatInspectorSnapshot } from './inspectorFormatting';
+import { formatInspectorSnapshot, formatInspectorHazard } from './inspectorFormatting';
 
 describe('formatInspectorSnapshot', () => {
   it('formats numeric inspector values with deterministic fixed precision', () => {
@@ -66,7 +66,8 @@ describe('formatInspectorSnapshot', () => {
       synapseCount: '1',
       inputBindings: 'Energy sensor',
       outputBindings: 'Turn left actuator',
-      terrain: '—'
+      terrain: '—',
+      hazard: '—'
     });
   });
 
@@ -94,6 +95,7 @@ describe('formatInspectorSnapshot', () => {
     expect(formatted.inputBindings).toBe('—');
     expect(formatted.outputBindings).toBe('—');
     expect(formatted.terrain).toBe('—');
+    expect(formatted.hazard).toBe('—');
   });
 
   it('formats live birth when egg hatch time is zero', () => {
@@ -111,6 +113,7 @@ describe('formatInspectorSnapshot', () => {
     expect(formatted.birthMode).toBe('Live birth');
     expect(formatted.maturationPeriod).toBe('24.000');
     expect(formatted.terrain).toBe('—');
+    expect(formatted.hazard).toBe('—');
   });
 
   it('formats terrain effect with zone label and effect description', () => {
@@ -139,5 +142,73 @@ describe('formatInspectorSnapshot', () => {
     );
 
     expect(formatted.terrain).toBe('—');
+  });
+
+  it('handles hazard with null/undefined values gracefully', () => {
+    const formatted = formatInspectorSnapshot(
+      {
+        id: 'org-1',
+        traits: {},
+        brain: {}
+      },
+      null,
+      null,
+      null
+    );
+
+    expect(formatted.hazard).toBe('—');
+  });
+
+  it('formats hazard effect with zone label and damage', () => {
+    const formatted = formatInspectorSnapshot(
+      {
+        id: 'org-1',
+        traits: {},
+        brain: {}
+      },
+      null,
+      null,
+      { zones: [{ type: 'lava', label: 'Lava', damage: 1.5 }], totalDamage: 1.5 }
+    );
+
+    expect(formatted.hazard).toBe('Lava: -1.5 energy/tick');
+  });
+
+  it('formats multiple hazard zones', () => {
+    const formatted = formatInspectorSnapshot(
+      {
+        id: 'org-1',
+        traits: {},
+        brain: {}
+      },
+      null,
+      null,
+      { zones: [{ type: 'lava', label: 'Lava', damage: 1.0 }, { type: 'acid', label: 'Acid', damage: 0.5 }], totalDamage: 1.5 }
+    );
+
+    expect(formatted.hazard).toBe('Lava + Acid: -1.5 energy/tick');
+  });
+});
+
+describe('formatInspectorHazard', () => {
+  it('returns placeholder for null/undefined hazard effect', () => {
+    expect(formatInspectorHazard(null)).toBe('—');
+    expect(formatInspectorHazard(undefined)).toBe('—');
+    expect(formatInspectorHazard({ zones: [], totalDamage: 0 })).toBe('—');
+  });
+
+  it('formats single hazard zone with damage', () => {
+    const hazardEffect = { zones: [{ type: 'lava', label: 'Lava', damage: 2.5 }], totalDamage: 2.5 };
+    expect(formatInspectorHazard(hazardEffect)).toBe('Lava: -2.5 energy/tick');
+  });
+
+  it('formats multiple hazard zones', () => {
+    const hazardEffect = { zones: [{ type: 'lava', label: 'Lava', damage: 1.0 }, { type: 'radiation', label: 'Radiation', damage: 0.5 }], totalDamage: 1.5 };
+    expect(formatInspectorHazard(hazardEffect)).toBe('Lava + Radiation: -1.5 energy/tick');
+  });
+
+  it('formats hazard zone with no damage', () => {
+    const hazardEffect = { zones: [{ type: 'acid', label: 'Acid', damage: 0 }], totalDamage: 0 };
+    expect(formatInspectorHazard(hazardEffect)).toBe('Acid: no damage');
   });
 });

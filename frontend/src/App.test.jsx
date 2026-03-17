@@ -3143,5 +3143,160 @@ describe('App', () => {
     vi.useRealTimers();
   });
 
+  it('renders hazard effect in selected organism inspector when organism is in a danger zone (SSN-270)', async () => {
+    vi.useFakeTimers();
+
+    // Reset URL to avoid interference from previous tests that may have set terrain params
+    window.history.replaceState({}, '', '/');
+
+    // Use deterministic config to ensure we can find organisms in the danger zone
+    const deterministicConfig = normalizeSimulationConfig(
+      {
+        name: 'Hazard Inspector Test',
+        seed: 'hazard-inspector-test-seed',
+        worldWidth: 800,
+        worldHeight: 480,
+        initialPopulation: 20,
+        initialFoodCount: 30,
+        dangerZoneEnabled: true,
+        dangerZoneCount: 1,
+        dangerZoneRadius: 100,
+        dangerZoneDamage: 1.5
+      },
+      'hazard-inspector-test-seed'
+    );
+
+    const initialWorld = createInitialWorldFromConfig(deterministicConfig);
+    expect(initialWorld.dangerZones).toHaveLength(1);
+
+    // Find an organism that's in the danger zone
+    const organismInZone = initialWorld.organisms.find((org) => {
+      const zone = initialWorld.dangerZones[0];
+      const dx = org.x - zone.x;
+      const dy = org.y - zone.y;
+      return (dx * dx + dy * dy) < (zone.radius * zone.radius);
+    });
+    expect(organismInZone).toBeTruthy();
+
+    // Verify the hazard effect is derived correctly
+    const hazardEffect = deriveOrganismHazardEffect(organismInZone, initialWorld.dangerZones);
+    expect(hazardEffect).not.toBeNull();
+    expect(hazardEffect.totalDamage).toBe(1.5);
+
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'hazard-inspector-test-seed' } });
+    fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '800' } });
+    fireEvent.change(screen.getByLabelText(/world height/i), { target: { value: '480' } });
+    fireEvent.change(screen.getByLabelText(/initial population/i), { target: { value: '20' } });
+
+    // Enable danger zones via UI - no terrain zones so no conflict
+    const dangerZoneToggle = screen.getByLabelText(/enable danger zones/i);
+    if (!dangerZoneToggle.checked) {
+      fireEvent.click(dangerZoneToggle);
+    }
+    fireEvent.change(screen.getByLabelText(/zone count/i), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText(/zone radius/i), { target: { value: '100' } });
+    fireEvent.change(screen.getByLabelText(/damage per tick/i), { target: { value: '1.5' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+
+    // Mock canvas bounding rect for click selection
+    const canvas = screen.getByLabelText(/simulation world/i);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 800,
+      height: 480,
+      right: 800,
+      bottom: 480,
+      toJSON: () => ({})
+    });
+
+    // Click on the organism that's in the danger zone
+    fireEvent.click(canvas, { clientX: organismInZone.x, clientY: organismInZone.y });
+
+    // Verify the organism inspector shows the hazard info
+    const organismHud = screen.getByRole('region', { name: /organism info/i });
+    expect(organismHud).toHaveTextContent(`Organism ${organismInZone.id.slice(0, 8)}`);
+    expect(organismHud).toHaveTextContent(/Hazard:/);
+    expect(organismHud).toHaveTextContent(/Hazard:\s*(Lava|Acid|Radiation):\s*-[\d.]+ energy\/tick/i);
+
+    vi.useRealTimers();
+  });
+
+  it('renders placeholder for hazard in organism inspector when no hazard (SSN-270)', async () => {
+    vi.useFakeTimers();
+
+    // Use deterministic config with no danger zones - no terrain zones either to avoid label conflicts
+    const deterministicConfig = normalizeSimulationConfig(
+      {
+        name: 'No Hazard Inspector Test',
+        seed: 'no-hazard-inspector-test-seed',
+        worldWidth: 800,
+        worldHeight: 480,
+        initialPopulation: 20,
+        initialFoodCount: 30,
+        dangerZoneEnabled: false
+      },
+      'no-hazard-inspector-test-seed'
+    );
+
+    const initialWorld = createInitialWorldFromConfig(deterministicConfig);
+    expect(initialWorld.dangerZones).toHaveLength(0);
+
+    // Pick any organism
+    const selectedOrganism = initialWorld.organisms[0];
+    expect(selectedOrganism).toBeTruthy();
+
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'no-hazard-inspector-test-seed' } });
+    fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '800' } });
+    fireEvent.change(screen.getByLabelText(/world height/i), { target: { value: '480' } });
+    fireEvent.change(screen.getByLabelText(/initial population/i), { target: { value: '20' } });
+
+    // Ensure danger zones are disabled (default is off)
+    const dangerZoneToggle = screen.getByLabelText(/enable danger zones/i);
+    if (dangerZoneToggle.checked) {
+      fireEvent.click(dangerZoneToggle);
+    }
+
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+
+    // Mock canvas bounding rect for click selection
+    const canvas = screen.getByLabelText(/simulation world/i);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 800,
+      height: 480,
+      right: 800,
+      bottom: 480,
+      toJSON: () => ({})
+    });
+
+    // Click on an organism
+    fireEvent.click(canvas, { clientX: selectedOrganism.x, clientY: selectedOrganism.y });
+
+    // Verify the organism inspector shows placeholder for hazard
+    const organismHud = screen.getByRole('region', { name: /organism info/i });
+    expect(organismHud).toHaveTextContent(/Hazard:\s*—/i);
+
+    vi.useRealTimers();
+  });
+
 
 });

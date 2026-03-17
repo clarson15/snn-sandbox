@@ -121,7 +121,36 @@ function formatInspectorTerrain(terrainEffect) {
   return `${terrainEffect.label}: ${terrainEffect.effect}`;
 }
 
-function formatInspectorSnapshot(organism, nearestFoodDistance, terrainEffect) {
+/**
+ * Format hazard effect for inspector display.
+ * Returns a deterministic, readable format: "Zone: -X.X energy/tick" or placeholder if null.
+ * @param {object|null} hazardEffect - result from deriveOrganismHazardEffect
+ * @returns {string} - formatted hazard string or placeholder
+ */
+function formatInspectorHazard(hazardEffect) {
+  if (!hazardEffect || !hazardEffect.zones || hazardEffect.zones.length === 0) {
+    return INSPECTOR_PLACEHOLDER;
+  }
+
+  const { zones, totalDamage } = hazardEffect;
+
+  // Format zone label(s)
+  let label;
+  if (zones.length === 1) {
+    label = zones[0].label;
+  } else {
+    label = zones.map((z) => z.label).join(' + ');
+  }
+
+  // Format damage
+  if (totalDamage > 0) {
+    return `${label}: -${totalDamage.toFixed(1)} energy/tick`;
+  }
+
+  return `${label}: no damage`;
+}
+
+function formatInspectorSnapshot(organism, nearestFoodDistance, terrainEffect, hazardEffect) {
   const brain = organism?.brain ?? {};
   const neurons = Array.isArray(brain.neurons) ? brain.neurons : [];
   const synapses = Array.isArray(brain.synapses) ? brain.synapses : [];
@@ -153,7 +182,8 @@ function formatInspectorSnapshot(organism, nearestFoodDistance, terrainEffect) {
     synapseCount: formatInteger(synapses.length),
     inputBindings: formatNeuronBindingList(deriveBindingIds(brain, 'input'), 'input', INSPECTOR_PLACEHOLDER),
     outputBindings: formatNeuronBindingList(deriveBindingIds(brain, 'output'), 'output', INSPECTOR_PLACEHOLDER),
-    terrain: formatInspectorTerrain(terrainEffect)
+    terrain: formatInspectorTerrain(terrainEffect),
+    hazard: formatInspectorHazard(hazardEffect)
   };
 }
 
@@ -162,5 +192,6 @@ export {
   formatFixed,
   formatFoodDistance,
   formatInspectorSnapshot,
-  formatInspectorTerrain
+  formatInspectorTerrain,
+  formatInspectorHazard
 };
