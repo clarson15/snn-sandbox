@@ -507,14 +507,40 @@ export function normalizeSimulationConfig(input, resolvedSeed) {
     initialPredatorCount: Number(input.initialPredatorCount ?? DEFAULT_CONFIG.initialPredatorCount),
     predatorEnergyGain: Number(input.predatorEnergyGain ?? DEFAULT_CONFIG.predatorEnergyGain),
     predatorHuntRadius: Number(input.predatorHuntRadius ?? DEFAULT_CONFIG.predatorHuntRadius),
-    // Terrain zone generation
+    // Terrain zone generation - handle both flat form state format (terrainZoneEnabled)
+    // and nested format (terrainZoneGeneration.enabled) from presets/saved configs
+    // Check flat format first since it represents explicit UI state from the checkbox
     terrainZoneGeneration: {
-      enabled: Boolean(input.terrainZoneGeneration?.enabled ?? DEFAULT_CONFIG.terrainZoneGeneration.enabled),
-      zoneCount: Number(input.terrainZoneGeneration?.zoneCount ?? DEFAULT_CONFIG.terrainZoneGeneration.zoneCount),
-      minZoneWidthRatio: Number(input.terrainZoneGeneration?.minZoneWidthRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.minZoneWidthRatio),
-      maxZoneWidthRatio: Number(input.terrainZoneGeneration?.maxZoneWidthRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.maxZoneWidthRatio),
-      minZoneHeightRatio: Number(input.terrainZoneGeneration?.minZoneHeightRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.minZoneHeightRatio),
-      maxZoneHeightRatio: Number(input.terrainZoneGeneration?.maxZoneHeightRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.maxZoneHeightRatio)
+      enabled: input.terrainZoneEnabled !== undefined
+        ? input.terrainZoneEnabled === 'true' || input.terrainZoneEnabled === '1'
+        : input.terrainZoneGeneration?.enabled !== undefined
+          ? Boolean(input.terrainZoneGeneration.enabled)
+          : Boolean(DEFAULT_CONFIG.terrainZoneGeneration.enabled),
+      zoneCount: Number(
+        input.terrainZoneGeneration?.zoneCount ??
+        input.terrainZoneCount ??
+        DEFAULT_CONFIG.terrainZoneGeneration.zoneCount
+      ),
+      minZoneWidthRatio: Number(
+        input.terrainZoneGeneration?.minZoneWidthRatio ??
+        input.terrainZoneMinWidthRatio ??
+        DEFAULT_CONFIG.terrainZoneGeneration.minZoneWidthRatio
+      ),
+      maxZoneWidthRatio: Number(
+        input.terrainZoneGeneration?.maxZoneWidthRatio ??
+        input.terrainZoneMaxWidthRatio ??
+        DEFAULT_CONFIG.terrainZoneGeneration.maxZoneWidthRatio
+      ),
+      minZoneHeightRatio: Number(
+        input.terrainZoneGeneration?.minZoneHeightRatio ??
+        input.terrainZoneMinHeightRatio ??
+        DEFAULT_CONFIG.terrainZoneGeneration.minZoneHeightRatio
+      ),
+      maxZoneHeightRatio: Number(
+        input.terrainZoneGeneration?.maxZoneHeightRatio ??
+        input.terrainZoneMaxHeightRatio ??
+        DEFAULT_CONFIG.terrainZoneGeneration.maxZoneHeightRatio
+      )
 
     }
   };
@@ -1004,10 +1030,24 @@ function sanitizeLoadedConfigDraft(parsed) {
     sanitized.maxFood = DEFAULT_CONFIG.maxFood;
   }
 
-  // Handle terrain zone generation (nested config)
-  const tzSource = source.terrainZoneGeneration ?? {};
+  // Handle terrain zone generation - support both nested (terrainZoneGeneration)
+  // and flat (terrainZoneEnabled) formats from saved configs
+  const tzNested = source.terrainZoneGeneration ?? {};
+  const tzFlat = {
+    enabled: source.terrainZoneEnabled,
+    zoneCount: source.terrainZoneCount,
+    minZoneWidthRatio: source.terrainZoneMinWidthRatio,
+    maxZoneWidthRatio: source.terrainZoneMaxWidthRatio,
+    minZoneHeightRatio: source.terrainZoneMinHeightRatio,
+    maxZoneHeightRatio: source.terrainZoneMaxHeightRatio
+  };
+  // Prefer nested format if present, otherwise use flat format
+  const tzSource = Object.keys(tzNested).length > 0 ? tzNested : tzFlat;
+
   sanitized.terrainZoneGeneration = {
-    enabled: Boolean(tzSource.enabled ?? DEFAULT_CONFIG.terrainZoneGeneration.enabled),
+    enabled: tzSource.enabled !== undefined
+      ? Boolean(tzSource.enabled)
+      : Boolean(DEFAULT_CONFIG.terrainZoneGeneration.enabled),
     zoneCount: isFiniteInRange(Number(tzSource.zoneCount), 1, 20) ? Number(tzSource.zoneCount) : DEFAULT_CONFIG.terrainZoneGeneration.zoneCount,
     minZoneWidthRatio: isFiniteInRange(Number(tzSource.minZoneWidthRatio), 0.05, 0.5) ? Number(tzSource.minZoneWidthRatio) : DEFAULT_CONFIG.terrainZoneGeneration.minZoneWidthRatio,
     maxZoneWidthRatio: isFiniteInRange(Number(tzSource.maxZoneWidthRatio), 0.05, 0.5) ? Number(tzSource.maxZoneWidthRatio) : DEFAULT_CONFIG.terrainZoneGeneration.maxZoneWidthRatio,

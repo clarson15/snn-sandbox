@@ -313,6 +313,33 @@ describe('App', () => {
     expect(screen.getByLabelText(/max zone height ratio/i)).toHaveValue(0.38);
   });
 
+  it('preserves terrain zones enabled state after starting simulation', async () => {
+    render(<App />);
+
+    // Enable terrain zones
+    const terrainToggle = screen.getByLabelText(/enable terrain zones/i);
+    if (!terrainToggle.checked) {
+      fireEvent.click(terrainToggle);
+    }
+
+    // Verify it's enabled before starting
+    expect(terrainToggle).toBeChecked();
+
+    // Start simulation
+    const startButton = screen.getByRole('button', { name: /start simulation/i });
+    fireEvent.click(startButton);
+
+    // Wait for simulation to start (we'll see tick appear)
+    await waitFor(() => {
+      expect(screen.getByText(/tick \d+/i)).toBeInTheDocument();
+    });
+
+    // After starting, terrain zones should still be enabled in the form
+    // Get the checkbox again as it might be a different element after the update
+    const terrainToggleAfterStart = screen.getByLabelText(/enable terrain zones/i);
+    expect(terrainToggleAfterStart).toBeChecked();
+  });
+
   it('shows non-blocking feedback when shared query values are missing or invalid', () => {
     window.history.replaceState({}, '', '/?seed=seed-1&worldWidth=invalid&worldHeight=640');
 
