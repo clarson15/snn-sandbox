@@ -89,7 +89,12 @@ export function saveCustomPreset(name, config) {
       initialPredatorCount: config.initialPredatorCount,
       predatorEnergyGain: config.predatorEnergyGain,
       predatorHuntRadius: config.predatorHuntRadius,
-      terrainZoneGeneration: config.terrainZoneGeneration
+      terrainZoneGeneration: config.terrainZoneGeneration,
+      // Environmental hazards (SSN-268)
+      enableDangerZones: config.enableDangerZones,
+      dangerZoneCount: config.dangerZoneCount,
+      dangerZoneRadius: config.dangerZoneRadius,
+      dangerZoneDamage: config.dangerZoneDamage
 
     },
     createdAt: now
