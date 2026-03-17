@@ -1075,6 +1075,77 @@ function selectWeightedZone(zoneWeights, rng) {
 }
 
 /**
+ * Compute non-zone regions (the complement of all terrain zone rectangles).
+ * Returns array of non-overlapping rectangles that are outside all zones.
+ * Uses a sweep-line algorithm for efficiency.
+ * @param {WorldTerrainZone[]} terrainZones - array of terrain zones
+ * @param {number} worldWidth - world width
+ * @param {number} worldHeight - world height
+ * @returns {Array<{x: number, y: number, width: number, height: number}>} array of non-zone rectangles
+ */
+function computeNonZoneRegions(terrainZones, worldWidth, worldHeight) {
+  if (!terrainZones || terrainZones.length === 0) {
+    return [{ x: 0, y: 0, width: worldWidth, height: worldHeight }];
+  }
+
+  // Extract all zone bounds
+  const zones = terrainZones
+    .map(z => z?.bounds)
+    .filter(b => b && b.width > 0 && b.height > 0);
+
+  if (zones.length === 0) {
+    return [{ x: 0, y: 0, width: worldWidth, height: worldHeight }];
+  }
+
+  // Collect all unique x and y coordinates (zone edges + world edges)
+  const xCoords = new Set([0, worldWidth]);
+  const yCoords = new Set([0, worldHeight]);
+
+  for (const zone of zones) {
+    xCoords.add(zone.x);
+    xCoords.add(zone.x + zone.width);
+    yCoords.add(zone.y);
+    yCoords.add(zone.y + zone.height);
+  }
+
+  // Sort coordinates
+  const sortedX = Array.from(xCoords).sort((a, b) => a - b);
+  const sortedY = Array.from(yCoords).sort((a, b) => a - b);
+
+  // Build grid of cells and mark which are covered by zones
+  const regions = [];
+
+  for (let i = 0; i < sortedX.length - 1; i++) {
+    for (let j = 0; j < sortedY.length - 1; j++) {
+      const cellX = sortedX[i];
+      const cellY = sortedY[j];
+      const cellWidth = sortedX[i + 1] - sortedX[i];
+      const cellHeight = sortedY[j + 1] - sortedY[j];
+
+      // Check if this cell is inside any zone
+      const inAnyZone = zones.some(zone => {
+        return cellX >= zone.x &&
+               cellX + cellWidth <= zone.x + zone.width &&
+               cellY >= zone.y &&
+               cellY + cellHeight <= zone.y + zone.height;
+      });
+
+      // If not covered by any zone, add to non-zone regions
+      if (!inAnyZone && cellWidth > 0 && cellHeight > 0) {
+        regions.push({
+          x: cellX,
+          y: cellY,
+          width: cellWidth,
+          height: cellHeight
+        });
+      }
+    }
+  }
+
+  return regions;
+}
+
+/**
  * Apply danger zone damage to organisms
  * @param {WorldOrganism[]} organisms
  * @param {WorldDangerZone[]} dangerZones
@@ -1976,9 +2047,34 @@ export function stepWorld(state, rng, params = {}) {
       const shouldSpawnOutsideZones = rng.nextFloat() < nonZoneSpawnProbability;
 
       if (shouldSpawnOutsideZones) {
-        // Spawn anywhere in the world (including non-zone areas)
-        spawnX = rng.nextFloat() * worldWidth;
-        spawnY = rng.nextFloat() * worldHeight;
+        // Spawn outside all terrain zones using deterministic non-region sampling (SSN-288)
+        // This guarantees the point is outside ALL zones with deterministic behavior
+        const nonZoneRegions = computeNonZoneRegions(terrainZones, worldWidth, worldHeight);
+        
+        if (nonZoneRegions.length > 0) {
+          // Weight regions by area for proportional sampling
+          const regionWeights = nonZoneRegions.map(r => r.width * r.height);
+          const totalWeight = regionWeights.reduce((a, b) => a + b, 0);
+          
+          // Select region weighted by area
+          let rand = rng.nextFloat() * totalWeight;
+          let selectedRegion = nonZoneRegions[0];
+          for (let i = 0; i < nonZoneRegions.length; i++) {
+            rand -= regionWeights[i];
+            if (rand <= 0) {
+              selectedRegion = nonZoneRegions[i];
+              break;
+            }
+          }
+          
+          // Spawn in selected non-zone region
+          spawnX = selectedRegion.x + rng.nextFloat() * selectedRegion.width;
+          spawnY = selectedRegion.y + rng.nextFloat() * selectedRegion.height;
+        } else {
+          // Edge case: zones cover entire world - spawn at world origin (guaranteed determinism)
+          spawnX = 0;
+          spawnY = 0;
+        }
       } else {
         // Spawn in a weighted zone
         const zoneWeights = computeZoneWeights(terrainZones, biomeSpawnMultipliers);

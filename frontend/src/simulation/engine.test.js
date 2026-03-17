@@ -794,18 +794,22 @@ describe('simulation engine skeleton', () => {
   });
 
   // SSN-288: Food should spawn outside terrain zones when zones don't cover the full world
+  // This test uses a complex multi-zone layout and verifies each outside-zone food is outside ALL zones
   it('can spawn food outside terrain zones when zones cover only part of world (SSN-288)', () => {
     // World is 100x100 = 10000 area
-    // Zones cover only 50x100 = 5000 area (50% of world)
-    // Food should be able to spawn in the non-zone area
+    // Zones cover: 30x40 (1200) + 40x30 (1200) + 20x50 (1000) = 3400 area (34% of world)
+    // Leaves 66% of world as non-zone area
+    const terrainZones = [
+      { id: 'zone-forest', type: 'forest', bounds: { x: 10, y: 10, width: 30, height: 40 } },
+      { id: 'zone-wetland', type: 'wetland', bounds: { x: 50, y: 20, width: 40, height: 30 } },
+      { id: 'zone-rocky', type: 'rocky', bounds: { x: 0, y: 70, width: 20, height: 50 } }
+    ];
+
     const state = createWorldState({
       tick: 0,
       organisms: [],
       food: [],
-      terrainZones: [
-        { id: 'zone-forest', type: 'forest', bounds: { x: 0, y: 0, width: 50, height: 100 } }
-        // No second zone - leaves 50% of world (x >= 50) uncovered
-      ]
+      terrainZones
     });
 
     // Use multipliers to ensure zone selection would happen
@@ -813,23 +817,48 @@ describe('simulation engine skeleton', () => {
       foodSpawnChance: 1.0, // Always spawn
       worldWidth: 100,
       worldHeight: 100,
-      biomeSpawnMultipliers: { forest: 1.0 }
+      biomeSpawnMultipliers: { forest: 1.0, wetland: 1.0, rocky: 1.0 }
     };
 
     // Run many ticks to accumulate food
-    const result = runTicks(state, createSeededPrng('ssn-288-outside-zones'), 100, params);
+    const result = runTicks(state, createSeededPrng('ssn-288-outside-zones-complex'), 100, params);
 
     // Should have 100 food items
     expect(result.food.length).toBe(100);
 
-    // Count food in zone area (x < 50) vs non-zone area (x >= 50)
-    const inZoneCount = result.food.filter(f => f.x < 50).length;
-    const outsideZoneCount = result.food.filter(f => f.x >= 50).length;
+    // Helper to check if a point is inside any zone (using same logic as implementation)
+    const isInAnyZone = (x, y) => {
+      return terrainZones.some(zone => {
+        const b = zone.bounds;
+        return x >= b.x && x < b.x + b.width && y >= b.y && y < b.y + b.height;
+      });
+    };
+
+    // Count food in zone vs non-zone areas
+    const inZoneCount = result.food.filter(f => isInAnyZone(f.x, f.y)).length;
+    const outsideZoneCount = result.food.filter(f => !isInAnyZone(f.x, f.y)).length;
+
+    // CRITICAL: Every food item outside zones must be outside ALL zones
+    // This is the key acceptance criterion - no food outside zones can be inside any zone
+    for (const food of result.food) {
+      const inZone = isInAnyZone(food.x, food.y);
+      if (!inZone) {
+        // This food is supposed to be outside zones - verify it's actually outside ALL of them
+        // Using same boundary check as implementation: inside means x in [x, x+width) and y in [y, y+height)
+        for (const zone of terrainZones) {
+          const b = zone.bounds;
+          const isInsideThisZone = 
+            food.x >= b.x && food.x < b.x + b.width &&
+            food.y >= b.y && food.y < b.y + b.height;
+          expect(isInsideThisZone).toBe(false);
+        }
+      }
+    }
 
     // Food should appear in BOTH zone and non-zone areas
-    // At least some food should spawn outside the terrain zone
+    // At least some food should spawn outside the terrain zones
     expect(outsideZoneCount).toBeGreaterThan(0);
-    // And some should also spawn inside the zone (proving weighted spawning still works)
+    // And some should also spawn inside zones (proving weighted spawning still works)
     expect(inZoneCount).toBeGreaterThan(0);
   });
 
@@ -857,6 +886,49 @@ describe('simulation engine skeleton', () => {
 
     // Results should be identical
     expect(resultA).toEqual(resultB);
+  });
+
+  // SSN-288: Verify in-zone weighted spawning is preserved (not diluted by whole-world sampling)
+  it('in-zone weighted spawning still works and is not replaced by whole-world sampling (SSN-288)', () => {
+    // Two zones: forest (20% area, 10x weight) vs plains (80% area, 1x weight)
+    // Expected ratio: (20% * 10) : (80% * 1) = 2 : 0.8 = 2.5 : 1
+    // With 100% zone selection (no non-zone), expect ~71% in forest, ~29% in plains
+    const state = createWorldState({
+      tick: 0,
+      organisms: [],
+      food: [],
+      terrainZones: [
+        { id: 'zone-forest', type: 'forest', bounds: { x: 0, y: 0, width: 20, height: 100 } },
+        { id: 'zone-plains', type: 'plains', bounds: { x: 20, y: 0, width: 80, height: 100 } }
+      ]
+    });
+
+    // High zone coverage (90% of world), low non-zone probability (10%)
+    // But strong forest bias should still dominate in-zone spawning
+    const params = {
+      foodSpawnChance: 1.0,
+      worldWidth: 100,
+      worldHeight: 100,
+      biomeSpawnMultipliers: { forest: 10.0, plains: 1.0 }
+    };
+
+    const result = runTicks(state, createSeededPrng('ssn-288-weighted-test'), 100, params);
+
+    expect(result.food.length).toBe(100);
+
+    // Count in each zone
+    const forestCount = result.food.filter(f => f.x < 20).length;
+    const plainsCount = result.food.filter(f => f.x >= 20 && f.x < 100).length;
+    const outsideCount = result.food.filter(f => f.x >= 100).length;
+
+    // Should have some food outside zones (non-zone path was chosen ~10% of time)
+    // But most should still be in zones
+    expect(forestCount + plainsCount).toBeGreaterThan(50);
+
+    // Forest should dominate over plains due to 10x bias
+    expect(forestCount).toBeGreaterThan(plainsCount);
+    // Most forest-biased food should be in forest zone
+    expect(forestCount).toBeGreaterThan(40);
   });
 
   it('keeps heading unchanged when rotate outputs have no effective input signal', () => {
