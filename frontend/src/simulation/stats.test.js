@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  deriveOrganismHazardEffect,
   deriveOrganismTerrainEffect,
   deriveSimulationStats,
   deriveStatsTrends,
+  formatOrganismHazardEffect,
   formatOrganismTerrainEffect,
   formatSimulationStats,
   formatTrendIndicator,
@@ -394,5 +396,149 @@ describe('organism terrain effect', () => {
   it('returns null when no organism is selected (no-selection case)', () => {
     expect(deriveOrganismTerrainEffect(null, terrainZones)).toBeNull();
     expect(deriveOrganismTerrainEffect(undefined, terrainZones)).toBeNull();
+  });
+});
+
+describe('organism hazard effect', () => {
+  // Use real deterministic world model schema: danger zone types lava|acid|radiation
+  // with x, y, radius, damagePerTick, and optional type
+  const dangerZones = [
+    { id: 'hazard-1', x: 50, y: 50, radius: 20, damagePerTick: 1.0, type: 'lava' },
+    { id: 'hazard-2', x: 150, y: 50, radius: 25, damagePerTick: 0.5, type: 'acid' },
+    { id: 'hazard-3', x: 50, y: 150, radius: 30, damagePerTick: 1.5, type: 'radiation' },
+    { id: 'hazard-4', x: 150, y: 150, radius: 20, damagePerTick: 2.0, type: 'lava' }
+  ];
+
+  it('returns null when organism is null', () => {
+    expect(deriveOrganismHazardEffect(null, dangerZones)).toBeNull();
+  });
+
+  it('returns null when organism has no position', () => {
+    expect(deriveOrganismHazardEffect({}, dangerZones)).toBeNull();
+    expect(deriveOrganismHazardEffect({ id: 'o-1' }, dangerZones)).toBeNull();
+  });
+
+  it('returns null when danger zones are empty', () => {
+    expect(deriveOrganismHazardEffect({ x: 50, y: 50 }, [])).toBeNull();
+    expect(deriveOrganismHazardEffect({ x: 50, y: 50 }, null)).toBeNull();
+    expect(deriveOrganismHazardEffect({ x: 50, y: 50 }, undefined)).toBeNull();
+  });
+
+  it('returns null when organism is not in any danger zone', () => {
+    expect(deriveOrganismHazardEffect({ x: 250, y: 250 }, dangerZones)).toBeNull();
+  });
+
+  it('derives hazard effect for organism in single lava zone', () => {
+    const effect = deriveOrganismHazardEffect({ x: 50, y: 50 }, dangerZones);
+    expect(effect).not.toBeNull();
+    expect(effect.zones).toHaveLength(1);
+    expect(effect.zones[0].type).toBe('lava');
+    expect(effect.zones[0].label).toBe('Lava');
+    expect(effect.zones[0].damage).toBe(1.0);
+    expect(effect.totalDamage).toBe(1.0);
+  });
+
+  it('derives hazard effect for organism in acid zone', () => {
+    const effect = deriveOrganismHazardEffect({ x: 150, y: 50 }, dangerZones);
+    expect(effect).not.toBeNull();
+    expect(effect.zones).toHaveLength(1);
+    expect(effect.zones[0].type).toBe('acid');
+    expect(effect.zones[0].label).toBe('Acid');
+    expect(effect.totalDamage).toBe(0.5);
+  });
+
+  it('derives hazard effect for organism in radiation zone', () => {
+    const effect = deriveOrganismHazardEffect({ x: 50, y: 150 }, dangerZones);
+    expect(effect).not.toBeNull();
+    expect(effect.zones).toHaveLength(1);
+    expect(effect.zones[0].type).toBe('radiation');
+    expect(effect.zones[0].label).toBe('Radiation');
+    expect(effect.totalDamage).toBe(1.5);
+  });
+
+  it('accumulates damage when organism is in overlapping danger zones', () => {
+    // At (150, 150), organism is in both hazard-3 (radiation, radius 30) and hazard-4 (lava, radius 20)
+    // Distance to hazard-3 center: sqrt((150-50)^2 + (150-150)^2) = 100, which is > 30, so NOT in radiation
+    // Actually, let me recalculate: distance from (150, 150) to (50, 150) = 100 - that's outside radiation (radius 30)
+    // Let me use a point that's actually in both: (155, 155)
+    // Distance to hazard-3 (50, 150): sqrt(105^2 + 5^2) ≈ 105, outside
+    // Let me use (145, 145): distance to hazard-3 (50,150) = sqrt(95^2 + 5^2) ≈ 95, outside
+    // Let me try (60, 155): distance to hazard-1 (50,50) = sqrt(10^2 + 105^2) ≈ 105, outside
+    // Let me think about this differently - I need zones that overlap
+    
+    // Create overlapping zones for this test
+    const overlappingZones = [
+      { id: 'h1', x: 100, y: 100, radius: 30, damagePerTick: 1.0, type: 'lava' },
+      { id: 'h2', x: 110, y: 110, radius: 30, damagePerTick: 0.5, type: 'acid' }
+    ];
+    // At (105, 105): distance to h1 = sqrt(5^2 + 5^2) ≈ 7.07 < 30 (in lava)
+    //                 distance to h2 = sqrt(5^2 + 5^2) ≈ 7.07 < 30 (in acid)
+    const effect = deriveOrganismHazardEffect({ x: 105, y: 105 }, overlappingZones);
+    expect(effect).not.toBeNull();
+    expect(effect.zones).toHaveLength(2);
+    expect(effect.totalDamage).toBe(1.5); // 1.0 + 0.5
+  });
+
+  it('handles legacy danger zone without type (defaults to lava)', () => {
+    const legacyZones = [
+      { id: 'legacy-1', x: 50, y: 50, radius: 20, damagePerTick: 1.0 }
+    ];
+    const effect = deriveOrganismHazardEffect({ x: 50, y: 50 }, legacyZones);
+    expect(effect).not.toBeNull();
+    expect(effect.zones).toHaveLength(1);
+    expect(effect.zones[0].type).toBe('lava');
+    expect(effect.zones[0].label).toBe('Lava');
+  });
+
+  it('handles organism at exact zone boundary (point-in-circle)', () => {
+    // At exact boundary: distance = radius
+    // For hazard-1 at (50, 50) with radius 20: point at (70, 50) has distance 20
+    // The check is: dx*dx + dy*dy < radius*radius, so distance = radius is NOT in zone
+    const effect = deriveOrganismHazardEffect({ x: 70, y: 50 }, dangerZones);
+    expect(effect).toBeNull();
+
+    // Just inside: distance 19.9
+    const effect2 = deriveOrganismHazardEffect({ x: 69.9, y: 50 }, dangerZones);
+    expect(effect2).not.toBeNull();
+  });
+
+  it('formats hazard effect for HUD display', () => {
+    const effect = deriveOrganismHazardEffect({ x: 50, y: 50 }, dangerZones);
+    const formatted = formatOrganismHazardEffect(effect);
+    expect(formatted).toEqual({
+      hazardLabel: 'Lava',
+      damageLabel: '-1.0 energy/tick',
+      zoneCount: 1,
+      totalDamage: 1.0
+    });
+  });
+
+  it('formats multiple overlapping hazards for HUD display', () => {
+    const overlappingZones = [
+      { id: 'h1', x: 100, y: 100, radius: 30, damagePerTick: 1.0, type: 'lava' },
+      { id: 'h2', x: 110, y: 110, radius: 30, damagePerTick: 0.5, type: 'acid' }
+    ];
+    const effect = deriveOrganismHazardEffect({ x: 105, y: 105 }, overlappingZones);
+    const formatted = formatOrganismHazardEffect(effect);
+    expect(formatted).toEqual({
+      hazardLabel: 'Lava + Acid',
+      damageLabel: '-1.5 energy/tick',
+      zoneCount: 2,
+      totalDamage: 1.5
+    });
+  });
+
+  it('returns null from format when hazard effect is null', () => {
+    expect(formatOrganismHazardEffect(null)).toBeNull();
+    expect(formatOrganismHazardEffect(undefined)).toBeNull();
+  });
+
+  it('handles unknown hazard type gracefully', () => {
+    const unknownTypeZones = [
+      { id: 'u1', x: 50, y: 50, radius: 20, damagePerTick: 1.0, type: 'unknown-type' }
+    ];
+    const effect = deriveOrganismHazardEffect({ x: 50, y: 50 }, unknownTypeZones);
+    expect(effect).not.toBeNull();
+    expect(effect.zones[0].label).toBe('Hazard'); // Falls back to 'Hazard'
   });
 });

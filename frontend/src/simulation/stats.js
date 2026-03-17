@@ -318,3 +318,100 @@ export function formatOrganismTerrainEffect(terrainEffect) {
     effectLabel: terrainEffect.effect
   };
 }
+
+// Hazard zone type to display name mapping
+// Uses exact types from deterministic world model: lava, acid, radiation
+const HAZARD_TYPE_LABELS = {
+  lava: 'Lava',
+  acid: 'Acid',
+  radiation: 'Radiation'
+};
+
+/**
+ * Check if an organism is inside a danger zone (point-in-circle).
+ * Uses squared distance check for efficiency.
+ * @param {object} organism - organism with x, y
+ * @param {object} zone - danger zone with x, y, radius
+ * @returns {boolean}
+ */
+function isInDangerZone(organism, zone) {
+  const dx = organism.x - zone.x;
+  const dy = organism.y - zone.y;
+  return (dx * dx + dy * dy) < (zone.radius * zone.radius);
+}
+
+/**
+ * Derive hazard effects for an organism from danger zones.
+ * Returns null if no danger zones apply or organism is not in any zone.
+ * When organism is in multiple zones, accumulates total damage per tick.
+ * @param {object} organism - organism with x, y
+ * @param {Array|null} dangerZones - array of danger zones
+ * @returns {object|null} - { zones: [{ type, label, damage }], totalDamage } or null if no hazard
+ */
+export function deriveOrganismHazardEffect(organism, dangerZones) {
+  if (!organism || typeof organism.x !== 'number' || typeof organism.y !== 'number') {
+    return null;
+  }
+
+  const zones = Array.isArray(dangerZones) ? dangerZones : [];
+  if (zones.length === 0) {
+    return null;
+  }
+
+  const matchingZones = [];
+
+  for (const zone of zones) {
+    if (zone && isInDangerZone(organism, zone)) {
+      const type = zone.type ?? 'lava'; // default to lava for legacy zones without type
+      const label = HAZARD_TYPE_LABELS[type] ?? 'Hazard';
+      const damage = typeof zone.damagePerTick === 'number' ? zone.damagePerTick : 0;
+      matchingZones.push({ type, label, damage });
+    }
+  }
+
+  if (matchingZones.length === 0) {
+    return null;
+  }
+
+  // Calculate total damage (damage stacks when in multiple zones)
+  const totalDamage = matchingZones.reduce((sum, z) => sum + z.damage, 0);
+
+  return {
+    zones: matchingZones,
+    totalDamage
+  };
+}
+
+/**
+ * Format the hazard effect for display in the HUD.
+ * Returns null if hazardEffect is null/undefined (no hazard).
+ * @param {object|null} hazardEffect - result from deriveOrganismHazardEffect
+ * @returns {object|null} - { hazardLabel, damageLabel } or null
+ */
+export function formatOrganismHazardEffect(hazardEffect) {
+  if (!hazardEffect) {
+    return null;
+  }
+
+  const { zones, totalDamage } = hazardEffect;
+
+  // Format the hazard label - show all zone types if multiple, otherwise single type
+  let hazardLabel;
+  if (zones.length === 1) {
+    hazardLabel = zones[0].label;
+  } else {
+    // Multiple zones - list all types
+    const labels = zones.map((z) => z.label);
+    hazardLabel = labels.join(' + ');
+  }
+
+  // Format the damage label
+  const damageLabel = totalDamage > 0 ? `-${totalDamage.toFixed(1)} energy/tick` : 'no damage';
+
+  return {
+    hazardLabel,
+    damageLabel,
+    zoneCount: zones.length,
+    totalDamage
+  };
+}
