@@ -718,6 +718,81 @@ describe('simulation engine skeleton', () => {
     expect(Math.max(...xs)).toBeGreaterThan(90);
   });
 
+  // Engine-level proof that different biomeSpawnMultipliers produce different food placement
+  // (SSN-285): verifies acceptance criteria that different valid bias maps change food spawn
+  it('produces different food placement with same seed but different biomeSpawnMultipliers (SSN-285)', () => {
+    // Use fixed terrain setup with two distinct zones
+    const state = createWorldState({
+      tick: 0,
+      organisms: [],
+      food: [],
+      terrainZones: [
+        { id: 'zone-forest', type: 'forest', bounds: { x: 0, y: 0, width: 50, height: 100 } },
+        { id: 'zone-plains', type: 'plains', bounds: { x: 50, y: 0, width: 50, height: 100 } }
+      ]
+    });
+
+    const baseParams = {
+      foodSpawnChance: 1.0, // Always spawn to get consistent food count
+      worldWidth: 100,
+      worldHeight: 100
+    };
+
+    // Run 1: Strong forest bias (forest 100x more likely than plains)
+    const paramsForestHeavy = {
+      ...baseParams,
+      biomeSpawnMultipliers: { forest: 100.0, plains: 1.0 }
+    };
+    const resultForestHeavy = runTicks(
+      state,
+      createSeededPrng('ssn-285-deterministic-seed'),
+      20,
+      paramsForestHeavy
+    );
+
+    // Run 2: Strong plains bias (plains 100x more likely than forest)
+    const paramsPlainsHeavy = {
+      ...baseParams,
+      biomeSpawnMultipliers: { forest: 1.0, plains: 100.0 }
+    };
+    const resultPlainsHeavy = runTicks(
+      state,
+      createSeededPrng('ssn-285-deterministic-seed'),
+      20,
+      paramsPlainsHeavy
+    );
+
+    // Count food in each zone (x < 50 is forest, x >= 50 is plains)
+    const countFoodInForest = (foodList) => foodList.filter(f => f.x < 50).length;
+    const countFoodInPlains = (foodList) => foodList.filter(f => f.x >= 50).length;
+
+    const forestHeavyForestCount = countFoodInForest(resultForestHeavy.food);
+    const forestHeavyPlainsCount = countFoodInPlains(resultForestHeavy.food);
+    const plainsHeavyForestCount = countFoodInForest(resultPlainsHeavy.food);
+    const plainsHeavyPlainsCount = countFoodInPlains(resultPlainsHeavy.food);
+
+    // Both runs should have produced the same number of food items
+    expect(resultForestHeavy.food.length).toBe(20);
+    expect(resultPlainsHeavy.food.length).toBe(20);
+
+    // Forest-heavy bias should place significantly more food in forest zone
+    expect(forestHeavyForestCount).toBeGreaterThan(forestHeavyPlainsCount);
+    expect(forestHeavyForestCount).toBeGreaterThanOrEqual(15); // Most food in forest
+
+    // Plains-heavy bias should place significantly more food in plains zone
+    expect(plainsHeavyPlainsCount).toBeGreaterThan(plainsHeavyForestCount);
+    expect(plainsHeavyPlainsCount).toBeGreaterThanOrEqual(15); // Most food in plains
+
+    // The placement should be DIFFERENT between the two runs
+    // (proving that different bias maps produce different results)
+    expect(forestHeavyForestCount).not.toBe(plainsHeavyForestCount);
+    expect(forestHeavyPlainsCount).not.toBe(plainsHeavyPlainsCount);
+
+    // Verify the relationship is reversed: forest-heavy favors forest, plains-heavy favors plains
+    expect(forestHeavyForestCount).toBeGreaterThan(plainsHeavyForestCount);
+    expect(plainsHeavyPlainsCount).toBeGreaterThan(forestHeavyPlainsCount);
+  });
+
   it('keeps heading unchanged when rotate outputs have no effective input signal', () => {
     const state = createWorldState({
       tick: 0,
