@@ -1741,11 +1741,9 @@ function App() {
 
   const reproducibilityPayload = useMemo(
     () => serializeReproducibilityMetadata({
-      seed: runMetadata.seed,
-      configFingerprint: simulationParametersFingerprint,
-      configFingerprintHash: simulationParametersFingerprintHash
+      seed: runMetadata.seed
     }),
-    [runMetadata.seed, simulationParametersFingerprint, simulationParametersFingerprintHash]
+    [runMetadata.seed]
   );
 
   const hudSeedLabel = runMetadata.seed.trim() || 'Seed unavailable';
@@ -3568,8 +3566,6 @@ function App() {
                 <p>Run elapsed marker: T+{runElapsedTicks} ticks</p>
                 <p>Speed multiplier: {runMetadata.speedMultiplier}</p>
                 <p>Snapshot ID: {runMetadata.snapshotId}</p>
-                <p>Config fingerprint: {simulationParametersFingerprint}</p>
-                <p>Config fingerprint hash: {simulationParametersFingerprintHash}</p>
                 <button type="button" onClick={onCopyRunMetadata} disabled={!hasSimulation}>Copy reproducibility string</button>
               </details>
             </section>

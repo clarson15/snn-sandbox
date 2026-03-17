@@ -32,7 +32,7 @@ describe('run metadata', () => {
     );
   });
 
-  it('serializes reproducibility payload with seed + config fingerprint fields only', () => {
+  it('serializes reproducibility payload with seed only', () => {
     expect(
       serializeReproducibilityMetadata({
         seed: 'seed-abc',
@@ -40,6 +40,6 @@ describe('run metadata', () => {
         configFingerprintHash: 'deadbeef',
         ignored: 'value'
       })
-    ).toBe('{"seed":"seed-abc","configFingerprint":"{\\"worldWidth\\":800}","configFingerprintHash":"deadbeef"}');
+    ).toBe('{"seed":"seed-abc"}');
   });
 });
