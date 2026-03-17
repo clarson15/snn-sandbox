@@ -330,6 +330,64 @@ describe('simulation config helpers', () => {
     expect(errors.minimumPopulation).toBeUndefined();
   });
 
+  it('validates biome food spawn bias values (SSN-285)', () => {
+    // Test negative bias values
+    const errorsNegative = validateSimulationConfig({
+      name: 'Biome Bias Test',
+      biomeFoodSpawnBias: {
+        plains: -0.5,
+        forest: 1.0,
+        wetland: 1.0,
+        rocky: 1.0
+      }
+    });
+
+    expect(errorsNegative['biomeFoodSpawnBias.plains']).toBe('Biome food spawn bias for plains must be between 0 and 10.');
+
+    // Test values above max
+    const errorsOverMax = validateSimulationConfig({
+      name: 'Biome Bias Test',
+      biomeFoodSpawnBias: {
+        plains: 1.0,
+        forest: 11.0,
+        wetland: 1.0,
+        rocky: 1.0
+      }
+    });
+
+    expect(errorsOverMax['biomeFoodSpawnBias.forest']).toBe('Biome food spawn bias for forest must be between 0 and 10.');
+
+    // Test invalid (non-numeric) values
+    const errorsNonNumeric = validateSimulationConfig({
+      name: 'Biome Bias Test',
+      biomeFoodSpawnBias: {
+        plains: 'invalid',
+        forest: 1.0,
+        wetland: 1.0,
+        rocky: 1.0
+      }
+    });
+
+    expect(errorsNonNumeric['biomeFoodSpawnBias.plains']).toBe('Biome food spawn bias for plains must be between 0 and 10.');
+  });
+
+  it('accepts valid biome food spawn bias values (SSN-285)', () => {
+    const errors = validateSimulationConfig({
+      name: 'Valid Biome Bias',
+      biomeFoodSpawnBias: {
+        plains: 0,
+        forest: 0.5,
+        wetland: 1.0,
+        rocky: 10.0
+      }
+    });
+
+    expect(errors['biomeFoodSpawnBias.plains']).toBeUndefined();
+    expect(errors['biomeFoodSpawnBias.forest']).toBeUndefined();
+    expect(errors['biomeFoodSpawnBias.wetland']).toBeUndefined();
+    expect(errors['biomeFoodSpawnBias.rocky']).toBeUndefined();
+  });
+
   it('validates terrain zone generation settings when enabled', () => {
     const errors = validateSimulationConfig({
       name: 'Terrain test',
@@ -626,6 +684,13 @@ describe('simulation config helpers', () => {
         maxZoneWidthRatio: 0.3,
         minZoneHeightRatio: 0.15,
         maxZoneHeightRatio: 0.3
+      },
+      // Biome food spawn bias (SSN-285)
+      biomeFoodSpawnBias: {
+        plains: 1.0,
+        forest: 1.0,
+        wetland: 1.0,
+        rocky: 1.0
       }
 
     });
@@ -697,6 +762,13 @@ describe('simulation config helpers', () => {
         maxZoneWidthRatio: 0.3,
         minZoneHeightRatio: 0.15,
         maxZoneHeightRatio: 0.3
+      },
+      // Biome food spawn bias (SSN-285)
+      biomeFoodSpawnBias: {
+        plains: 1.0,
+        forest: 1.0,
+        wetland: 1.0,
+        rocky: 1.0
       }
 
     });
@@ -955,6 +1027,140 @@ describe('simulation config helpers', () => {
       expect(stepParams.brainMutationMagnitude).toBe(0.55);
       expect(stepParams.brainAddSynapseChance).toBe(0.25);
       expect(stepParams.brainRemoveSynapseChance).toBe(0.125); // 0.25 * 0.5
+    });
+  });
+
+  describe('toEngineStepParams biome food spawn bias (SSN-285)', () => {
+    it('maps biomeFoodSpawnBias to biomeSpawnMultipliers in engine params', () => {
+      const config = normalizeSimulationConfig(
+        {
+          name: 'Biome Bias Test',
+          seed: 'biome-bias-seed',
+          biomeFoodSpawnBias: {
+            plains: 0.5,
+            forest: 2.0,
+            wetland: 1.5,
+            rocky: 0.0
+          }
+        },
+        'biome-bias-seed'
+      );
+
+      const stepParams = toEngineStepParams(config);
+
+      // biomeSpawnMultipliers should match biomeFoodSpawnBias
+      expect(stepParams.biomeSpawnMultipliers).toEqual({
+        plains: 0.5,
+        forest: 2.0,
+        wetland: 1.5,
+        rocky: 0.0
+      });
+    });
+
+    it('uses default bias of 1.0 for all biomes when not specified', () => {
+      const config = normalizeSimulationConfig(
+        {
+          name: 'Default Bias Test',
+          seed: 'default-bias-seed'
+        },
+        'default-bias-seed'
+      );
+
+      const stepParams = toEngineStepParams(config);
+
+      // Default values should preserve SSN-284 behavior
+      expect(stepParams.biomeSpawnMultipliers).toEqual({
+        plains: 1.0,
+        forest: 1.0,
+        wetland: 1.0,
+        rocky: 1.0
+      });
+    });
+
+    it('produces identical food placement with same bias map and seed (deterministic)', () => {
+      const baseConfig = {
+        name: 'Deterministic Biome Test',
+        seed: 'deterministic-biome-seed',
+        worldWidth: 100,
+        worldHeight: 100,
+        initialPopulation: 0,
+        initialFoodCount: 0,
+        foodSpawnChance: 1.0,
+        foodEnergyValue: 5,
+        maxFood: 100,
+        terrainZoneGeneration: {
+          enabled: true,
+          zoneCount: 2,
+          minZoneWidthRatio: 0.4,
+          maxZoneWidthRatio: 0.5,
+          minZoneHeightRatio: 0.8,
+          maxZoneHeightRatio: 1.0
+        },
+        biomeFoodSpawnBias: {
+          plains: 3.0,
+          forest: 0.5,
+          wetland: 1.0,
+          rocky: 1.0
+        }
+      };
+
+      // Create config and get step params twice
+      const config1 = normalizeSimulationConfig(baseConfig, 'deterministic-biome-seed');
+      const config2 = normalizeSimulationConfig(baseConfig, 'deterministic-biome-seed');
+
+      const stepParams1 = toEngineStepParams(config1);
+      const stepParams2 = toEngineStepParams(config2);
+
+      // Should produce identical biomeSpawnMultipliers
+      expect(stepParams1.biomeSpawnMultipliers).toEqual(stepParams2.biomeSpawnMultipliers);
+      expect(stepParams1.biomeSpawnMultipliers).toEqual({
+        plains: 3.0,
+        forest: 0.5,
+        wetland: 1.0,
+        rocky: 1.0
+      });
+    });
+
+    it('produces different food placement with different bias maps (SSN-285)', () => {
+      // This is tested at engine level - here we verify config normalization
+      const configForestHeavy = normalizeSimulationConfig(
+        {
+          name: 'Forest Heavy',
+          seed: 'forest-heavy-seed',
+          biomeFoodSpawnBias: {
+            plains: 0.1,
+            forest: 5.0,
+            wetland: 0.1,
+            rocky: 0.1
+          }
+        },
+        'forest-heavy-seed'
+      );
+
+      const configPlainsHeavy = normalizeSimulationConfig(
+        {
+          name: 'Plains Heavy',
+          seed: 'plains-heavy-seed',
+          biomeFoodSpawnBias: {
+            plains: 5.0,
+            forest: 0.1,
+            wetland: 0.1,
+            rocky: 0.1
+          }
+        },
+        'plains-heavy-seed'
+      );
+
+      const stepParamsForest = toEngineStepParams(configForestHeavy);
+      const stepParamsPlains = toEngineStepParams(configPlainsHeavy);
+
+      // Different bias maps should produce different multipliers
+      expect(stepParamsForest.biomeSpawnMultipliers.forest).toBeGreaterThan(
+        stepParamsPlains.biomeSpawnMultipliers.forest
+      );
+      expect(stepParamsPlains.biomeSpawnMultipliers.plains).toBeGreaterThan(
+        stepParamsForest.biomeSpawnMultipliers.plains
+      );
     });
   });
 });

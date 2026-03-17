@@ -332,6 +332,14 @@ export const DEFAULT_CONFIG = {
     maxZoneWidthRatio: 0.3,
     minZoneHeightRatio: 0.15,
     maxZoneHeightRatio: 0.3
+  },
+  // Biome food spawn bias multipliers (SSN-285)
+  // Default value of 1.0 preserves SSN-284 behavior exactly
+  biomeFoodSpawnBias: {
+    plains: 1.0,
+    forest: 1.0,
+    wetland: 1.0,
+    rocky: 1.0
   }
 
 };
@@ -438,6 +446,16 @@ export function validateSimulationConfig(input) {
     }
     if (Number.isFinite(tzMinHeightRatio) && Number.isFinite(tzMaxHeightRatio) && tzMinHeightRatio > tzMaxHeightRatio) {
       errors.terrainZoneHeightRatio = 'Min zone height ratio must be less than or equal to max zone height ratio.';
+    }
+  }
+
+  // Biome food spawn bias validation (SSN-285)
+  const biomeTypes = ['plains', 'forest', 'wetland', 'rocky'];
+  const biasInput = input.biomeFoodSpawnBias ?? {};
+  for (const biomeType of biomeTypes) {
+    const biasValue = Number(biasInput[biomeType] ?? DEFAULT_CONFIG.biomeFoodSpawnBias[biomeType]);
+    if (!Number.isFinite(biasValue) || biasValue < 0 || biasValue > 10) {
+      errors[`biomeFoodSpawnBias.${biomeType}`] = `Biome food spawn bias for ${biomeType} must be between 0 and 10.`;
     }
   }
 
@@ -550,6 +568,31 @@ export function normalizeSimulationConfig(input, resolvedSeed) {
         DEFAULT_CONFIG.terrainZoneGeneration.maxZoneHeightRatio
       )
 
+    },
+    // Biome food spawn bias (SSN-285) - handle both nested format and flat format
+    // Flat format: biomeFoodSpawnBiasPlains, biomeFoodSpawnBiasForest, etc.
+    // Nested format: biomeFoodSpawnBias.plains, biomeFoodSpawnBias.forest, etc.
+    biomeFoodSpawnBias: {
+      plains: Number(
+        input.biomeFoodSpawnBias?.plains ??
+        input.biomeFoodSpawnBiasPlains ??
+        DEFAULT_CONFIG.biomeFoodSpawnBias.plains
+      ),
+      forest: Number(
+        input.biomeFoodSpawnBias?.forest ??
+        input.biomeFoodSpawnBiasForest ??
+        DEFAULT_CONFIG.biomeFoodSpawnBias.forest
+      ),
+      wetland: Number(
+        input.biomeFoodSpawnBias?.wetland ??
+        input.biomeFoodSpawnBiasWetland ??
+        DEFAULT_CONFIG.biomeFoodSpawnBias.wetland
+      ),
+      rocky: Number(
+        input.biomeFoodSpawnBias?.rocky ??
+        input.biomeFoodSpawnBiasRocky ??
+        DEFAULT_CONFIG.biomeFoodSpawnBias.rocky
+      )
     }
   };
 }
@@ -920,6 +963,13 @@ export function toEngineStepParams(config, options = {}) {
     maximumOrganismAge: config.maximumOrganismAge,
     predatorEnergyGain: config.predatorEnergyGain,
     predatorHuntRadius: config.predatorHuntRadius,
+    // Biome food spawn bias (SSN-285)
+    biomeSpawnMultipliers: config.biomeFoodSpawnBias ?? {
+      plains: 1.0,
+      forest: 1.0,
+      wetland: 1.0,
+      rocky: 1.0
+    },
     createFloorSpawnOrganism: (id, rng) => createRandomizedOrganism({
       id,
       rng,
@@ -1063,6 +1113,17 @@ function sanitizeLoadedConfigDraft(parsed) {
     maxZoneHeightRatio: isFiniteInRange(Number(tzSource.maxZoneHeightRatio), 0.05, 0.5) ? Number(tzSource.maxZoneHeightRatio) : DEFAULT_CONFIG.terrainZoneGeneration.maxZoneHeightRatio
 
   };
+
+  // Handle biome food spawn bias (SSN-285) - backward compatibility for configs without this field
+  const biomeTypes = ['plains', 'forest', 'wetland', 'rocky'];
+  const biasSource = source.biomeFoodSpawnBias ?? {};
+  sanitized.biomeFoodSpawnBias = {};
+  for (const biomeType of biomeTypes) {
+    const candidate = Number(biasSource[biomeType]);
+    sanitized.biomeFoodSpawnBias[biomeType] = isFiniteInRange(candidate, 0, 10)
+      ? candidate
+      : DEFAULT_CONFIG.biomeFoodSpawnBias[biomeType];
+  }
 
   return sanitized;
 }
