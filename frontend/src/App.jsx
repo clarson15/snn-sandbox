@@ -208,7 +208,12 @@ function createFormStateFromConfig(config) {
     terrainZoneMinWidthRatio: String(tz.minZoneWidthRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.minZoneWidthRatio),
     terrainZoneMaxWidthRatio: String(tz.maxZoneWidthRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.maxZoneWidthRatio),
     terrainZoneMinHeightRatio: String(tz.minZoneHeightRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.minZoneHeightRatio),
-    terrainZoneMaxHeightRatio: String(tz.maxZoneHeightRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.maxZoneHeightRatio)
+    terrainZoneMaxHeightRatio: String(tz.maxZoneHeightRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.maxZoneHeightRatio),
+    // Danger zone generation
+    dangerZoneEnabled: String(Boolean(config.enableDangerZones)),
+    dangerZoneCount: String(config.dangerZoneCount ?? DEFAULT_CONFIG.dangerZoneCount),
+    dangerZoneRadius: String(config.dangerZoneRadius ?? DEFAULT_CONFIG.dangerZoneRadius),
+    dangerZoneDamage: String(config.dangerZoneDamage ?? DEFAULT_CONFIG.dangerZoneDamage)
   };
 }
 
@@ -1236,7 +1241,12 @@ function App() {
       terrainZoneMinWidthRatio: String(presetTz.minZoneWidthRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.minZoneWidthRatio),
       terrainZoneMaxWidthRatio: String(presetTz.maxZoneWidthRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.maxZoneWidthRatio),
       terrainZoneMinHeightRatio: String(presetTz.minZoneHeightRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.minZoneHeightRatio),
-      terrainZoneMaxHeightRatio: String(presetTz.maxZoneHeightRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.maxZoneHeightRatio)
+      terrainZoneMaxHeightRatio: String(presetTz.maxZoneHeightRatio ?? DEFAULT_CONFIG.terrainZoneGeneration.maxZoneHeightRatio),
+      // Danger zone generation
+      dangerZoneEnabled: String(Boolean(preset.config.enableDangerZones ?? DEFAULT_CONFIG.enableDangerZones)),
+      dangerZoneCount: String(preset.config.dangerZoneCount ?? DEFAULT_CONFIG.dangerZoneCount),
+      dangerZoneRadius: String(preset.config.dangerZoneRadius ?? DEFAULT_CONFIG.dangerZoneRadius),
+      dangerZoneDamage: String(preset.config.dangerZoneDamage ?? DEFAULT_CONFIG.dangerZoneDamage)
     };
 
     setFormState(newFormState);
@@ -1280,7 +1290,11 @@ function App() {
         maxZoneWidthRatio: toFiniteNumberOrDefault(formState.terrainZoneMaxWidthRatio, DEFAULT_CONFIG.terrainZoneGeneration.maxZoneWidthRatio),
         minZoneHeightRatio: toFiniteNumberOrDefault(formState.terrainZoneMinHeightRatio, DEFAULT_CONFIG.terrainZoneGeneration.minZoneHeightRatio),
         maxZoneHeightRatio: toFiniteNumberOrDefault(formState.terrainZoneMaxHeightRatio, DEFAULT_CONFIG.terrainZoneGeneration.maxZoneHeightRatio)
-      }
+      },
+      enableDangerZones: formState.dangerZoneEnabled === 'true',
+      dangerZoneCount: toFiniteNumberOrDefault(formState.dangerZoneCount, DEFAULT_CONFIG.dangerZoneCount),
+      dangerZoneRadius: toFiniteNumberOrDefault(formState.dangerZoneRadius, DEFAULT_CONFIG.dangerZoneRadius),
+      dangerZoneDamage: toFiniteNumberOrDefault(formState.dangerZoneDamage, DEFAULT_CONFIG.dangerZoneDamage)
     };
 
     const success = saveCustomPreset(newPresetName, currentConfig);
@@ -3466,6 +3480,46 @@ function App() {
                   </div>
                   {errors.terrainZoneWidthRatio ? <p className="error-text">{errors.terrainZoneWidthRatio}</p> : null}
                   {errors.terrainZoneHeightRatio ? <p className="error-text">{errors.terrainZoneHeightRatio}</p> : null}
+                </>
+              ) : null}
+
+              <h3>Hazard settings</h3>
+              <p className="field-hint">Configure danger zones that damage organisms.</p>
+              <div className="field-row">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={formState.dangerZoneEnabled === 'true'}
+                    onChange={(e) => {
+                      const newValue = e.target.checked ? 'true' : 'false';
+                      setFormState((prev) => ({ ...prev, dangerZoneEnabled: newValue }));
+                    }}
+                  />
+                  Enable danger zones
+                </label>
+              </div>
+              {formState.dangerZoneEnabled === 'true' ? (
+                <>
+                  <p className="field-hint">Zone count: 0-10. Radius: 10-200. Damage: 0-5.</p>
+                  <div className="field-row">
+                    <label>
+                      Zone count
+                      <input type="number" value={formState.dangerZoneCount} onChange={onFieldChange('dangerZoneCount')} />
+                      {errors.dangerZoneCount ? <span className="error-text">{errors.dangerZoneCount}</span> : null}
+                    </label>
+                  </div>
+                  <div className="field-row">
+                    <label>
+                      Zone radius
+                      <input type="number" value={formState.dangerZoneRadius} onChange={onFieldChange('dangerZoneRadius')} />
+                      {errors.dangerZoneRadius ? <span className="error-text">{errors.dangerZoneRadius}</span> : null}
+                    </label>
+                    <label>
+                      Damage per tick
+                      <input type="number" step="0.1" value={formState.dangerZoneDamage} onChange={onFieldChange('dangerZoneDamage')} />
+                      {errors.dangerZoneDamage ? <span className="error-text">{errors.dangerZoneDamage}</span> : null}
+                    </label>
+                  </div>
                 </>
               ) : null}
 

@@ -499,6 +499,66 @@ describe('simulation config helpers', () => {
     ]);
   });
 
+  // SSN-268: Hazard fields should be persisted in custom presets
+  it('persists danger zone hazard settings in custom presets', () => {
+    // Save a preset with custom hazard settings
+    const saved = saveCustomPreset('Hazard Test Preset', {
+      worldWidth: 800,
+      worldHeight: 480,
+      initialPopulation: 10,
+      minimumPopulation: 8,
+      initialFoodCount: 20,
+      foodSpawnChance: 0.05,
+      foodEnergyValue: 6,
+      maxFood: 100,
+      enableDangerZones: true,
+      dangerZoneCount: 3,
+      dangerZoneRadius: 60,
+      dangerZoneDamage: 1.5
+    });
+
+    expect(saved).toBe(true);
+    const presets = getCustomPresets();
+    expect(presets).toHaveLength(1);
+    
+    const hazardPreset = presets[0];
+    expect(hazardPreset.name).toBe('Hazard Test Preset');
+    expect(hazardPreset.config.enableDangerZones).toBe(true);
+    expect(hazardPreset.config.dangerZoneCount).toBe(3);
+    expect(hazardPreset.config.dangerZoneRadius).toBe(60);
+    expect(hazardPreset.config.dangerZoneDamage).toBe(1.5);
+  });
+
+  // SSN-268: Hazard settings from saved preset should normalize correctly
+  it('restores danger zone hazard values when normalizing saved preset config', () => {
+    // Save a preset with hazard settings
+    saveCustomPreset('Hazard Restore Test', {
+      worldWidth: 1024,
+      worldHeight: 768,
+      initialPopulation: 15,
+      minimumPopulation: 10,
+      initialFoodCount: 25,
+      foodSpawnChance: 0.06,
+      foodEnergyValue: 7,
+      maxFood: 150,
+      enableDangerZones: true,
+      dangerZoneCount: 4,
+      dangerZoneRadius: 50,
+      dangerZoneDamage: 2.0
+    });
+
+    const presets = getCustomPresets();
+    const savedConfig = presets[0].config;
+
+    // Normalize the saved config (simulating what happens when loading a preset)
+    const normalized = normalizeSimulationConfig(savedConfig, 'restore-test-seed');
+    
+    expect(normalized.enableDangerZones).toBe(true);
+    expect(normalized.dangerZoneCount).toBe(4);
+    expect(normalized.dangerZoneRadius).toBe(50);
+    expect(normalized.dangerZoneDamage).toBe(2.0);
+  });
+
   it('loads schema-safe draft values and ignores unknown fields', () => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
       name: 'Draft Name',

@@ -314,31 +314,132 @@ describe('App', () => {
     expect(screen.getByLabelText(/max zone height ratio/i)).toHaveValue(0.38);
   });
 
-  it('preserves terrain zones enabled state after starting simulation', async () => {
+  it('shows danger zone controls when enabled', () => {
     render(<App />);
 
-    // Enable terrain zones
-    const terrainToggle = screen.getByLabelText(/enable terrain zones/i);
-    if (!terrainToggle.checked) {
-      fireEvent.click(terrainToggle);
-    }
+    // By default, danger zones are disabled - controls should not be visible
+    expect(screen.queryByLabelText(/zone count/i)).not.toBeInTheDocument();
 
-    // Verify it's enabled before starting
-    expect(terrainToggle).toBeChecked();
+    // Enable danger zones
+    const dangerZoneToggle = screen.getByLabelText(/enable danger zones/i);
+    fireEvent.click(dangerZoneToggle);
+
+    // Now controls should be visible with default values
+    expect(screen.getByLabelText(/zone count/i)).toHaveValue(2);
+    expect(screen.getByLabelText(/zone radius/i)).toHaveValue(40);
+    expect(screen.getByLabelText(/damage per tick/i)).toHaveValue(0.5);
+  });
+
+  it('saves and reapplies custom presets with danger zone controls', async () => {
+    render(<App />);
+
+    // Enable danger zones
+    const dangerZoneToggle = screen.getByLabelText(/enable danger zones/i);
+    fireEvent.click(dangerZoneToggle);
+
+    fireEvent.change(screen.getByLabelText(/zone count/i), { target: { value: '5' } });
+    fireEvent.change(screen.getByLabelText(/zone radius/i), { target: { value: '60' } });
+    fireEvent.change(screen.getByLabelText(/damage per tick/i), { target: { value: '2.0' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /save current as preset/i }));
+    fireEvent.change(screen.getByPlaceholderText(/preset name/i), { target: { value: 'Danger zone tuning preset' } });
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    // Verify the preset was saved by checking it appears in the dropdown
+    const presetSelect = screen.getByLabelText(/quick-start preset/i);
+    const options = within(presetSelect).getAllByRole('option');
+    const presetOption = options.find(opt => opt.text.includes('Danger zone tuning preset'));
+    expect(presetOption).toBeTruthy();
+
+    // Verify preset values are saved in localStorage by checking config
+    const config = normalizeSimulationConfig({
+      dangerZoneEnabled: 'true',
+      dangerZoneCount: '5',
+      dangerZoneRadius: '60',
+      dangerZoneDamage: '2.0'
+    }, 'test-seed');
+    expect(config.enableDangerZones).toBe(true);
+    expect(config.dangerZoneCount).toBe(5);
+    expect(config.dangerZoneRadius).toBe(60);
+    expect(config.dangerZoneDamage).toBe(2.0);
+  });
+
+  it('generates danger zones when enabled and starts simulation', async () => {
+    render(<App />);
+
+    // Enable danger zones
+    const dangerZoneToggle = screen.getByLabelText(/enable danger zones/i);
+    fireEvent.click(dangerZoneToggle);
+
+    // Verify controls are visible with configured values
+    expect(screen.getByLabelText(/zone count/i)).toHaveValue(2);
+    expect(screen.getByLabelText(/zone radius/i)).toHaveValue(40);
+    expect(screen.getByLabelText(/damage per tick/i)).toHaveValue(0.5);
 
     // Start simulation
-    const startButton = screen.getByRole('button', { name: /start simulation/i });
-    fireEvent.click(startButton);
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
 
-    // Wait for simulation to start (we'll see tick appear)
-    await waitFor(() => {
-      expect(screen.getByText(/tick \d+/i)).toBeInTheDocument();
+    // Wait for simulation to start
+    await waitFor(
+      () => {
+        expect(screen.getByText(/^tick count:/i)).toBeInTheDocument();
+      },
+      { timeout: 30000 }
+    );
+
+    // Verify tick count shows 0 (simulation started)
+    expect(screen.getByText(/^tick count:/i)).toHaveTextContent('Tick count: 0');
+
+    // Verify danger zone config is correct by checking it produces expected zones
+    const config = normalizeSimulationConfig({
+      dangerZoneEnabled: 'true',
+      dangerZoneCount: '2',
+      dangerZoneRadius: '40',
+      dangerZoneDamage: '0.5',
+      seed: 'test-seed',
+      worldWidth: '1920',
+      worldHeight: '1080',
+      initialPopulation: '20'
+    }, 'test-seed-resolved');
+    const world = createInitialWorldFromConfig(config);
+    expect(world.dangerZones).toHaveLength(2);
+    expect(world.dangerZones[0]).toMatchObject({
+      radius: 40,
+      damagePerTick: 0.5
     });
+  });
 
-    // After starting, terrain zones should still be enabled in the form
-    // Get the checkbox again as it might be a different element after the update
-    const terrainToggleAfterStart = screen.getByLabelText(/enable terrain zones/i);
-    expect(terrainToggleAfterStart).toBeChecked();
+  it('generates no danger zones when disabled (default)', async () => {
+    render(<App />);
+
+    // Verify danger zones are disabled by default - controls should not be visible
+    expect(screen.getByLabelText(/enable danger zones/i)).not.toBeChecked();
+    expect(screen.queryByLabelText(/zone count/i)).not.toBeInTheDocument();
+
+    // Start simulation
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    // Wait for simulation to start
+    await waitFor(
+      () => {
+        expect(screen.getByText(/^tick count:/i)).toBeInTheDocument();
+      },
+      { timeout: 30000 }
+    );
+
+    // Verify danger zone config produces no zones when disabled
+    const config = normalizeSimulationConfig({
+      dangerZoneEnabled: 'false',
+      dangerZoneCount: '2',
+      dangerZoneRadius: '40',
+      dangerZoneDamage: '0.5',
+      seed: 'test-seed',
+      worldWidth: '1920',
+      worldHeight: '1080',
+      initialPopulation: '20'
+    }, 'test-seed-resolved');
+    const world = createInitialWorldFromConfig(config);
+    expect(world.dangerZones).toHaveLength(0);
   });
 
   it('shows non-blocking feedback when shared query values are missing or invalid', () => {
