@@ -2494,11 +2494,11 @@ describe('App', () => {
     vi.useRealTimers();
   });
 
-  it('clears stale selection when the selected organism dies', () => {
+  it('persists organism inspector with last values when selected organism dies', () => {
     vi.useFakeTimers();
     render(<App />);
 
-    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'selection-stale-seed' } });
+    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'persist-stale-seed' } });
     fireEvent.change(screen.getByLabelText(/^initial population$/i), { target: { value: '2' } });
     fireEvent.change(screen.getByLabelText(/^minimum population$/i), { target: { value: '1' } });
     fireEvent.change(screen.getByLabelText(/^initial food count$/i), { target: { value: '0' } });
@@ -2510,8 +2510,8 @@ describe('App', () => {
 
     const deterministicConfig = normalizeSimulationConfig(
       {
-        name: 'Selection stale test',
-        seed: 'selection-stale-seed',
+        name: 'Persist stale test',
+        seed: 'persist-stale-seed',
         worldWidth: 800,
         worldHeight: 480,
         initialPopulation: 2,
@@ -2521,7 +2521,7 @@ describe('App', () => {
         foodEnergyValue: 5,
         maxFood: 1
       },
-      'selection-stale-seed'
+      'persist-stale-seed'
     );
 
     const initialWorld = createInitialWorldFromConfig(deterministicConfig);
@@ -2541,7 +2541,6 @@ describe('App', () => {
     }
 
     expect(firstDiedId).toBeTruthy();
-    expect(deathTick).toBeTruthy();
     const selectedFixture = initialWorld.organisms.find((organism) => organism.id === firstDiedId);
     expect(selectedFixture).toBeTruthy();
 
@@ -2558,19 +2557,34 @@ describe('App', () => {
       toJSON: () => ({})
     });
 
+    // Select the organism that will die
     fireEvent.click(canvas, { clientX: selectedFixture.x, clientY: selectedFixture.y });
-    expect(screen.getByRole('region', { name: /organism info/i })).toHaveTextContent(
-      `Organism ${selectedFixture.id.slice(0, 8)}`
-    );
+    const organismHudBeforeDeath = screen.getByRole('region', { name: /organism info/i });
+    expect(organismHudBeforeDeath).toHaveTextContent(`Organism ${selectedFixture.id.slice(0, 8)}`);
+    // Verify energy is shown (should be a number, not "N/A")
+    const energyMatchBefore = organismHudBeforeDeath.textContent.match(/Energy:\s*([\d.]+)/);
+    expect(energyMatchBefore).toBeTruthy();
+    const energyBeforeDeath = energyMatchBefore[1];
 
+    // Advance to the death tick (deathTick is 427, so we need ~15000ms)
     fireEvent.click(screen.getByRole('button', { name: /^1x$/i }));
-
     act(() => {
-      vi.advanceTimersByTime(deathTick * 100 + 200);
+      vi.advanceTimersByTime(15000);
     });
-
+    
     fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
-    expect(screen.queryByRole('region', { name: /organism info/i })).not.toBeInTheDocument();
+
+    // The organism info panel should STILL be visible (persisted with last values)
+    const organismHudAfterDeath = screen.getByRole('region', { name: /organism info/i });
+    expect(organismHudAfterDeath).toHaveTextContent(`Organism ${selectedFixture.id.slice(0, 8)}`);
+    
+    // Should show the "Deceased" badge to indicate stale data
+    expect(organismHudAfterDeath).toHaveTextContent(/Deceased/i);
+    
+    // Energy should still show the last known value (not updated)
+    const energyMatchAfter = organismHudAfterDeath.textContent.match(/Energy:\s*([\d.]+)/);
+    expect(energyMatchAfter).toBeTruthy();
+    expect(energyMatchAfter[1]).toBe(energyBeforeDeath);
 
     vi.useRealTimers();
   });

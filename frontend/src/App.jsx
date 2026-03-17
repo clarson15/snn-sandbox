@@ -282,6 +282,7 @@ function App() {
   const [inspectorPinned, setInspectorPinned] = useState(false);
   const [pinnedOrganismSnapshot, setPinnedOrganismSnapshot] = useState(null);
   const [selectedOrganismUnavailable, setSelectedOrganismUnavailable] = useState(false);
+  const [staleOrganismSnapshot, setStaleOrganismSnapshot] = useState(null);
   const [inspectorTrendState, setInspectorTrendState] = useState(() => ({ selectedOrganismId: null, samples: [] }));
   const [hoveredSynapseId, setHoveredSynapseId] = useState(null);
   const [selectedSynapseHighlight, setSelectedSynapseHighlight] = useState(null);
@@ -391,6 +392,7 @@ function App() {
   const viewportRef = useRef({ width: DEFAULT_CONFIG.worldWidth, height: DEFAULT_CONFIG.worldHeight });
   const replayContextRef = useRef(null);
   const previousSpeciesMapRef = useRef(null);
+  const lastSelectedOrganismRef = useRef(null);
   const { toasts, enqueueToast, dismissToast } = useToasts();
   const toastsEnabled = process.env.NODE_ENV !== 'test';
 
@@ -773,7 +775,12 @@ function App() {
     }
 
     setPinnedOrganismSnapshot(selectedOrganism);
+    // Keep a ref to always have access to last state for death-handling
+    lastSelectedOrganismRef.current = selectedOrganism;
   }, [selectedOrganism, inspectorPinned]);
+
+  // This effect should NOT clear pinnedOrganismSnapshot when organism dies
+  // The stale snapshot logic in the effect below handles preserving last values
 
   useEffect(() => {
     if (!selectedOrganismId) {
@@ -784,19 +791,27 @@ function App() {
       if (selectedOrganismUnavailable) {
         setSelectedOrganismUnavailable(false);
       }
+      // Clear stale snapshot when a live organism is selected
+      if (staleOrganismSnapshot) {
+        setStaleOrganismSnapshot(null);
+      }
       return;
     }
 
-    setSelectedOrganismId(null);
-    setInspectorPinned(false);
-    setPinnedOrganismSnapshot(null);
+    // Organism has died - capture last known snapshot instead of clearing
+    // Use the ref to get the last known state (more reliable than state that may have timing issues)
+    const lastKnownSnapshot = lastSelectedOrganismRef.current;
+    if (lastKnownSnapshot) {
+      setStaleOrganismSnapshot(lastKnownSnapshot);
+    }
     setSelectedOrganismUnavailable(true);
-  }, [selectedOrganismId, selectedOrganism, selectedOrganismUnavailable]);
+  }, [selectedOrganismId, selectedOrganism, selectedOrganismUnavailable, staleOrganismSnapshot]);
 
   const clearSelection = () => {
     setSelectedOrganismId(null);
     setSelectedOrganismUnavailable(false);
     setPinnedOrganismSnapshot(null);
+    setStaleOrganismSnapshot(null);
   };
 
   const onToggleInspectorPin = () => {
@@ -913,6 +928,10 @@ function App() {
   };
 
   const acknowledgeUnavailableSelection = () => {
+    // Don't clear if we have a stale snapshot - that's intentional persistence
+    if (staleOrganismSnapshot) {
+      return false;
+    }
     if (!selectedOrganismUnavailable || inspectorPinned) {
       return false;
     }
@@ -921,7 +940,8 @@ function App() {
     return true;
   };
 
-  const inspectorOrganism = selectedOrganism ?? (inspectorPinned ? pinnedOrganismSnapshot : null);
+  const inspectorOrganism = selectedOrganism ?? (inspectorPinned ? pinnedOrganismSnapshot : null) ?? staleOrganismSnapshot;
+  const isInspectorShowingStaleData = Boolean(staleOrganismSnapshot) && !selectedOrganism;
   const inspectorTrendSeries = useMemo(
     () => deriveInspectorTrendSeries(inspectorTrendState.samples),
     [inspectorTrendState.samples]
@@ -953,8 +973,8 @@ function App() {
     () => formatInspectorSnapshot(inspectorOrganism, inspectorNearestFoodDistance, selectedOrganismTerrainEffect, selectedOrganismHazardEffect),
     [inspectorOrganism, inspectorNearestFoodDistance, selectedOrganismTerrainEffect, selectedOrganismHazardEffect]
   );
-  const isHudSelectedOrganismEggLaying = Number.isFinite(Number(selectedOrganism?.traits?.eggHatchTime))
-    && Number(selectedOrganism?.traits?.eggHatchTime) > 0;
+  const isHudSelectedOrganismEggLaying = Number.isFinite(Number(inspectorOrganism?.traits?.eggHatchTime))
+    && Number(inspectorOrganism?.traits?.eggHatchTime) > 0;
   const inspectorSummaryParentId = formattedInspector.parentId === INSPECTOR_PLACEHOLDER
     ? 'none'
     : formattedInspector.parentId;
@@ -1654,6 +1674,12 @@ function App() {
     if (!selectedOrganism || !speciesMap) return null;
     return speciesMap.get(selectedOrganism.id);
   }, [selectedOrganism, speciesMap]);
+
+  // Get species info for inspector organism (works with both live and stale snapshots)
+  const inspectorOrganismSpeciesId = useMemo(() => {
+    if (!inspectorOrganism || !speciesMap) return null;
+    return speciesMap.get(inspectorOrganism.id);
+  }, [inspectorOrganism, speciesMap]);
 
   // Get unique species for legend (SSN-219)
   const speciesLegend = useMemo(() => {
@@ -2862,10 +2888,13 @@ function App() {
                   </div>
                 ) : null}
 
-                {hudOverlayVisible && selectedOrganism ? (
+                {hudOverlayVisible && (selectedOrganism || staleOrganismSnapshot) ? (
                   <div className="organism-hud-overlay" role="region" aria-label="organism info">
                     <div className="organism-hud-header">
-                      <span className="organism-hud-id">Organism {selectedOrganism.id.slice(0, 8)}</span>
+                      <span className="organism-hud-id">Organism {inspectorOrganism?.id?.slice(0, 8)}</span>
+                      {isInspectorShowingStaleData && (
+                        <span className="organism-hud-deceased-badge" title="This organism is no longer present">Deceased</span>
+                      )}
                       <button
                         type="button"
                         className="organism-hud-close"
@@ -2889,8 +2918,8 @@ function App() {
                           ))}
                         </div>
                       ))}
-                      {selectedOrganismSpeciesId ? (
-                        <p><strong>Species:</strong> <span style={{ color: getSpeciesColor(selectedOrganismSpeciesId) }}>{selectedOrganismSpeciesId}</span></p>
+                      {inspectorOrganismSpeciesId ? (
+                        <p><strong>Species:</strong> <span style={{ color: getSpeciesColor(inspectorOrganismSpeciesId) }}>{inspectorOrganismSpeciesId}</span></p>
                       ) : null}
                       {formattedSelectedOrganismHazardEffect ? (
                         <p className="hazard-indicator">
