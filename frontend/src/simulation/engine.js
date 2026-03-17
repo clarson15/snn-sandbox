@@ -157,6 +157,7 @@ const WETLAND_TERRAIN_TURN_PENALTY_MULTIPLIER = 0.5; // 50% turn rate in wetland
 const LEGACY_CONSTANT_INPUT_ID = 'in-constant';
 const NORMALIZED_BRAIN_VERSION = 2;
 const INCOMING_SYNAPSE_CACHE = new WeakMap();
+const STRICT_WORLD_BOUND_EPSILON = 1e-9;
 
 function cloneBrain(brain) {
   if (!brain || typeof brain !== 'object') {
@@ -1075,6 +1076,97 @@ function selectWeightedZone(zoneWeights, rng) {
 }
 
 /**
+ * Compute non-zone regions (the complement of all terrain zone rectangles).
+ * Returns array of non-overlapping rectangles that are outside all zones.
+ * Uses a sweep-line algorithm for efficiency.
+ * @param {WorldTerrainZone[]} terrainZones - array of terrain zones
+ * @param {number} worldWidth - world width
+ * @param {number} worldHeight - world height
+ * @returns {Array<{x: number, y: number, width: number, height: number}>} array of non-zone rectangles
+ */
+function computeNonZoneRegions(terrainZones, worldWidth, worldHeight) {
+  if (!terrainZones || terrainZones.length === 0) {
+    return [{ x: 0, y: 0, width: worldWidth, height: worldHeight }];
+  }
+
+  // Extract and clip zone bounds to world rectangle so complement math only uses in-bounds coverage.
+  const zones = terrainZones
+    .map((zone) => zone?.bounds)
+    .filter((bounds) => bounds && bounds.width > 0 && bounds.height > 0)
+    .map((bounds) => {
+      const clippedX = Math.max(0, bounds.x);
+      const clippedY = Math.max(0, bounds.y);
+      const clippedMaxX = Math.min(worldWidth, bounds.x + bounds.width);
+      const clippedMaxY = Math.min(worldHeight, bounds.y + bounds.height);
+      const clippedWidth = clippedMaxX - clippedX;
+      const clippedHeight = clippedMaxY - clippedY;
+
+      if (clippedWidth <= 0 || clippedHeight <= 0) {
+        return null;
+      }
+
+      return {
+        x: clippedX,
+        y: clippedY,
+        width: clippedWidth,
+        height: clippedHeight
+      };
+    })
+    .filter((bounds) => bounds !== null);
+
+  if (zones.length === 0) {
+    return [{ x: 0, y: 0, width: worldWidth, height: worldHeight }];
+  }
+
+  // Collect all unique x and y coordinates (zone edges + world edges)
+  const xCoords = new Set([0, worldWidth]);
+  const yCoords = new Set([0, worldHeight]);
+
+  for (const zone of zones) {
+    xCoords.add(zone.x);
+    xCoords.add(zone.x + zone.width);
+    yCoords.add(zone.y);
+    yCoords.add(zone.y + zone.height);
+  }
+
+  // Sort coordinates
+  const sortedX = Array.from(xCoords).sort((a, b) => a - b);
+  const sortedY = Array.from(yCoords).sort((a, b) => a - b);
+
+  // Build grid of cells and mark which are covered by zones
+  const regions = [];
+
+  for (let i = 0; i < sortedX.length - 1; i++) {
+    for (let j = 0; j < sortedY.length - 1; j++) {
+      const cellX = sortedX[i];
+      const cellY = sortedY[j];
+      const cellWidth = sortedX[i + 1] - sortedX[i];
+      const cellHeight = sortedY[j + 1] - sortedY[j];
+
+      // Check if this cell is inside any zone
+      const inAnyZone = zones.some(zone => {
+        return cellX >= zone.x &&
+               cellX + cellWidth <= zone.x + zone.width &&
+               cellY >= zone.y &&
+               cellY + cellHeight <= zone.y + zone.height;
+      });
+
+      // If not covered by any zone, add to non-zone regions
+      if (!inAnyZone && cellWidth > 0 && cellHeight > 0) {
+        regions.push({
+          x: cellX,
+          y: cellY,
+          width: cellWidth,
+          height: cellHeight
+        });
+      }
+    }
+  }
+
+  return regions;
+}
+
+/**
  * Apply danger zone damage to organisms
  * @param {WorldOrganism[]} organisms
  * @param {WorldDangerZone[]} dangerZones
@@ -1962,17 +2054,69 @@ export function stepWorld(state, rng, params = {}) {
 
     // Use biome-weighted zone selection if terrain zones exist and multipliers are provided
     if (terrainZones.length > 0 && Object.keys(biomeSpawnMultipliers).length > 0) {
-      const zoneWeights = computeZoneWeights(terrainZones, biomeSpawnMultipliers);
-      const selectedZone = selectWeightedZone(zoneWeights, rng);
+      // Compute non-zone regions once (SSN-288)
+      // This gives us both the actual covered area (accounting for overlap and out-of-bounds)
+      // and the regions available for outside-zone spawning
+      const nonZoneRegions = computeNonZoneRegions(terrainZones, worldWidth, worldHeight);
+      const nonZoneArea = nonZoneRegions.reduce((sum, r) => sum + r.width * r.height, 0);
+      const worldArea = worldWidth * worldHeight;
+      
+      // Calculate non-zone spawn probability based on ACTUAL in-bounds uncovered area
+      // This correctly handles overlapping zones and zones extending outside world bounds
+      const nonZoneSpawnProbability = nonZoneArea / worldArea;
 
-      if (selectedZone && selectedZone.bounds) {
-        const bounds = selectedZone.bounds;
-        spawnX = bounds.x + rng.nextFloat() * bounds.width;
-        spawnY = bounds.y + rng.nextFloat() * bounds.height;
+      // Determine if we should spawn outside zones (proportional to uncovered area)
+      const shouldSpawnOutsideZones = rng.nextFloat() < nonZoneSpawnProbability;
+
+      if (shouldSpawnOutsideZones) {
+        // Spawn outside all terrain zones using deterministic non-region sampling (SSN-288)
+        // This guarantees the point is outside ALL zones with deterministic behavior
+        
+        if (nonZoneRegions.length > 0) {
+          // Weight regions by area for proportional sampling
+          const regionWeights = nonZoneRegions.map(r => r.width * r.height);
+          const totalWeight = regionWeights.reduce((a, b) => a + b, 0);
+          
+          // Select region weighted by area
+          let rand = rng.nextFloat() * totalWeight;
+          let selectedRegion = nonZoneRegions[0];
+          for (let i = 0; i < nonZoneRegions.length; i++) {
+            rand -= regionWeights[i];
+            if (rand <= 0) {
+              selectedRegion = nonZoneRegions[i];
+              break;
+            }
+          }
+          
+          // Spawn in selected non-zone region
+          spawnX = selectedRegion.x + rng.nextFloat() * selectedRegion.width;
+          spawnY = selectedRegion.y + rng.nextFloat() * selectedRegion.height;
+        } else {
+          // Edge case: zones cover entire world - spawn at world origin (guaranteed determinism)
+          spawnX = 0;
+          spawnY = 0;
+        }
       } else {
-        // Fallback if zone has no bounds
-        spawnX = rng.nextFloat() * worldWidth;
-        spawnY = rng.nextFloat() * worldHeight;
+        // Spawn in a weighted zone
+        const zoneWeights = computeZoneWeights(terrainZones, biomeSpawnMultipliers);
+        const selectedZone = selectWeightedZone(zoneWeights, rng);
+
+        if (selectedZone && selectedZone.bounds) {
+          const bounds = selectedZone.bounds;
+          // Sample within zone, then clip to world bounds (handles zones extending outside world)
+          const rawX = bounds.x + rng.nextFloat() * bounds.width;
+          const rawY = bounds.y + rng.nextFloat() * bounds.height;
+          // Keep food strictly inside [0, worldWidth) x [0, worldHeight)
+          // while preserving deterministic RNG consumption.
+          const maxSpawnX = worldWidth > 0 ? worldWidth - STRICT_WORLD_BOUND_EPSILON : 0;
+          const maxSpawnY = worldHeight > 0 ? worldHeight - STRICT_WORLD_BOUND_EPSILON : 0;
+          spawnX = Math.max(0, Math.min(maxSpawnX, rawX));
+          spawnY = Math.max(0, Math.min(maxSpawnY, rawY));
+        } else {
+          // Fallback if zone has no bounds or selection fails
+          spawnX = rng.nextFloat() * worldWidth;
+          spawnY = rng.nextFloat() * worldHeight;
+        }
       }
     } else {
       // Default: uniform random spawn across entire world
@@ -1980,10 +2124,14 @@ export function stepWorld(state, rng, params = {}) {
       spawnY = rng.nextFloat() * worldHeight;
     }
 
+    // Enforce strict in-world bounds for all spawn paths.
+    const maxSpawnX = worldWidth > 0 ? worldWidth - STRICT_WORLD_BOUND_EPSILON : 0;
+    const maxSpawnY = worldHeight > 0 ? worldHeight - STRICT_WORLD_BOUND_EPSILON : 0;
+
     nextFood.push({
       id: `food-${state.tick + 1}-${nextFood.length}`,
-      x: spawnX,
-      y: spawnY,
+      x: Math.max(0, Math.min(maxSpawnX, spawnX)),
+      y: Math.max(0, Math.min(maxSpawnY, spawnY)),
       energyValue: foodEnergyValue
     });
   }
