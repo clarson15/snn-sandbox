@@ -25,7 +25,12 @@ const DETERMINISTIC_PARAM_RULES = [
   ['terrainZoneMinWidthRatio', 0.05, 0.5],
   ['terrainZoneMaxWidthRatio', 0.05, 0.5],
   ['terrainZoneMinHeightRatio', 0.05, 0.5],
-  ['terrainZoneMaxHeightRatio', 0.05, 0.5]
+  ['terrainZoneMaxHeightRatio', 0.05, 0.5],
+  // Biome food spawn bias (SSN-285)
+  ['biomeFoodSpawnBiasPlains', 0, 10],
+  ['biomeFoodSpawnBiasForest', 0, 10],
+  ['biomeFoodSpawnBiasWetland', 0, 10],
+  ['biomeFoodSpawnBiasRocky', 0, 10]
 ];
 
 export const SHARE_QUERY_PARAM_ORDER = ['seed', ...DETERMINISTIC_PARAM_RULES.map(([key]) => key)];
@@ -65,6 +70,11 @@ export function buildDeterministicShareUrl({ origin, pathname, seed, parameters 
         default:
           value = DEFAULT_CONFIG[field];
       }
+    } else if (field.startsWith('biomeFoodSpawnBias')) {
+      // Handle biome food spawn bias fields (SSN-285)
+      const biomeType = field.replace('biomeFoodSpawnBias', '').toLowerCase();
+      const bias = parameters?.biomeFoodSpawnBias ?? DEFAULT_CONFIG.biomeFoodSpawnBias;
+      value = bias[biomeType] ?? DEFAULT_CONFIG.biomeFoodSpawnBias[biomeType];
     } else {
       value = parameters?.[field] ?? DEFAULT_CONFIG[field];
     }
@@ -79,6 +89,7 @@ export function resolveDeterministicQueryPrefill(search) {
   const hasDeterministicParams = DETERMINISTIC_PARAM_RULES.some(([field]) => params.has(field));
 
   const tzDefaults = DEFAULT_CONFIG.terrainZoneGeneration;
+  const biasDefaults = DEFAULT_CONFIG.biomeFoodSpawnBias;
   const prefill = {
     seed: '',
     ...Object.fromEntries(DETERMINISTIC_PARAM_RULES.map(([field]) => {
@@ -99,6 +110,11 @@ export function resolveDeterministicQueryPrefill(search) {
           default:
             return [field, String(DEFAULT_CONFIG[field])];
         }
+      }
+      if (field.startsWith('biomeFoodSpawnBias')) {
+        // Handle biome food spawn bias fields (SSN-285)
+        const biomeType = field.replace('biomeFoodSpawnBias', '').toLowerCase();
+        return [field, String(biasDefaults[biomeType] ?? 1.0)];
       }
       return [field, String(DEFAULT_CONFIG[field])];
     }))
@@ -124,6 +140,14 @@ export function resolveDeterministicQueryPrefill(search) {
     maxZoneWidthRatio: tzDefaults.maxZoneWidthRatio,
     minZoneHeightRatio: tzDefaults.minZoneHeightRatio,
     maxZoneHeightRatio: tzDefaults.maxZoneHeightRatio
+  };
+
+  // Track biome food spawn bias values for nested config reconstruction (SSN-285)
+  const biasValues = {
+    plains: biasDefaults.plains,
+    forest: biasDefaults.forest,
+    wetland: biasDefaults.wetland,
+    rocky: biasDefaults.rocky
   };
 
   for (const [field, min, max] of DETERMINISTIC_PARAM_RULES) {
@@ -169,6 +193,11 @@ export function resolveDeterministicQueryPrefill(search) {
       prefill[field] = field === 'terrainZoneEnabled'
         ? String(parsed === 1)
         : toCanonicalNumberString(parsed);
+    } else if (field.startsWith('biomeFoodSpawnBias')) {
+      // Handle biome food spawn bias fields (SSN-285)
+      const biomeType = field.replace('biomeFoodSpawnBias', '').toLowerCase();
+      biasValues[biomeType] = parsed;
+      prefill[field] = toCanonicalNumberString(parsed);
     } else {
       prefill[field] = toCanonicalNumberString(parsed);
     }
@@ -182,6 +211,14 @@ export function resolveDeterministicQueryPrefill(search) {
     maxZoneWidthRatio: tzValues.maxZoneWidthRatio,
     minZoneHeightRatio: tzValues.minZoneHeightRatio,
     maxZoneHeightRatio: tzValues.maxZoneHeightRatio
+  };
+
+  // Add nested biomeFoodSpawnBias to prefill (SSN-285)
+  prefill.biomeFoodSpawnBias = {
+    plains: biasValues.plains,
+    forest: biasValues.forest,
+    wetland: biasValues.wetland,
+    rocky: biasValues.rocky
   };
 
   return {
