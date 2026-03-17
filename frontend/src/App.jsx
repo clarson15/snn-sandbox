@@ -2932,6 +2932,15 @@ function App() {
                           <strong>Hazard:</strong> None
                         </p>
                       )}
+                      {formattedSelectedOrganismTerrainEffect ? (
+                        <p className="terrain-indicator">
+                          <strong>Terrain:</strong> {formattedSelectedOrganismTerrainEffect.zoneLabel}: {formattedSelectedOrganismTerrainEffect.effectLabel}
+                        </p>
+                      ) : (
+                        <p className="no-terrain-indicator">
+                          <strong>Terrain:</strong> None
+                        </p>
+                      )}
                     </div>
                     {brainGraphModel && brainGraphModel.nodes.length > 0 ? (
                       <div className="organism-hud-brain">
