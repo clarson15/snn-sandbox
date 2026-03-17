@@ -342,6 +342,18 @@ export const DEFAULT_CONFIG = {
     forest: 1.0,
     wetland: 1.0,
     rocky: 1.0
+  },
+  // Terrain effect strength multipliers (SSN-287)
+  // Values preserve existing terrain effect behavior when omitted
+  // forestVisionMultiplier: 0.5 means organisms in forest have 50% vision range
+  // wetlandSpeedMultiplier: 0.5 means organisms in wetland have 50% speed
+  // wetlandTurnMultiplier: 0.5 means organisms in wetland have 50% turn rate
+  // rockyEnergyDrain: 0.2 means organisms in rocky lose 0.2 energy per tick
+  terrainEffectStrengths: {
+    forestVisionMultiplier: 0.5,
+    wetlandSpeedMultiplier: 0.5,
+    wetlandTurnMultiplier: 0.5,
+    rockyEnergyDrain: 0.2
   }
 
 };
@@ -458,6 +470,18 @@ export function validateSimulationConfig(input) {
     const biasValue = Number(biasInput[biomeType] ?? DEFAULT_CONFIG.biomeFoodSpawnBias[biomeType]);
     if (!Number.isFinite(biasValue) || biasValue < 0 || biasValue > 10) {
       errors[`biomeFoodSpawnBias.${biomeType}`] = `Biome food spawn bias for ${biomeType} must be between 0 and 10.`;
+    }
+  }
+
+  // Terrain effect strengths validation (SSN-287)
+  const terrainEffectTypes = ['forestVisionMultiplier', 'wetlandSpeedMultiplier', 'wetlandTurnMultiplier', 'rockyEnergyDrain'];
+  const terrainInput = input.terrainEffectStrengths ?? {};
+  for (const effectType of terrainEffectTypes) {
+    const effectValue = Number(terrainInput[effectType] ?? DEFAULT_CONFIG.terrainEffectStrengths[effectType]);
+    // Valid ranges: 0 to 1 for multipliers, 0 to 2 for energy drain
+    const maxVal = effectType === 'rockyEnergyDrain' ? 2 : 1;
+    if (!Number.isFinite(effectValue) || effectValue < 0 || effectValue > maxVal) {
+      errors[`terrainEffectStrengths.${effectType}`] = `Terrain effect strength for ${effectType} must be between 0 and ${maxVal}.`;
     }
   }
 
@@ -594,6 +618,29 @@ export function normalizeSimulationConfig(input, resolvedSeed) {
         input.biomeFoodSpawnBias?.rocky ??
         input.biomeFoodSpawnBiasRocky ??
         DEFAULT_CONFIG.biomeFoodSpawnBias.rocky
+      )
+    },
+    // Terrain effect strengths (SSN-287)
+    terrainEffectStrengths: {
+      forestVisionMultiplier: Number(
+        input.terrainEffectStrengths?.forestVisionMultiplier ??
+        input.forestVisionMultiplier ??
+        DEFAULT_CONFIG.terrainEffectStrengths.forestVisionMultiplier
+      ),
+      wetlandSpeedMultiplier: Number(
+        input.terrainEffectStrengths?.wetlandSpeedMultiplier ??
+        input.wetlandSpeedMultiplier ??
+        DEFAULT_CONFIG.terrainEffectStrengths.wetlandSpeedMultiplier
+      ),
+      wetlandTurnMultiplier: Number(
+        input.terrainEffectStrengths?.wetlandTurnMultiplier ??
+        input.wetlandTurnMultiplier ??
+        DEFAULT_CONFIG.terrainEffectStrengths.wetlandTurnMultiplier
+      ),
+      rockyEnergyDrain: Number(
+        input.terrainEffectStrengths?.rockyEnergyDrain ??
+        input.rockyEnergyDrain ??
+        DEFAULT_CONFIG.terrainEffectStrengths.rockyEnergyDrain
       )
     }
   };
@@ -972,6 +1019,13 @@ export function toEngineStepParams(config, options = {}) {
       wetland: 1.0,
       rocky: 1.0
     },
+    // Terrain effect strengths (SSN-287)
+    terrainEffectStrengths: config.terrainEffectStrengths ?? {
+      forestVisionMultiplier: 0.5,
+      wetlandSpeedMultiplier: 0.5,
+      wetlandTurnMultiplier: 0.5,
+      rockyEnergyDrain: 0.2
+    },
     createFloorSpawnOrganism: (id, rng) => createRandomizedOrganism({
       id,
       rng,
@@ -1125,6 +1179,19 @@ function sanitizeLoadedConfigDraft(parsed) {
     sanitized.biomeFoodSpawnBias[biomeType] = isFiniteInRange(candidate, 0, 10)
       ? candidate
       : DEFAULT_CONFIG.biomeFoodSpawnBias[biomeType];
+  }
+
+  // Handle terrain effect strengths (SSN-287) - backward compatibility for configs without this field
+  const terrainEffectTypes = ['forestVisionMultiplier', 'wetlandSpeedMultiplier', 'wetlandTurnMultiplier', 'rockyEnergyDrain'];
+  const terrainSource = source.terrainEffectStrengths ?? {};
+  sanitized.terrainEffectStrengths = {};
+  for (const effectType of terrainEffectTypes) {
+    const candidate = Number(terrainSource[effectType]);
+    // Valid ranges: 0 to 1 for multipliers, 0 to 2 for energy drain
+    const maxVal = effectType === 'rockyEnergyDrain' ? 2 : 1;
+    sanitized.terrainEffectStrengths[effectType] = isFiniteInRange(candidate, 0, maxVal)
+      ? candidate
+      : DEFAULT_CONFIG.terrainEffectStrengths[effectType];
   }
 
   return sanitized;

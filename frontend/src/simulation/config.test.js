@@ -691,6 +691,13 @@ describe('simulation config helpers', () => {
         forest: 1.0,
         wetland: 1.0,
         rocky: 1.0
+      },
+      // Terrain effect strengths (SSN-287)
+      terrainEffectStrengths: {
+        forestVisionMultiplier: 0.5,
+        wetlandSpeedMultiplier: 0.5,
+        wetlandTurnMultiplier: 0.5,
+        rockyEnergyDrain: 0.2
       }
 
     });
@@ -769,6 +776,13 @@ describe('simulation config helpers', () => {
         forest: 1.0,
         wetland: 1.0,
         rocky: 1.0
+      },
+      // Terrain effect strengths (SSN-287)
+      terrainEffectStrengths: {
+        forestVisionMultiplier: 0.5,
+        wetlandSpeedMultiplier: 0.5,
+        wetlandTurnMultiplier: 0.5,
+        rockyEnergyDrain: 0.2
       }
 
     });
@@ -1161,6 +1175,129 @@ describe('simulation config helpers', () => {
       expect(stepParamsPlains.biomeSpawnMultipliers.plains).toBeGreaterThan(
         stepParamsForest.biomeSpawnMultipliers.plains
       );
+    });
+  });
+
+  describe('toEngineStepParams terrain effect strengths (SSN-287)', () => {
+    it('maps terrainEffectStrengths to engine params with default values preserving existing behavior', () => {
+      const config = normalizeSimulationConfig(
+        {
+          name: 'Default Terrain Effects',
+          seed: 'default-terrain-seed'
+        },
+        'default-terrain-seed'
+      );
+
+      const stepParams = toEngineStepParams(config);
+
+      // Default values should preserve existing behavior exactly
+      expect(stepParams.terrainEffectStrengths).toEqual({
+        forestVisionMultiplier: 0.5,
+        wetlandSpeedMultiplier: 0.5,
+        wetlandTurnMultiplier: 0.5,
+        rockyEnergyDrain: 0.2
+      });
+    });
+
+    it('accepts custom terrain effect strength values (SSN-287)', () => {
+      const config = normalizeSimulationConfig(
+        {
+          name: 'Custom Terrain Effects',
+          seed: 'custom-terrain-seed',
+          terrainEffectStrengths: {
+            forestVisionMultiplier: 0.3,
+            wetlandSpeedMultiplier: 0.7,
+            wetlandTurnMultiplier: 0.8,
+            rockyEnergyDrain: 0.5
+          }
+        },
+        'custom-terrain-seed'
+      );
+
+      const stepParams = toEngineStepParams(config);
+
+      expect(stepParams.terrainEffectStrengths).toEqual({
+        forestVisionMultiplier: 0.3,
+        wetlandSpeedMultiplier: 0.7,
+        wetlandTurnMultiplier: 0.8,
+        rockyEnergyDrain: 0.5
+      });
+    });
+
+    it('produces identical terrain effect params with same config (deterministic)', () => {
+      const baseConfig = {
+        name: 'Deterministic Terrain Test',
+        seed: 'deterministic-terrain-seed',
+        terrainEffectStrengths: {
+          forestVisionMultiplier: 0.25,
+          wetlandSpeedMultiplier: 0.75,
+          wetlandTurnMultiplier: 0.6,
+          rockyEnergyDrain: 0.15
+        }
+      };
+
+      const config1 = normalizeSimulationConfig(baseConfig, 'deterministic-terrain-seed');
+      const config2 = normalizeSimulationConfig(baseConfig, 'deterministic-terrain-seed');
+
+      const stepParams1 = toEngineStepParams(config1);
+      const stepParams2 = toEngineStepParams(config2);
+
+      expect(stepParams1.terrainEffectStrengths).toEqual(stepParams2.terrainEffectStrengths);
+    });
+  });
+
+  describe('validateSimulationConfig terrain effect strengths (SSN-287)', () => {
+    it('validates terrain effect strength ranges', () => {
+      // Test invalid values
+      const errorsNegative = validateSimulationConfig({
+        name: 'Terrain Test',
+        terrainEffectStrengths: {
+          forestVisionMultiplier: -0.1,
+          wetlandSpeedMultiplier: 0.5,
+          wetlandTurnMultiplier: 0.5,
+          rockyEnergyDrain: 0.2
+        }
+      });
+      expect(errorsNegative['terrainEffectStrengths.forestVisionMultiplier']).toBe('Terrain effect strength for forestVisionMultiplier must be between 0 and 1.');
+
+      // Test values above max for multipliers
+      const errorsOverMax = validateSimulationConfig({
+        name: 'Terrain Test',
+        terrainEffectStrengths: {
+          forestVisionMultiplier: 1.5,
+          wetlandSpeedMultiplier: 0.5,
+          wetlandTurnMultiplier: 0.5,
+          rockyEnergyDrain: 0.2
+        }
+      });
+      expect(errorsOverMax['terrainEffectStrengths.forestVisionMultiplier']).toBe('Terrain effect strength for forestVisionMultiplier must be between 0 and 1.');
+
+      // Test rockyEnergyDrain can go up to 2
+      const errorsRockyHigh = validateSimulationConfig({
+        name: 'Terrain Test',
+        terrainEffectStrengths: {
+          forestVisionMultiplier: 0.5,
+          wetlandSpeedMultiplier: 0.5,
+          wetlandTurnMultiplier: 0.5,
+          rockyEnergyDrain: 3.0
+        }
+      });
+      expect(errorsRockyHigh['terrainEffectStrengths.rockyEnergyDrain']).toBe('Terrain effect strength for rockyEnergyDrain must be between 0 and 2.');
+
+      // Test valid values
+      const errorsValid = validateSimulationConfig({
+        name: 'Terrain Test',
+        terrainEffectStrengths: {
+          forestVisionMultiplier: 0,
+          wetlandSpeedMultiplier: 1.0,
+          wetlandTurnMultiplier: 0.5,
+          rockyEnergyDrain: 2.0
+        }
+      });
+      expect(errorsValid['terrainEffectStrengths.forestVisionMultiplier']).toBeUndefined();
+      expect(errorsValid['terrainEffectStrengths.wetlandSpeedMultiplier']).toBeUndefined();
+      expect(errorsValid['terrainEffectStrengths.wetlandTurnMultiplier']).toBeUndefined();
+      expect(errorsValid['terrainEffectStrengths.rockyEnergyDrain']).toBeUndefined();
     });
   });
 });
