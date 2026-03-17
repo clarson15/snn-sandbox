@@ -1213,6 +1213,136 @@ describe('App', () => {
   });
 
 
+  it('new run clears staleOrganismSnapshot from prior death state', () => {
+    vi.useFakeTimers();
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'stale-clear-seed' } });
+    fireEvent.change(screen.getByLabelText(/^initial population$/i), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText(/^minimum population$/i), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText(/^initial food count$/i), { target: { value: '0' } });
+    fireEvent.change(screen.getByLabelText(/food spawn chance/i), { target: { value: '0' } });
+    fireEvent.change(screen.getByLabelText(/^max food$/i), { target: { value: '1' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
+
+    const deterministicConfig = normalizeSimulationConfig(
+      {
+        name: 'Stale clear test',
+        seed: 'stale-clear-seed',
+        worldWidth: 800,
+        worldHeight: 480,
+        initialPopulation: 2,
+        minimumPopulation: 1,
+        initialFoodCount: 0,
+        foodSpawnChance: 0,
+        foodEnergyValue: 5,
+        maxFood: 1
+      },
+      'stale-clear-seed'
+    );
+
+    const initialWorld = createInitialWorldFromConfig(deterministicConfig);
+    const rng = createSeededPrng(deterministicConfig.resolvedSeed);
+    const stepParams = toEngineStepParams(deterministicConfig);
+    const initialIds = initialWorld.organisms.map((organism) => organism.id);
+
+    let projected = initialWorld;
+    let firstDiedId = null;
+    let deathTick = null;
+    for (let i = 0; i < 800 && !firstDiedId; i += 1) {
+      projected = stepWorld(projected, rng, stepParams);
+      firstDiedId = initialIds.find((id) => !projected.organisms.some((organism) => organism.id === id)) ?? null;
+      if (firstDiedId) {
+        deathTick = i + 1;
+      }
+    }
+
+    expect(firstDiedId).toBeTruthy();
+    const selectedFixture = initialWorld.organisms.find((organism) => organism.id === firstDiedId);
+    expect(selectedFixture).toBeTruthy();
+
+    const canvas = screen.getByLabelText(/simulation world/i);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 800,
+      height: 480,
+      right: 800,
+      bottom: 480,
+      toJSON: () => ({})
+    });
+
+    // Select the organism that will die
+    fireEvent.click(canvas, { clientX: selectedFixture.x, clientY: selectedFixture.y });
+
+    // Wait for the organism to die and become stale
+    fireEvent.click(screen.getByRole('button', { name: /^1x$/i }));
+    act(() => {
+      vi.advanceTimersByTime(deathTick * 1000 / 30);
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
+
+    // Verify stale state exists (Deceased indicator should be visible)
+    const organismHudAfterDeath = screen.getByRole('region', { name: /organism info/i });
+    expect(organismHudAfterDeath).toHaveTextContent(/Deceased/i);
+
+    // Now trigger a new run - this should clear staleOrganismSnapshot
+    fireEvent.click(screen.getByRole('button', { name: /new run with same seed/i }));
+
+    // Verify organism HUD is completely gone (stale snapshot was cleared)
+    expect(screen.queryByRole('region', { name: /organism info/i })).not.toBeInTheDocument();
+
+    vi.useRealTimers();
+  });
+
+
+  it('loads a saved snapshot and clears staleOrganismSnapshot from prior run', async () => {
+    render(<App />);
+
+    // First, start a simulation and create stale state by selecting an organism
+    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'load-clear-seed' } });
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/^tick count:/i)).toHaveTextContent(/tick count: \d+/i);
+    });
+
+    // Pause and select an organism to create some selection state
+    fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
+
+    const canvas = screen.getByLabelText(/simulation world/i);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 1920,
+      height: 1080,
+      right: 1920,
+      bottom: 1080,
+      toJSON: () => ({})
+    });
+
+    // Click somewhere to select an organism (if any exist)
+    fireEvent.click(canvas, { clientX: 100, clientY: 100 });
+
+    // Now load a saved snapshot - this should clear any stale state
+    const savedRegion = await screen.findByRole('region', { name: /saved simulations/i });
+    fireEvent.click(within(savedRegion).getByRole('button', { name: /^resume$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/loaded\./i)).toBeInTheDocument();
+    });
+
+    // Verify selection is cleared (organism info should not be visible)
+    expect(screen.queryByRole('region', { name: /organism info/i })).not.toBeInTheDocument();
+  });
+
+
   it('shows actionable validation errors for invalid ranges', () => {
     render(<App />);
 
@@ -2566,10 +2696,10 @@ describe('App', () => {
     expect(energyMatchBefore).toBeTruthy();
     const energyBeforeDeath = energyMatchBefore[1];
 
-    // Advance to the death tick (deathTick is 427, so we need ~15000ms)
+    // Advance to the death tick using computed deathTick
     fireEvent.click(screen.getByRole('button', { name: /^1x$/i }));
     act(() => {
-      vi.advanceTimersByTime(15000);
+      vi.advanceTimersByTime(deathTick * 1000 / 30);
     });
     
     fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));

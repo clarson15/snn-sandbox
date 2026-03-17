@@ -1442,6 +1442,7 @@ function App() {
     setSelectedOrganismUnavailable(false);
     setInspectorPinned(false);
     setPinnedOrganismSnapshot(null);
+    setStaleOrganismSnapshot(null);
     setResolvedSeed(loadedConfig.resolvedSeed);
     setTickDisplay(loadedWorld.tick);
     setRunStartTick(loadedWorld.tick);
@@ -1478,6 +1479,7 @@ function App() {
     setSelectedOrganismUnavailable(false);
     setInspectorPinned(false);
     setPinnedOrganismSnapshot(null);
+    setStaleOrganismSnapshot(null);
     setResolvedSeed(config.resolvedSeed);
     setTickDisplay(0);
     setRunStartTick(0);
