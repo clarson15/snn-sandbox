@@ -8,7 +8,7 @@ import { loadReplayComparisonPresets } from './simulation/replayComparisonPreset
 import { stepWorld } from './simulation/engine';
 import { createSeededPrng } from './simulation/prng';
 import { mapBrainToVisualizerModel } from './simulation/brainVisualizer';
-import { deriveOrganismTerrainEffect } from './simulation/stats';
+import { deriveOrganismHazardEffect, deriveOrganismTerrainEffect } from './simulation/stats';
 
 function ensureWritableLocalStorage() {
   const storage = window.localStorage;
@@ -443,112 +443,172 @@ describe('App', () => {
   });
 
   it('shows hazard info in organism HUD when selected organism is in a danger zone', async () => {
-    render(<App />);
+    vi.useFakeTimers();
 
-    // Enable danger zones
-    const dangerZoneToggle = screen.getByLabelText(/enable danger zones/i);
-    fireEvent.click(dangerZoneToggle);
-
-    // Set up a single danger zone we can reliably test
-    fireEvent.change(screen.getByLabelText(/zone count/i), { target: { value: '1' } });
-    fireEvent.change(screen.getByLabelText(/zone radius/i), { target: { value: '100' } });
-    fireEvent.change(screen.getByLabelText(/damage per tick/i), { target: { value: '1.5' } });
-
-    // Start simulation with deterministic seed
-    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'hazard-test-seed' } });
-    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
-
-    // Wait for simulation to start
-    await waitFor(
-      () => {
-        expect(screen.getByText(/^tick count:/i)).toBeInTheDocument();
+    // Use deterministic config to ensure we can find organisms in the danger zone
+    const deterministicConfig = normalizeSimulationConfig(
+      {
+        name: 'Hazard HUD Test',
+        seed: 'hazard-hud-test-seed',
+        worldWidth: 800,
+        worldHeight: 480,
+        initialPopulation: 20,
+        initialFoodCount: 30,
+        dangerZoneEnabled: true,
+        dangerZoneCount: 1,
+        dangerZoneRadius: 100,
+        dangerZoneDamage: 1.5
       },
-      { timeout: 30000 }
+      'hazard-hud-test-seed'
     );
 
-    // Verify simulation is running
-    expect(screen.getByText(/^tick count:/i)).toHaveTextContent('Tick count: 0');
+    const initialWorld = createInitialWorldFromConfig(deterministicConfig);
+    expect(initialWorld.dangerZones).toHaveLength(1);
 
-    // Get the world to find organism positions
-    const config = normalizeSimulationConfig({
-      dangerZoneEnabled: 'true',
-      dangerZoneCount: '1',
-      dangerZoneRadius: '100',
-      dangerZoneDamage: '1.5',
-      seed: 'hazard-test-seed',
-      worldWidth: '1920',
-      worldHeight: '1080',
-      initialPopulation: '5'
-    }, 'hazard-test-seed-resolved');
-    const world = createInitialWorldFromConfig(config);
-
-    // Find an organism that's in a danger zone
-    const organismInZone = world.organisms.find((org) => {
-      if (!world.dangerZones || world.dangerZones.length === 0) return false;
-      const zone = world.dangerZones[0];
+    // Find an organism that's in the danger zone
+    const organismInZone = initialWorld.organisms.find((org) => {
+      const zone = initialWorld.dangerZones[0];
       const dx = org.x - zone.x;
       const dy = org.y - zone.y;
       return (dx * dx + dy * dy) < (zone.radius * zone.radius);
     });
+    expect(organismInZone).toBeTruthy();
 
-    // Also find an organism outside the danger zone for comparison
-    const organismOutsideZone = world.organisms.find((org) => {
-      if (!world.dangerZones || world.dangerZones.length === 0) return true;
-      const zone = world.dangerZones[0];
+    // Verify the hazard effect is derived correctly
+    const hazardEffect = deriveOrganismHazardEffect(organismInZone, initialWorld.dangerZones);
+    expect(hazardEffect).not.toBeNull();
+    expect(hazardEffect.totalDamage).toBe(1.5);
+
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'hazard-hud-test-seed' } });
+    fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '800' } });
+    fireEvent.change(screen.getByLabelText(/world height/i), { target: { value: '480' } });
+    fireEvent.change(screen.getByLabelText(/initial population/i), { target: { value: '20' } });
+
+    // Enable danger zones via UI
+    const dangerZoneToggle = screen.getByLabelText(/enable danger zones/i);
+    if (!dangerZoneToggle.checked) {
+      fireEvent.click(dangerZoneToggle);
+    }
+    fireEvent.change(screen.getByLabelText(/zone count/i), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText(/zone radius/i), { target: { value: '100' } });
+    fireEvent.change(screen.getByLabelText(/damage per tick/i), { target: { value: '1.5' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+
+    // Mock canvas bounding rect for click selection
+    const canvas = screen.getByLabelText(/simulation world/i);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 800,
+      height: 480,
+      right: 800,
+      bottom: 480,
+      toJSON: () => ({})
+    });
+
+    // Click on the organism that's in the danger zone
+    fireEvent.click(canvas, { clientX: organismInZone.x, clientY: organismInZone.y });
+
+    // Verify the organism HUD shows the hazard info
+    const organismHud = screen.getByRole('region', { name: /organism info/i });
+    expect(organismHud).toHaveTextContent(`Organism ${organismInZone.id.slice(0, 8)}`);
+    expect(organismHud).toHaveTextContent(/Hazard:/);
+    expect(organismHud).toHaveTextContent(/Hazard:\s*Lava\s*\(-1\.5\s*energy\/tick\)/i);
+
+    vi.useRealTimers();
+  });
+
+  it('shows no hazard in organism HUD when selected organism is not in any danger zone', async () => {
+    vi.useFakeTimers();
+
+    // Use a small danger zone radius to ensure some organisms are outside
+    const deterministicConfig = normalizeSimulationConfig(
+      {
+        name: 'No Hazard HUD Test',
+        seed: 'no-hazard-hud-test-seed',
+        worldWidth: 800,
+        worldHeight: 480,
+        initialPopulation: 20,
+        initialFoodCount: 30,
+        dangerZoneEnabled: true,
+        dangerZoneCount: 1,
+        dangerZoneRadius: 30,
+        dangerZoneDamage: 2.0
+      },
+      'no-hazard-hud-test-seed'
+    );
+
+    const initialWorld = createInitialWorldFromConfig(deterministicConfig);
+    expect(initialWorld.dangerZones).toHaveLength(1);
+
+    // Find an organism that's NOT in the danger zone
+    const organismOutsideZone = initialWorld.organisms.find((org) => {
+      const zone = initialWorld.dangerZones[0];
       const dx = org.x - zone.x;
       const dy = org.y - zone.y;
       return (dx * dx + dy * dy) >= (zone.radius * zone.radius);
     });
+    expect(organismOutsideZone).toBeTruthy();
 
-    // Test organism in danger zone - click on canvas to select it
-    if (organismInZone) {
-      const canvas = screen.getByRole('img', { name: /simulation world/i });
-      // Click near the organism's position (canvas uses world coordinates)
-      const rect = canvas.getBoundingClientRect();
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-      const clickX = (organismInZone.x * rect.width) / 1920; // Approximate
-      const clickY = (organismInZone.y * rect.height) / 1080; // Approximate
-      
-      // Actually we can't easily click on canvas in tests - let's verify the HUD shows "None" when no organism selected
-      // and then verify the hazard logic works by checking our stats functions directly
-      
-      // Verify the HUD shows "None" hazard when no organism is selected (initial state)
-      // After clicking to select an organism, we can verify hazard shows
-    }
+    // Verify no hazard effect is derived
+    const hazardEffect = deriveOrganismHazardEffect(organismOutsideZone, initialWorld.dangerZones);
+    expect(hazardEffect).toBeNull();
 
-    // Test that we can verify "No hazard" state by selecting an organism outside the zone
-    // This is harder to test in the canvas - let's verify the functions work in unit tests instead
-    
-    // For now, just verify the simulation runs with danger zones enabled
-    expect(world.dangerZones).toHaveLength(1);
-  });
-
-  it('shows no hazard in organism HUD when selected organism is not in any danger zone', async () => {
     render(<App />);
 
-    // Enable danger zones
+    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'no-hazard-hud-test-seed' } });
+    fireEvent.change(screen.getByLabelText(/world width/i), { target: { value: '800' } });
+    fireEvent.change(screen.getByLabelText(/world height/i), { target: { value: '480' } });
+    fireEvent.change(screen.getByLabelText(/initial population/i), { target: { value: '20' } });
+
+    // Enable danger zones via UI
     const dangerZoneToggle = screen.getByLabelText(/enable danger zones/i);
-    fireEvent.click(dangerZoneToggle);
-
-    // Set up a danger zone
+    if (!dangerZoneToggle.checked) {
+      fireEvent.click(dangerZoneToggle);
+    }
     fireEvent.change(screen.getByLabelText(/zone count/i), { target: { value: '1' } });
-    fireEvent.change(screen.getByLabelText(/zone radius/i), { target: { value: '20' } });
+    fireEvent.change(screen.getByLabelText(/zone radius/i), { target: { value: '30' } });
+    fireEvent.change(screen.getByLabelText(/damage per tick/i), { target: { value: '2.0' } });
 
-    // Start simulation with deterministic seed that places organisms away from zone center
-    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'no-hazard-test' } });
     fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
 
-    // Wait for simulation to start
-    await waitFor(
-      () => {
-        expect(screen.getByText(/^tick count:/i)).toBeInTheDocument();
-      },
-      { timeout: 30000 }
-    );
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
 
-    // Verify simulation is running
-    expect(screen.getByText(/^tick count:/i)).toHaveTextContent('Tick count: 0');
+    // Mock canvas bounding rect for click selection
+    const canvas = screen.getByLabelText(/simulation world/i);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 800,
+      height: 480,
+      right: 800,
+      bottom: 480,
+      toJSON: () => ({})
+    });
+
+    // Click on the organism that's outside the danger zone
+    fireEvent.click(canvas, { clientX: organismOutsideZone.x, clientY: organismOutsideZone.y });
+
+    // Verify the organism HUD shows "Hazard: None"
+    const organismHud = screen.getByRole('region', { name: /organism info/i });
+    expect(organismHud).toHaveTextContent(`Organism ${organismOutsideZone.id.slice(0, 8)}`);
+    expect(organismHud).toHaveTextContent(/Hazard:/);
+    expect(organismHud).toHaveTextContent(/Hazard:\s*None/i);
+
+    vi.useRealTimers();
   });
 
   it('shows non-blocking feedback when shared query values are missing or invalid', () => {
