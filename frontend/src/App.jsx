@@ -215,7 +215,12 @@ function createFormStateFromConfig(config) {
     dangerZoneEnabled: String(Boolean(config.enableDangerZones)),
     dangerZoneCount: String(config.dangerZoneCount ?? DEFAULT_CONFIG.dangerZoneCount),
     dangerZoneRadius: String(config.dangerZoneRadius ?? DEFAULT_CONFIG.dangerZoneRadius),
-    dangerZoneDamage: String(config.dangerZoneDamage ?? DEFAULT_CONFIG.dangerZoneDamage)
+    dangerZoneDamage: String(config.dangerZoneDamage ?? DEFAULT_CONFIG.dangerZoneDamage),
+    // Biome food spawn bias (SSN-286)
+    biomeFoodSpawnBiasPlains: String(config.biomeFoodSpawnBias?.plains ?? DEFAULT_CONFIG.biomeFoodSpawnBias.plains),
+    biomeFoodSpawnBiasForest: String(config.biomeFoodSpawnBias?.forest ?? DEFAULT_CONFIG.biomeFoodSpawnBias.forest),
+    biomeFoodSpawnBiasWetland: String(config.biomeFoodSpawnBias?.wetland ?? DEFAULT_CONFIG.biomeFoodSpawnBias.wetland),
+    biomeFoodSpawnBiasRocky: String(config.biomeFoodSpawnBias?.rocky ?? DEFAULT_CONFIG.biomeFoodSpawnBias.rocky)
   };
 }
 
@@ -1309,7 +1314,12 @@ function App() {
       dangerZoneEnabled: String(Boolean(preset.config.enableDangerZones ?? DEFAULT_CONFIG.enableDangerZones)),
       dangerZoneCount: String(preset.config.dangerZoneCount ?? DEFAULT_CONFIG.dangerZoneCount),
       dangerZoneRadius: String(preset.config.dangerZoneRadius ?? DEFAULT_CONFIG.dangerZoneRadius),
-      dangerZoneDamage: String(preset.config.dangerZoneDamage ?? DEFAULT_CONFIG.dangerZoneDamage)
+      dangerZoneDamage: String(preset.config.dangerZoneDamage ?? DEFAULT_CONFIG.dangerZoneDamage),
+      // Biome food spawn bias (SSN-286)
+      biomeFoodSpawnBiasPlains: String(preset.config.biomeFoodSpawnBias?.plains ?? DEFAULT_CONFIG.biomeFoodSpawnBias.plains),
+      biomeFoodSpawnBiasForest: String(preset.config.biomeFoodSpawnBias?.forest ?? DEFAULT_CONFIG.biomeFoodSpawnBias.forest),
+      biomeFoodSpawnBiasWetland: String(preset.config.biomeFoodSpawnBias?.wetland ?? DEFAULT_CONFIG.biomeFoodSpawnBias.wetland),
+      biomeFoodSpawnBiasRocky: String(preset.config.biomeFoodSpawnBias?.rocky ?? DEFAULT_CONFIG.biomeFoodSpawnBias.rocky)
     };
 
     setFormState(newFormState);
@@ -1357,7 +1367,14 @@ function App() {
       enableDangerZones: formState.dangerZoneEnabled === 'true',
       dangerZoneCount: toFiniteNumberOrDefault(formState.dangerZoneCount, DEFAULT_CONFIG.dangerZoneCount),
       dangerZoneRadius: toFiniteNumberOrDefault(formState.dangerZoneRadius, DEFAULT_CONFIG.dangerZoneRadius),
-      dangerZoneDamage: toFiniteNumberOrDefault(formState.dangerZoneDamage, DEFAULT_CONFIG.dangerZoneDamage)
+      dangerZoneDamage: toFiniteNumberOrDefault(formState.dangerZoneDamage, DEFAULT_CONFIG.dangerZoneDamage),
+      // Biome food spawn bias (SSN-286)
+      biomeFoodSpawnBias: {
+        plains: toFiniteNumberOrDefault(formState.biomeFoodSpawnBiasPlains, DEFAULT_CONFIG.biomeFoodSpawnBias.plains),
+        forest: toFiniteNumberOrDefault(formState.biomeFoodSpawnBiasForest, DEFAULT_CONFIG.biomeFoodSpawnBias.forest),
+        wetland: toFiniteNumberOrDefault(formState.biomeFoodSpawnBiasWetland, DEFAULT_CONFIG.biomeFoodSpawnBias.wetland),
+        rocky: toFiniteNumberOrDefault(formState.biomeFoodSpawnBiasRocky, DEFAULT_CONFIG.biomeFoodSpawnBias.rocky)
+      }
     };
 
     const success = saveCustomPreset(newPresetName, currentConfig);
@@ -3612,6 +3629,33 @@ function App() {
                   </div>
                 </>
               ) : null}
+
+              <h3>Food spawn bias</h3>
+              <p className="field-hint">Adjust food spawn probability per biome type. Default 1.0 preserves SSN-284 behavior.</p>
+              <div className="field-row">
+                <label>
+                  Plains bias
+                  <input type="number" step="0.1" min="0" max="10" value={formState.biomeFoodSpawnBiasPlains} onChange={onFieldChange('biomeFoodSpawnBiasPlains')} />
+                  {errors.biomeFoodSpawnBiasPlains ? <span className="error-text">{errors.biomeFoodSpawnBiasPlains}</span> : null}
+                </label>
+                <label>
+                  Forest bias
+                  <input type="number" step="0.1" min="0" max="10" value={formState.biomeFoodSpawnBiasForest} onChange={onFieldChange('biomeFoodSpawnBiasForest')} />
+                  {errors.biomeFoodSpawnBiasForest ? <span className="error-text">{errors.biomeFoodSpawnBiasForest}</span> : null}
+                </label>
+              </div>
+              <div className="field-row">
+                <label>
+                  Wetland bias
+                  <input type="number" step="0.1" min="0" max="10" value={formState.biomeFoodSpawnBiasWetland} onChange={onFieldChange('biomeFoodSpawnBiasWetland')} />
+                  {errors.biomeFoodSpawnBiasWetland ? <span className="error-text">{errors.biomeFoodSpawnBiasWetland}</span> : null}
+                </label>
+                <label>
+                  Rocky bias
+                  <input type="number" step="0.1" min="0" max="10" value={formState.biomeFoodSpawnBiasRocky} onChange={onFieldChange('biomeFoodSpawnBiasRocky')} />
+                  {errors.biomeFoodSpawnBiasRocky ? <span className="error-text">{errors.biomeFoodSpawnBiasRocky}</span> : null}
+                </label>
+              </div>
 
               <div className="field-row">
                 <button type="button" onClick={onResetConfigToDefaults}>

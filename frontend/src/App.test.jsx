@@ -364,6 +364,81 @@ describe('App', () => {
     expect(config.dangerZoneDamage).toBe(2.0);
   });
 
+  it('saves and reapplies custom presets with biome food spawn bias controls (SSN-286)', async () => {
+    render(<App />);
+
+    // Change biome food spawn bias values from defaults (1.0)
+    fireEvent.change(screen.getByLabelText(/plains bias/i), { target: { value: '2.5' } });
+    fireEvent.change(screen.getByLabelText(/forest bias/i), { target: { value: '0.5' } });
+    fireEvent.change(screen.getByLabelText(/wetland bias/i), { target: { value: '1.5' } });
+    fireEvent.change(screen.getByLabelText(/rocky bias/i), { target: { value: '3.0' } });
+
+    // Save as preset
+    fireEvent.click(screen.getByRole('button', { name: /save current as preset/i }));
+    fireEvent.change(screen.getByPlaceholderText(/preset name/i), { target: { value: 'Biome food bias preset' } });
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    // Reset values to defaults
+    fireEvent.change(screen.getByLabelText(/plains bias/i), { target: { value: '1.0' } });
+    fireEvent.change(screen.getByLabelText(/forest bias/i), { target: { value: '1.0' } });
+    fireEvent.change(screen.getByLabelText(/wetland bias/i), { target: { value: '1.0' } });
+    fireEvent.change(screen.getByLabelText(/rocky bias/i), { target: { value: '1.0' } });
+
+    // Verify values are reset
+    expect(screen.getByLabelText(/plains bias/i)).toHaveValue(1.0);
+    expect(screen.getByLabelText(/forest bias/i)).toHaveValue(1.0);
+    expect(screen.getByLabelText(/wetland bias/i)).toHaveValue(1.0);
+    expect(screen.getByLabelText(/rocky bias/i)).toHaveValue(1.0);
+
+    // Apply the saved preset
+    const presetSelect = screen.getByLabelText(/quick-start preset/i);
+    const customOption = screen.getByRole('option', { name: /biome food bias preset/i });
+    fireEvent.change(presetSelect, { target: { value: customOption.getAttribute('value') } });
+
+    // Verify preset values are restored
+    await waitFor(() => {
+      expect(screen.getByLabelText(/plains bias/i)).toHaveValue(2.5);
+    });
+    expect(screen.getByLabelText(/forest bias/i)).toHaveValue(0.5);
+    expect(screen.getByLabelText(/wetland bias/i)).toHaveValue(1.5);
+    expect(screen.getByLabelText(/rocky bias/i)).toHaveValue(3.0);
+
+    // Verify config normalization includes the biome food spawn bias
+    const config = normalizeSimulationConfig({
+      biomeFoodSpawnBiasPlains: '2.5',
+      biomeFoodSpawnBiasForest: '0.5',
+      biomeFoodSpawnBiasWetland: '1.5',
+      biomeFoodSpawnBiasRocky: '3.0'
+    }, 'test-seed');
+    expect(config.biomeFoodSpawnBias.plains).toBe(2.5);
+    expect(config.biomeFoodSpawnBias.forest).toBe(0.5);
+    expect(config.biomeFoodSpawnBias.wetland).toBe(1.5);
+    expect(config.biomeFoodSpawnBias.rocky).toBe(3.0);
+  });
+
+  it('falls back to defaults when applying preset without biome food spawn bias (backward compatibility, SSN-286)', async () => {
+    render(<App />);
+
+    // Verify default values
+    expect(screen.getByLabelText(/plains bias/i)).toHaveValue(1.0);
+    expect(screen.getByLabelText(/forest bias/i)).toHaveValue(1.0);
+    expect(screen.getByLabelText(/wetland bias/i)).toHaveValue(1.0);
+    expect(screen.getByLabelText(/rocky bias/i)).toHaveValue(1.0);
+
+    // Apply a built-in preset (which won't have biomeFoodSpawnBias in config)
+    const presetSelect = screen.getByLabelText(/quick-start preset/i);
+    const defaultOption = screen.getByRole('option', { name: /balanced/i });
+    fireEvent.change(presetSelect, { target: { value: defaultOption.getAttribute('value') } });
+
+    // Values should still be defaults (1.0) since built-in presets don't have biomeFoodSpawnBias
+    await waitFor(() => {
+      expect(screen.getByLabelText(/plains bias/i)).toHaveValue(1.0);
+    });
+    expect(screen.getByLabelText(/forest bias/i)).toHaveValue(1.0);
+    expect(screen.getByLabelText(/wetland bias/i)).toHaveValue(1.0);
+    expect(screen.getByLabelText(/rocky bias/i)).toHaveValue(1.0);
+  });
+
   it('generates danger zones when enabled and starts simulation', async () => {
     render(<App />);
 
