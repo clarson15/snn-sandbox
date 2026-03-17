@@ -474,6 +474,18 @@ canvas {
   align-items: center;
 }
 
+.organism-hud-deceased-badge {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
 .organism-hud-stats,
 .organism-hud-brain {
   display: flex;
