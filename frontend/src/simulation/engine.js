@@ -157,6 +157,7 @@ const WETLAND_TERRAIN_TURN_PENALTY_MULTIPLIER = 0.5; // 50% turn rate in wetland
 const LEGACY_CONSTANT_INPUT_ID = 'in-constant';
 const NORMALIZED_BRAIN_VERSION = 2;
 const INCOMING_SYNAPSE_CACHE = new WeakMap();
+const STRICT_WORLD_BOUND_EPSILON = 1e-9;
 
 function cloneBrain(brain) {
   if (!brain || typeof brain !== 'object') {
@@ -1088,10 +1089,30 @@ function computeNonZoneRegions(terrainZones, worldWidth, worldHeight) {
     return [{ x: 0, y: 0, width: worldWidth, height: worldHeight }];
   }
 
-  // Extract all zone bounds
+  // Extract and clip zone bounds to world rectangle so complement math only uses in-bounds coverage.
   const zones = terrainZones
-    .map(z => z?.bounds)
-    .filter(b => b && b.width > 0 && b.height > 0);
+    .map((zone) => zone?.bounds)
+    .filter((bounds) => bounds && bounds.width > 0 && bounds.height > 0)
+    .map((bounds) => {
+      const clippedX = Math.max(0, bounds.x);
+      const clippedY = Math.max(0, bounds.y);
+      const clippedMaxX = Math.min(worldWidth, bounds.x + bounds.width);
+      const clippedMaxY = Math.min(worldHeight, bounds.y + bounds.height);
+      const clippedWidth = clippedMaxX - clippedX;
+      const clippedHeight = clippedMaxY - clippedY;
+
+      if (clippedWidth <= 0 || clippedHeight <= 0) {
+        return null;
+      }
+
+      return {
+        x: clippedX,
+        y: clippedY,
+        width: clippedWidth,
+        height: clippedHeight
+      };
+    })
+    .filter((bounds) => bounds !== null);
 
   if (zones.length === 0) {
     return [{ x: 0, y: 0, width: worldWidth, height: worldHeight }];
@@ -2085,8 +2106,12 @@ export function stepWorld(state, rng, params = {}) {
           // Sample within zone, then clip to world bounds (handles zones extending outside world)
           const rawX = bounds.x + rng.nextFloat() * bounds.width;
           const rawY = bounds.y + rng.nextFloat() * bounds.height;
-          spawnX = Math.max(0, Math.min(worldWidth, rawX));
-          spawnY = Math.max(0, Math.min(worldHeight, rawY));
+          // Keep food strictly inside [0, worldWidth) x [0, worldHeight)
+          // while preserving deterministic RNG consumption.
+          const maxSpawnX = worldWidth > 0 ? worldWidth - STRICT_WORLD_BOUND_EPSILON : 0;
+          const maxSpawnY = worldHeight > 0 ? worldHeight - STRICT_WORLD_BOUND_EPSILON : 0;
+          spawnX = Math.max(0, Math.min(maxSpawnX, rawX));
+          spawnY = Math.max(0, Math.min(maxSpawnY, rawY));
         } else {
           // Fallback if zone has no bounds or selection fails
           spawnX = rng.nextFloat() * worldWidth;
@@ -2099,10 +2124,14 @@ export function stepWorld(state, rng, params = {}) {
       spawnY = rng.nextFloat() * worldHeight;
     }
 
+    // Enforce strict in-world bounds for all spawn paths.
+    const maxSpawnX = worldWidth > 0 ? worldWidth - STRICT_WORLD_BOUND_EPSILON : 0;
+    const maxSpawnY = worldHeight > 0 ? worldHeight - STRICT_WORLD_BOUND_EPSILON : 0;
+
     nextFood.push({
       id: `food-${state.tick + 1}-${nextFood.length}`,
-      x: spawnX,
-      y: spawnY,
+      x: Math.max(0, Math.min(maxSpawnX, spawnX)),
+      y: Math.max(0, Math.min(maxSpawnY, spawnY)),
       energyValue: foodEnergyValue
     });
   }

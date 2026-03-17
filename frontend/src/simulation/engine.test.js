@@ -919,8 +919,6 @@ describe('simulation engine skeleton', () => {
     // Count in each zone
     const forestCount = result.food.filter(f => f.x < 20).length;
     const plainsCount = result.food.filter(f => f.x >= 20 && f.x < 100).length;
-    const outsideCount = result.food.filter(f => f.x >= 100).length;
-
     // Should have some food outside zones (non-zone path was chosen ~10% of time)
     // But most should still be in zones
     expect(forestCount + plainsCount).toBeGreaterThan(50);
@@ -1009,67 +1007,53 @@ describe('simulation engine skeleton', () => {
     }
   });
 
-  // SSN-288: Test zone extending outside world bounds
-  // A zone can extend beyond world bounds - should still work correctly
-  it('handles zones extending outside world bounds (SSN-288)', () => {
-    // World 100x100, but zone extends from -20 to 60 (80 in-bounds width)
-    // Naive area: 80 * 100 = 8000
-    // But if zone goes from x=-20 to x=60, in-bounds is x=0 to x=60 = 60 * 100 = 6000
-    // Non-zone should be 10000 - 6000 = 4000 (40%)
+  // SSN-288: Test zones extending outside world bounds, especially right/bottom overflow.
+  it('clips out-of-bounds zones to in-world coverage when computing outside-zone spawn probability (SSN-288)', () => {
+    const worldWidth = 100;
+    const worldHeight = 100;
+    const terrainZones = [
+      // Left overflow (in-bounds x=0..30)
+      { id: 'zone-left', type: 'forest', bounds: { x: -40, y: 0, width: 70, height: 100 } },
+      // Right overflow (in-bounds x=70..100)
+      { id: 'zone-right', type: 'wetland', bounds: { x: 70, y: 0, width: 70, height: 100 } },
+      // Bottom overflow strip (in-bounds y=85..100)
+      { id: 'zone-bottom', type: 'rocky', bounds: { x: 0, y: 85, width: 100, height: 40 } }
+    ];
+
     const state = createWorldState({
       tick: 0,
       organisms: [],
       food: [],
-      terrainZones: [
-        // Zone extends outside left boundary
-        { id: 'zone-forest', type: 'forest', bounds: { x: -20, y: 0, width: 80, height: 100 } }
-      ]
+      terrainZones
     });
 
     const params = {
       foodSpawnChance: 1.0,
-      worldWidth: 100,
-      worldHeight: 100,
-      biomeSpawnMultipliers: { forest: 1.0 }
+      worldWidth,
+      worldHeight,
+      biomeSpawnMultipliers: { forest: 1.0, wetland: 1.0, rocky: 1.0 }
     };
 
-    const result = runTicks(state, createSeededPrng('ssn-288-out-of-bounds-zone'), 100, params);
+    const result = runTicks(state, createSeededPrng('ssn-288-out-of-bounds-right-bottom'), 120, params);
+    expect(result.food.length).toBe(120);
 
-    expect(result.food.length).toBe(100);
+    const isInAnyZone = (x, y) => terrainZones.some((zone) => {
+      const b = zone.bounds;
+      const minX = Math.max(0, b.x);
+      const minY = Math.max(0, b.y);
+      const maxX = Math.min(worldWidth, b.x + b.width);
+      const maxY = Math.min(worldHeight, b.y + b.height);
+      return minX < maxX && minY < maxY && x >= minX && x < maxX && y >= minY && y < maxY;
+    });
 
-    // Helper: check if in zone (using in-bounds portion)
-    const isInZone = (x, y) => {
-      const b = state.terrainZones[0].bounds;
-      // Zone is -20 to 60, so in-bounds is 0 to 60
-      return x >= Math.max(0, b.x) && x < b.x + b.width && y >= b.y && y < b.y + b.height;
-    };
-
-    const inZoneCount = result.food.filter(f => isInZone(f.x, f.y)).length;
-    const outsideZoneCount = result.food.filter(f => !isInZone(f.x, f.y)).length;
-
-    // With 60% in-bounds coverage, expect ~40% outside zones
+    const outsideZoneCount = result.food.filter((food) => !isInAnyZone(food.x, food.y)).length;
     expect(outsideZoneCount).toBeGreaterThan(0);
-    // And some in zone
-    expect(inZoneCount).toBeGreaterThan(0);
 
-    // Verify all food is in bounds
     for (const food of result.food) {
       expect(food.x).toBeGreaterThanOrEqual(0);
-      expect(food.x).toBeLessThan(100);
+      expect(food.x).toBeLessThan(worldWidth);
       expect(food.y).toBeGreaterThanOrEqual(0);
-      expect(food.y).toBeLessThan(100);
-    }
-
-    // Verify every outside-zone food is actually outside the zone's in-bounds portion
-    for (const food of result.food) {
-      if (!isInZone(food.x, food.y)) {
-        const b = state.terrainZones[0].bounds;
-        const inBoundsX = Math.max(0, b.x);
-        const isInsideInBoundsZone = 
-          food.x >= inBoundsX && food.x < b.x + b.width &&
-          food.y >= b.y && food.y < b.y + b.height;
-        expect(isInsideInBoundsZone).toBe(false);
-      }
+      expect(food.y).toBeLessThan(worldHeight);
     }
   });
 
