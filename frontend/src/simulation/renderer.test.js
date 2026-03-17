@@ -9,6 +9,7 @@ function createMockContext() {
   let currentTextBaseline = null;
   let currentShadowColor = null;
   let currentShadowBlur = null;
+  let currentLineWidth = null;
   return {
     arcCalls: [],
     fillRectCalls: [],
@@ -26,7 +27,7 @@ function createMockContext() {
     },
     beginPath() {},
     arc(x, y, radius, startAngle, endAngle) {
-      this.arcCalls.push({ x, y, radius, startAngle, endAngle });
+      this.arcCalls.push({ x, y, radius, startAngle, endAngle, lineWidth: currentLineWidth });
     },
     fill() {
       this.fillCalls.push({ fillStyle: currentFillStyle });
@@ -58,7 +59,9 @@ function createMockContext() {
       currentFillStyle = value;
     },
     set strokeStyle(_value) {},
-    set lineWidth(_value) {},
+    set lineWidth(value) {
+      currentLineWidth = value;
+    },
     set font(value) {
       currentFont = value;
     },
@@ -291,13 +294,19 @@ describe('drawWorldSnapshot viewport culling', () => {
       // When organism is inside danger zone, highlighted version should be rendered
       drawWorldSnapshot(ctx, snapshot, { width: 100, height: 100 }, { selectedOrganismId: 'org-1', cullPadding: 0 });
 
-      // For hazard zones, we check arc calls which are used to draw them
-      // The hazard zone at (50, 50) with radius 30 should have thicker stroke when highlighted
-      // In our mock, we track strokeRect and arc calls
-      const hazardArcs = ctx.arcCalls.filter(
-        (call) => call.x === 50 && call.y === 50 && call.radius === 30
+      // Get all arc calls for the danger zone (both outer circle at radius 30 and inner at radius 18)
+      const dangerZoneArcs = ctx.arcCalls.filter(
+        (call) => call.x === 50 && call.y === 50
       );
-      expect(hazardArcs.length).toBeGreaterThan(0);
+      expect(dangerZoneArcs.length).toBeGreaterThan(0);
+
+      // Verify there's an outer border arc with highlighted lineWidth (4 instead of 2)
+      const outerBorderArc = dangerZoneArcs.find(call => call.radius === 30 && call.lineWidth === 4);
+      expect(outerBorderArc).toBeDefined();
+
+      // Verify there's an inner circle arc with highlighted lineWidth (2 instead of 1)
+      const innerCircleArc = dangerZoneArcs.find(call => call.radius === 18 && call.lineWidth === 2);
+      expect(innerCircleArc).toBeDefined();
     });
 
     it('does not highlight danger zone when selected organism is outside it', () => {
@@ -316,11 +325,19 @@ describe('drawWorldSnapshot viewport culling', () => {
       // When organism is outside danger zone, normal version should be rendered
       drawWorldSnapshot(ctx, snapshot, { width: 200, height: 200 }, { selectedOrganismId: 'org-1', cullPadding: 0 });
 
-      // The danger zone should still be rendered
-      const hazardArcs = ctx.arcCalls.filter(
-        (call) => call.x === 50 && call.y === 50 && call.radius === 30
+      // Get all arc calls for the danger zone
+      const dangerZoneArcs = ctx.arcCalls.filter(
+        (call) => call.x === 50 && call.y === 50
       );
-      expect(hazardArcs.length).toBeGreaterThan(0);
+      expect(dangerZoneArcs.length).toBeGreaterThan(0);
+
+      // Verify the outer border is drawn with baseline lineWidth (2, not highlighted 4)
+      const outerBorderArc = dangerZoneArcs.find(call => call.radius === 30 && call.lineWidth === 2);
+      expect(outerBorderArc).toBeDefined();
+
+      // Verify inner circle is drawn with baseline lineWidth (1, not highlighted 2)
+      const innerCircleArc = dangerZoneArcs.find(call => call.radius === 18 && call.lineWidth === 1);
+      expect(innerCircleArc).toBeDefined();
     });
 
     it('does not highlight zones when no organism is selected', () => {
@@ -347,6 +364,16 @@ describe('drawWorldSnapshot viewport culling', () => {
         (call) => call.x === 0 && call.y === 0 && call.width === 100 && call.height === 100 && call.fillStyle === 'rgba(194, 178, 128, 0.25)'
       );
       expect(normalTerrainFills.length).toBe(1);
+
+      // Verify danger zone is rendered with baseline lineWidth (not highlighted)
+      const dangerZoneArcs = ctx.arcCalls.filter(
+        (call) => call.x === 50 && call.y === 50
+      );
+      const outerBorderArc = dangerZoneArcs.find(call => call.radius === 30 && call.lineWidth === 2);
+      expect(outerBorderArc).toBeDefined();
+
+      const innerCircleArc = dangerZoneArcs.find(call => call.radius === 18 && call.lineWidth === 1);
+      expect(innerCircleArc).toBeDefined();
     });
 
     it('handles multiple terrain zones with selected organism in one of them', () => {
