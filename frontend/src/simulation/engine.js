@@ -1962,17 +1962,37 @@ export function stepWorld(state, rng, params = {}) {
 
     // Use biome-weighted zone selection if terrain zones exist and multipliers are provided
     if (terrainZones.length > 0 && Object.keys(biomeSpawnMultipliers).length > 0) {
-      const zoneWeights = computeZoneWeights(terrainZones, biomeSpawnMultipliers);
-      const selectedZone = selectWeightedZone(zoneWeights, rng);
+      // Calculate total zone coverage to determine non-zone spawn probability (SSN-288)
+      // This ensures food can spawn in non-zone areas when terrain zones don't cover the full world
+      const totalZoneArea = terrainZones.reduce((sum, zone) => {
+        const bounds = zone?.bounds;
+        return sum + (bounds ? bounds.width * bounds.height : 0);
+      }, 0);
+      const worldArea = worldWidth * worldHeight;
+      const zoneCoverageFraction = Math.min(1, totalZoneArea / worldArea);
+      const nonZoneSpawnProbability = 1 - zoneCoverageFraction;
 
-      if (selectedZone && selectedZone.bounds) {
-        const bounds = selectedZone.bounds;
-        spawnX = bounds.x + rng.nextFloat() * bounds.width;
-        spawnY = bounds.y + rng.nextFloat() * bounds.height;
-      } else {
-        // Fallback if zone has no bounds
+      // Determine if we should spawn outside zones (proportional to uncovered area)
+      const shouldSpawnOutsideZones = rng.nextFloat() < nonZoneSpawnProbability;
+
+      if (shouldSpawnOutsideZones) {
+        // Spawn anywhere in the world (including non-zone areas)
         spawnX = rng.nextFloat() * worldWidth;
         spawnY = rng.nextFloat() * worldHeight;
+      } else {
+        // Spawn in a weighted zone
+        const zoneWeights = computeZoneWeights(terrainZones, biomeSpawnMultipliers);
+        const selectedZone = selectWeightedZone(zoneWeights, rng);
+
+        if (selectedZone && selectedZone.bounds) {
+          const bounds = selectedZone.bounds;
+          spawnX = bounds.x + rng.nextFloat() * bounds.width;
+          spawnY = bounds.y + rng.nextFloat() * bounds.height;
+        } else {
+          // Fallback if zone has no bounds or selection fails
+          spawnX = rng.nextFloat() * worldWidth;
+          spawnY = rng.nextFloat() * worldHeight;
+        }
       }
     } else {
       // Default: uniform random spawn across entire world

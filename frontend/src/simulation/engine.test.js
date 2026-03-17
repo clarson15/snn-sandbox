@@ -793,6 +793,72 @@ describe('simulation engine skeleton', () => {
     expect(plainsHeavyPlainsCount).toBeGreaterThan(forestHeavyPlainsCount);
   });
 
+  // SSN-288: Food should spawn outside terrain zones when zones don't cover the full world
+  it('can spawn food outside terrain zones when zones cover only part of world (SSN-288)', () => {
+    // World is 100x100 = 10000 area
+    // Zones cover only 50x100 = 5000 area (50% of world)
+    // Food should be able to spawn in the non-zone area
+    const state = createWorldState({
+      tick: 0,
+      organisms: [],
+      food: [],
+      terrainZones: [
+        { id: 'zone-forest', type: 'forest', bounds: { x: 0, y: 0, width: 50, height: 100 } }
+        // No second zone - leaves 50% of world (x >= 50) uncovered
+      ]
+    });
+
+    // Use multipliers to ensure zone selection would happen
+    const params = {
+      foodSpawnChance: 1.0, // Always spawn
+      worldWidth: 100,
+      worldHeight: 100,
+      biomeSpawnMultipliers: { forest: 1.0 }
+    };
+
+    // Run many ticks to accumulate food
+    const result = runTicks(state, createSeededPrng('ssn-288-outside-zones'), 100, params);
+
+    // Should have 100 food items
+    expect(result.food.length).toBe(100);
+
+    // Count food in zone area (x < 50) vs non-zone area (x >= 50)
+    const inZoneCount = result.food.filter(f => f.x < 50).length;
+    const outsideZoneCount = result.food.filter(f => f.x >= 50).length;
+
+    // Food should appear in BOTH zone and non-zone areas
+    // At least some food should spawn outside the terrain zone
+    expect(outsideZoneCount).toBeGreaterThan(0);
+    // And some should also spawn inside the zone (proving weighted spawning still works)
+    expect(inZoneCount).toBeGreaterThan(0);
+  });
+
+  // SSN-288: Verify same-seed determinism is preserved after fix
+  it('preserves same-seed determinism when spawning outside zones (SSN-288)', () => {
+    const state = createWorldState({
+      tick: 0,
+      organisms: [],
+      food: [],
+      terrainZones: [
+        { id: 'zone-forest', type: 'forest', bounds: { x: 0, y: 0, width: 50, height: 100 } }
+      ]
+    });
+
+    const params = {
+      foodSpawnChance: 1.0,
+      worldWidth: 100,
+      worldHeight: 100,
+      biomeSpawnMultipliers: { forest: 1.0 }
+    };
+
+    // Run twice with same seed
+    const resultA = runTicks(state, createSeededPrng('ssn-288-deterministic'), 20, params);
+    const resultB = runTicks(state, createSeededPrng('ssn-288-deterministic'), 20, params);
+
+    // Results should be identical
+    expect(resultA).toEqual(resultB);
+  });
+
   it('keeps heading unchanged when rotate outputs have no effective input signal', () => {
     const state = createWorldState({
       tick: 0,
