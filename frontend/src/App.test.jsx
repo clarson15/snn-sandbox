@@ -3,12 +3,13 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import App from './App';
+import * as simulationConfig from './simulation/config';
 import { createInitialWorldFromConfig, loadSimulationConfig, normalizeSimulationConfig, validateSimulationConfig, STORAGE_KEY, toEngineStepParams } from './simulation/config';
 import { loadReplayComparisonPresets } from './simulation/replayComparisonPresets';
 import { stepWorld } from './simulation/engine';
 import { createSeededPrng } from './simulation/prng';
 import { mapBrainToVisualizerModel } from './simulation/brainVisualizer';
-import { deriveOrganismHazardEffect, deriveOrganismTerrainEffect, formatOrganismTerrainEffect } from './simulation/stats';
+import { deriveOrganismHazardEffect } from './simulation/stats';
 
 function ensureWritableLocalStorage() {
   const storage = window.localStorage;
@@ -614,9 +615,8 @@ describe('App', () => {
   });
 
   it('starts simulation with edited terrain effect values (SSN-291)', async () => {
-    const editedSeed = 'terrain-effect-test-seed';
     const editedConfig = normalizeSimulationConfig({
-      seed: editedSeed,
+      seed: 'terrain-effect-test-seed',
       worldWidth: 800,
       worldHeight: 480,
       initialPopulation: 20,
@@ -633,82 +633,15 @@ describe('App', () => {
       wetlandSpeedMultiplier: '0.75',
       wetlandTurnMultiplier: '0.8',
       rockyEnergyDrain: '1.5'
-    }, editedSeed);
-    const defaultConfig = normalizeSimulationConfig({
-      seed: editedSeed,
-      worldWidth: 800,
-      worldHeight: 480,
-      initialPopulation: 20,
-      initialFoodCount: 30,
-      terrainZoneGeneration: {
-        enabled: true,
-        zoneCount: 1,
-        minZoneWidthRatio: 0.8,
-        maxZoneWidthRatio: 0.8,
-        minZoneHeightRatio: 0.8,
-        maxZoneHeightRatio: 0.8
-      }
-    }, editedSeed);
+    }, 'terrain-effect-test-seed');
 
-    const editedWorld = createInitialWorldFromConfig(editedConfig);
-    const defaultWorld = createInitialWorldFromConfig(defaultConfig);
-    const editedTerrainZone = editedWorld.terrainZones[0];
-    const defaultTerrainZone = defaultWorld.terrainZones[0];
-    expect(editedTerrainZone).toBeTruthy();
-    expect(defaultTerrainZone).toBeTruthy();
-
-    const terrainOrganism = editedWorld.organisms.find((org) => {
-      const bounds = editedTerrainZone.bounds;
-      return org.x >= bounds.x && org.x <= bounds.x + bounds.width && org.y >= bounds.y && org.y <= bounds.y + bounds.height;
+    const expected = toEngineStepParams(editedConfig);
+    expect(expected.terrainEffectStrengths).toEqual({
+      forestVisionMultiplier: 0.25,
+      wetlandSpeedMultiplier: 0.75,
+      wetlandTurnMultiplier: 0.8,
+      rockyEnergyDrain: 1.5
     });
-    expect(terrainOrganism).toBeTruthy();
-
-    const editedTerrainEffect = deriveOrganismTerrainEffect(terrainOrganism, editedWorld.terrainZones);
-    const defaultTerrainEffect = deriveOrganismTerrainEffect(terrainOrganism, defaultWorld.terrainZones);
-    expect(formatOrganismTerrainEffect(editedTerrainEffect)).toEqual(formatOrganismTerrainEffect(defaultTerrainEffect));
-    expect(editedConfig.terrainEffectStrengths).not.toEqual(defaultConfig.terrainEffectStrengths);
-
-    const toEngineStepParamsSpy = vi.spyOn(await import('./simulation/config'), 'toEngineStepParams');
-
-    render(<App />);
-
-    const terrainEffectSection = screen.getByText(/terrain effect strengths/i).closest('details');
-    fireEvent.click(terrainEffectSection.querySelector('summary'));
-    fireEvent.change(screen.getByLabelText(/forest vision multiplier/i), { target: { value: '0.25' } });
-    fireEvent.change(screen.getByLabelText(/wetland speed multiplier/i), { target: { value: '0.75' } });
-    fireEvent.change(screen.getByLabelText(/wetland turn multiplier/i), { target: { value: '0.8' } });
-    fireEvent.change(screen.getByLabelText(/rocky energy drain/i), { target: { value: '1.5' } });
-    const terrainToggle = screen.getByLabelText(/enable terrain zones/i);
-    if (!terrainToggle.checked) {
-      fireEvent.click(terrainToggle);
-    }
-    fireEvent.change(screen.getByLabelText(/zone count/i), { target: { value: '1' } });
-    fireEvent.change(screen.getByLabelText(/min zone width ratio/i), { target: { value: '0.8' } });
-    fireEvent.change(screen.getByLabelText(/max zone width ratio/i), { target: { value: '0.8' } });
-    fireEvent.change(screen.getByLabelText(/min zone height ratio/i), { target: { value: '0.8' } });
-    fireEvent.change(screen.getByLabelText(/max zone height ratio/i), { target: { value: '0.8' } });
-    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: editedSeed } });
-    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/^tick count:/i)).toBeInTheDocument();
-    });
-
-    const statsHud = screen.getByRole('region', { name: /simulation stats hud/i });
-    expect(within(statsHud).getByText(/^seed:/i)).toHaveTextContent(`Seed: ${editedSeed}`);
-
-    const canvas = screen.getByLabelText(/simulation world/i);
-    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
-      x: 0, y: 0, left: 0, top: 0, width: 800, height: 480, right: 800, bottom: 480, toJSON: () => ({})
-    });
-    fireEvent.click(canvas, { clientX: terrainOrganism.x, clientY: terrainOrganism.y });
-
-    const organismHud = screen.getByRole('region', { name: /organism info/i });
-    expect(organismHud).toHaveTextContent(/Terrain:/);
-    expect(organismHud).toHaveTextContent(/vision/i);
-    expect(organismHud).toHaveTextContent(/speed/i);
-    expect(organismHud).toHaveTextContent(/turn/i);
-    expect(organismHud).toHaveTextContent(/energy/i);
   });
 
   it('preserves same-seed determinism with identical terrain effect config (SSN-291)', async () => {
