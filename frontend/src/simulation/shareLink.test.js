@@ -50,7 +50,7 @@ describe('shareLink helpers', () => {
       }
     });
 
-    expect(url).toBe('https://sandbox.example/run?seed=seed-42&worldWidth=1200&worldHeight=720&initialPopulation=40&minimumPopulation=20&initialFoodCount=50&foodSpawnChance=0.05&foodEnergyValue=9&maxFood=300&mutationRate=0.2&mutationStrength=0.15&reproductionThreshold=60&reproductionCost=20&offspringStartEnergy=12&reproductionMinimumAge=25&reproductionRefractoryPeriod=80&maximumOrganismAge=900&terrainZoneEnabled=0&terrainZoneCount=4&terrainZoneMinWidthRatio=0.15&terrainZoneMaxWidthRatio=0.3&terrainZoneMinHeightRatio=0.15&terrainZoneMaxHeightRatio=0.3&biomeFoodSpawnBiasPlains=1&biomeFoodSpawnBiasForest=2&biomeFoodSpawnBiasWetland=0.5&biomeFoodSpawnBiasRocky=1');
+    expect(url).toBe('https://sandbox.example/run?seed=seed-42&worldWidth=1200&worldHeight=720&initialPopulation=40&minimumPopulation=20&initialFoodCount=50&foodSpawnChance=0.05&foodEnergyValue=9&maxFood=300&mutationRate=0.2&mutationStrength=0.15&reproductionThreshold=60&reproductionCost=20&offspringStartEnergy=12&reproductionMinimumAge=25&reproductionRefractoryPeriod=80&maximumOrganismAge=900&terrainZoneEnabled=0&terrainZoneCount=4&terrainZoneMinWidthRatio=0.15&terrainZoneMaxWidthRatio=0.3&terrainZoneMinHeightRatio=0.15&terrainZoneMaxHeightRatio=0.3&biomeFoodSpawnBiasPlains=1&biomeFoodSpawnBiasForest=2&biomeFoodSpawnBiasWetland=0.5&biomeFoodSpawnBiasRocky=1&forestVisionMultiplier=0.5&wetlandSpeedMultiplier=0.5&wetlandTurnMultiplier=0.5&rockyEnergyDrain=0.2');
 
 
   });
@@ -157,5 +157,73 @@ describe('shareLink helpers', () => {
     expect(url).toContain('biomeFoodSpawnBiasForest=3');
     expect(url).toContain('biomeFoodSpawnBiasWetland=1.5');
     expect(url).toContain('biomeFoodSpawnBiasRocky=0.5');
+  });
+
+  it('maps terrain effect strength query fields to nested config (SSN-290)', () => {
+    const { prefill } = resolveDeterministicQueryPrefill(
+      '?forestVisionMultiplier=0.3&wetlandSpeedMultiplier=0.7&wetlandTurnMultiplier=0.8&rockyEnergyDrain=0.5'
+    );
+
+    // Flat values should be in prefill
+    expect(prefill.forestVisionMultiplier).toBe('0.3');
+    expect(prefill.wetlandSpeedMultiplier).toBe('0.7');
+    expect(prefill.wetlandTurnMultiplier).toBe('0.8');
+    expect(prefill.rockyEnergyDrain).toBe('0.5');
+    // Nested config should also have the values
+    expect(prefill.terrainEffectStrengths).toEqual({
+      forestVisionMultiplier: 0.3,
+      wetlandSpeedMultiplier: 0.7,
+      wetlandTurnMultiplier: 0.8,
+      rockyEnergyDrain: 0.5
+    });
+  });
+
+  it('uses default terrain effect strengths when not in query string (backward compatibility, SSN-290)', () => {
+    const { prefill } = resolveDeterministicQueryPrefill('?seed=test-seed');
+
+    // Should have default values (0.5, 0.5, 0.5, 0.2)
+    expect(prefill.forestVisionMultiplier).toBe('0.5');
+    expect(prefill.wetlandSpeedMultiplier).toBe('0.5');
+    expect(prefill.wetlandTurnMultiplier).toBe('0.5');
+    expect(prefill.rockyEnergyDrain).toBe('0.2');
+    // Nested config should also have defaults
+    expect(prefill.terrainEffectStrengths).toEqual({
+      forestVisionMultiplier: 0.5,
+      wetlandSpeedMultiplier: 0.5,
+      wetlandTurnMultiplier: 0.5,
+      rockyEnergyDrain: 0.2
+    });
+  });
+
+  it('produces deterministic share URL with custom terrain effect strength values (SSN-290)', () => {
+    const url = buildDeterministicShareUrl({
+      origin: 'https://sandbox.example',
+      pathname: '/run',
+      seed: 'terrain-effect-test-seed',
+      parameters: {
+        worldWidth: 800,
+        worldHeight: 480,
+        initialPopulation: 10,
+        minimumPopulation: 10,
+        initialFoodCount: 20,
+        foodSpawnChance: 0.05,
+        foodEnergyValue: 5,
+        maxFood: 100,
+        mutationRate: 0.05,
+        mutationStrength: 0.1,
+        terrainEffectStrengths: {
+          forestVisionMultiplier: 0.3,
+          wetlandSpeedMultiplier: 0.7,
+          wetlandTurnMultiplier: 0.8,
+          rockyEnergyDrain: 1.5
+        }
+      }
+    });
+
+    // URL should include the custom terrain effect strength values
+    expect(url).toContain('forestVisionMultiplier=0.3');
+    expect(url).toContain('wetlandSpeedMultiplier=0.7');
+    expect(url).toContain('wetlandTurnMultiplier=0.8');
+    expect(url).toContain('rockyEnergyDrain=1.5');
   });
 });

@@ -488,6 +488,162 @@ describe('App', () => {
     expect(config.biomeFoodSpawnBias.rocky).toBe(3.0);
   });
 
+  // SSN-290: Terrain effect strength preset tests
+  it('saves and reapplies custom presets with terrain effect strength values (SSN-290)', async () => {
+    render(<App />);
+
+    // Note: There are no UI controls for terrain effect strengths, so we verify 
+    // the preset save/apply flow by directly testing the config storage and normalization
+    
+    // Programmatically save a preset with terrain effect strengths
+    const { saveCustomPreset, getCustomPresets, normalizeSimulationConfig } = require('./simulation/config');
+    
+    const saved = saveCustomPreset('Terrain Effect Test Preset', {
+      worldWidth: 800,
+      worldHeight: 480,
+      initialPopulation: 10,
+      minimumPopulation: 8,
+      initialFoodCount: 20,
+      foodSpawnChance: 0.05,
+      foodEnergyValue: 6,
+      maxFood: 100,
+      terrainEffectStrengths: {
+        forestVisionMultiplier: 0.25,
+        wetlandSpeedMultiplier: 0.75,
+        wetlandTurnMultiplier: 0.4,
+        rockyEnergyDrain: 1.5
+      }
+    });
+    
+    expect(saved).toBe(true);
+    
+    // Verify preset was saved with terrain effect strengths
+    const presets = getCustomPresets();
+    const preset = presets.find(p => p.name === 'Terrain Effect Test Preset');
+    expect(preset).toBeDefined();
+    expect(preset.config.terrainEffectStrengths).toEqual({
+      forestVisionMultiplier: 0.25,
+      wetlandSpeedMultiplier: 0.75,
+      wetlandTurnMultiplier: 0.4,
+      rockyEnergyDrain: 1.5
+    });
+    
+    // Verify normalization preserves the values
+    const normalized = normalizeSimulationConfig(preset.config, 'test-seed');
+    expect(normalized.terrainEffectStrengths.forestVisionMultiplier).toBe(0.25);
+    expect(normalized.terrainEffectStrengths.wetlandSpeedMultiplier).toBe(0.75);
+    expect(normalized.terrainEffectStrengths.wetlandTurnMultiplier).toBe(0.4);
+    expect(normalized.terrainEffectStrengths.rockyEnergyDrain).toBe(1.5);
+  });
+
+  it('applies preset config includes terrain effect strengths (SSN-290)', async () => {
+    // Create a preset directly in storage with terrain effect strengths
+    const storage = window.localStorage;
+    const oldPresets = storage.getItem('snn-sandbox.custom-presets');
+    storage.setItem('snn-sandbox.custom-presets', JSON.stringify([
+      {
+        id: 'app-terrain-preset',
+        name: 'App Terrain Preset',
+        description: 'Preset for App test',
+        config: {
+          worldWidth: 1200,
+          worldHeight: 800,
+          initialPopulation: 15,
+          minimumPopulation: 10,
+          initialFoodCount: 30,
+          foodSpawnChance: 0.04,
+          foodEnergyValue: 8,
+          maxFood: 200,
+          terrainEffectStrengths: {
+            forestVisionMultiplier: 0.3,
+            wetlandSpeedMultiplier: 0.6,
+            wetlandTurnMultiplier: 0.7,
+            rockyEnergyDrain: 1.2
+          }
+        },
+        createdAt: Date.now()
+      }
+    ]));
+
+    render(<App />);
+
+    // Verify config normalization includes terrain effect strengths from preset
+    const { getCustomPresets, normalizeSimulationConfig } = require('./simulation/config');
+    const presets = getCustomPresets();
+    const preset = presets.find(p => p.name === 'App Terrain Preset');
+    expect(preset).toBeDefined();
+    
+    const normalized = normalizeSimulationConfig(preset.config, 'app-test-seed');
+    expect(normalized.terrainEffectStrengths.forestVisionMultiplier).toBe(0.3);
+    expect(normalized.terrainEffectStrengths.wetlandSpeedMultiplier).toBe(0.6);
+    expect(normalized.terrainEffectStrengths.wetlandTurnMultiplier).toBe(0.7);
+    expect(normalized.terrainEffectStrengths.rockyEnergyDrain).toBe(1.2);
+
+    // Restore original presets
+    if (oldPresets) {
+      storage.setItem('snn-sandbox.custom-presets', oldPresets);
+    } else {
+      storage.removeItem('snn-sandbox.custom-presets');
+    }
+  });
+
+  it('falls back to defaults when applying preset without terrain effect strengths (backward compatibility, SSN-290)', async () => {
+    // Create a legacy preset without terrainEffectStrengths
+    const storage = window.localStorage;
+    const oldPresets = storage.getItem('snn-sandbox.custom-presets');
+    storage.setItem('snn-sandbox.custom-presets', JSON.stringify([
+      {
+        id: 'legacy-terrain-preset',
+        name: 'Legacy Terrain Preset',
+        description: 'Old preset',
+        config: {
+          worldWidth: 800,
+          worldHeight: 480,
+          initialPopulation: 10,
+          minimumPopulation: 8,
+          initialFoodCount: 20,
+          foodSpawnChance: 0.05,
+          foodEnergyValue: 6,
+          maxFood: 100
+          // Note: no terrainEffectStrengths
+        },
+        createdAt: Date.now() - 86400000
+      }
+    ]));
+
+    render(<App />);
+
+    // Apply the legacy preset through the UI
+    const presetSelect = screen.getByLabelText(/quick-start preset/i);
+    const legacyOption = screen.getByRole('option', { name: /legacy terrain preset/i });
+    fireEvent.change(presetSelect, { target: { value: legacyOption.getAttribute('value') } });
+
+    // Wait for preset to apply
+    await waitFor(() => {
+      const widthInput = screen.getByLabelText(/world width/i);
+      expect(widthInput).toHaveValue(800);
+    });
+    
+    // Verify defaults are applied through config normalization
+    const { getCustomPresets, normalizeSimulationConfig } = require('./simulation/config');
+    const presets = getCustomPresets();
+    const legacyPreset = presets.find(p => p.name === 'Legacy Terrain Preset');
+    const normalized = normalizeSimulationConfig(legacyPreset.config, 'legacy-seed');
+    
+    // Should fall back to defaults
+    expect(normalized.terrainEffectStrengths.forestVisionMultiplier).toBe(0.5);
+    expect(normalized.terrainEffectStrengths.wetlandSpeedMultiplier).toBe(0.5);
+    expect(normalized.terrainEffectStrengths.wetlandTurnMultiplier).toBe(0.5);
+    expect(normalized.terrainEffectStrengths.rockyEnergyDrain).toBe(0.2);
+
+    // Restore original presets
+    if (oldPresets) {
+      storage.setItem('snn-sandbox.custom-presets', oldPresets);
+    } else {
+      storage.removeItem('snn-sandbox.custom-presets');
+    }
+  });
+
   it('falls back to defaults when applying preset without biome food spawn bias (backward compatibility, SSN-286)', async () => {
     render(<App />);
 
@@ -509,6 +665,56 @@ describe('App', () => {
     expect(screen.getByLabelText(/forest bias/i)).toHaveValue(1.0);
     expect(screen.getByLabelText(/wetland bias/i)).toHaveValue(1.0);
     expect(screen.getByLabelText(/rocky bias/i)).toHaveValue(1.0);
+  });
+
+  // SSN-290: Terrain effect strength preset tests
+  it('persists terrain effect strength settings when saving custom preset (SSN-290)', async () => {
+    const { getCustomPresets } = require('./simulation/config');
+    render(<App />);
+
+    // Save a custom preset (terrain effect strengths use defaults since no UI to change them)
+    fireEvent.click(screen.getByRole('button', { name: /save current as preset/i }));
+    fireEvent.change(screen.getByPlaceholderText(/preset name/i), { target: { value: 'Terrain Effect Test Preset' } });
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    // Get the custom presets and verify terrain effect strengths are persisted
+    const presets = getCustomPresets();
+    const savedPreset = presets.find(p => p.name === 'Terrain Effect Test Preset');
+    expect(savedPreset).toBeDefined();
+    // Default terrain effect strength values should be in the saved preset
+    expect(savedPreset.config.terrainEffectStrengths).toEqual({
+      forestVisionMultiplier: 0.5,
+      wetlandSpeedMultiplier: 0.5,
+      wetlandTurnMultiplier: 0.5,
+      rockyEnergyDrain: 0.2
+    });
+
+    // Apply the preset - should not crash and should use the values
+    const presetSelect = screen.getByLabelText(/quick-start preset/i);
+    const customOption = screen.getByRole('option', { name: /terrain effect test preset/i });
+    fireEvent.change(presetSelect, { target: { value: customOption.getAttribute('value') } });
+
+    // The preset was applied (no error thrown)
+  });
+
+  it('falls back to defaults when applying preset without terrain effect strengths (backward compatibility, SSN-290)', async () => {
+    render(<App />);
+
+    // Apply a built-in preset (which won't have terrainEffectStrengths in config)
+    const presetSelect = screen.getByLabelText(/quick-start preset/i);
+    const defaultOption = screen.getByRole('option', { name: /balanced/i });
+    fireEvent.change(presetSelect, { target: { value: defaultOption.getAttribute('value') } });
+
+    // Should not crash - the code should fall back to defaults for terrain effect strengths
+    // We verify this by checking that the config normalization uses defaults
+    const config = normalizeSimulationConfig({
+      worldWidth: '800',
+      worldHeight: '480'
+    }, 'backward-compat-test');
+    expect(config.terrainEffectStrengths.forestVisionMultiplier).toBe(0.5);
+    expect(config.terrainEffectStrengths.wetlandSpeedMultiplier).toBe(0.5);
+    expect(config.terrainEffectStrengths.wetlandTurnMultiplier).toBe(0.5);
+    expect(config.terrainEffectStrengths.rockyEnergyDrain).toBe(0.2);
   });
 
   it('generates danger zones when enabled and starts simulation', async () => {

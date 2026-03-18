@@ -30,7 +30,12 @@ const DETERMINISTIC_PARAM_RULES = [
   ['biomeFoodSpawnBiasPlains', 0, 10],
   ['biomeFoodSpawnBiasForest', 0, 10],
   ['biomeFoodSpawnBiasWetland', 0, 10],
-  ['biomeFoodSpawnBiasRocky', 0, 10]
+  ['biomeFoodSpawnBiasRocky', 0, 10],
+  // Terrain effect strengths (SSN-290)
+  ['forestVisionMultiplier', 0, 1],
+  ['wetlandSpeedMultiplier', 0, 1],
+  ['wetlandTurnMultiplier', 0, 1],
+  ['rockyEnergyDrain', 0, 2]
 ];
 
 export const SHARE_QUERY_PARAM_ORDER = ['seed', ...DETERMINISTIC_PARAM_RULES.map(([key]) => key)];
@@ -75,6 +80,10 @@ export function buildDeterministicShareUrl({ origin, pathname, seed, parameters 
       const biomeType = field.replace('biomeFoodSpawnBias', '').toLowerCase();
       const bias = parameters?.biomeFoodSpawnBias ?? DEFAULT_CONFIG.biomeFoodSpawnBias;
       value = bias[biomeType] ?? DEFAULT_CONFIG.biomeFoodSpawnBias[biomeType];
+    } else if (field === 'forestVisionMultiplier' || field === 'wetlandSpeedMultiplier' || field === 'wetlandTurnMultiplier' || field === 'rockyEnergyDrain') {
+      // Handle terrain effect strength fields (SSN-290)
+      const effects = parameters?.terrainEffectStrengths ?? DEFAULT_CONFIG.terrainEffectStrengths;
+      value = effects[field] ?? DEFAULT_CONFIG.terrainEffectStrengths[field];
     } else {
       value = parameters?.[field] ?? DEFAULT_CONFIG[field];
     }
@@ -116,6 +125,10 @@ export function resolveDeterministicQueryPrefill(search) {
         const biomeType = field.replace('biomeFoodSpawnBias', '').toLowerCase();
         return [field, String(biasDefaults[biomeType] ?? 1.0)];
       }
+      if (field === 'forestVisionMultiplier' || field === 'wetlandSpeedMultiplier' || field === 'wetlandTurnMultiplier' || field === 'rockyEnergyDrain') {
+        // Handle terrain effect strength fields (SSN-290)
+        return [field, String(DEFAULT_CONFIG.terrainEffectStrengths[field])];
+      }
       return [field, String(DEFAULT_CONFIG[field])];
     }))
   };
@@ -148,6 +161,15 @@ export function resolveDeterministicQueryPrefill(search) {
     forest: biasDefaults.forest,
     wetland: biasDefaults.wetland,
     rocky: biasDefaults.rocky
+  };
+
+  // Track terrain effect strength values for nested config reconstruction (SSN-290)
+  const terrainEffectDefaults = DEFAULT_CONFIG.terrainEffectStrengths;
+  const terrainEffectValues = {
+    forestVisionMultiplier: terrainEffectDefaults.forestVisionMultiplier,
+    wetlandSpeedMultiplier: terrainEffectDefaults.wetlandSpeedMultiplier,
+    wetlandTurnMultiplier: terrainEffectDefaults.wetlandTurnMultiplier,
+    rockyEnergyDrain: terrainEffectDefaults.rockyEnergyDrain
   };
 
   for (const [field, min, max] of DETERMINISTIC_PARAM_RULES) {
@@ -198,6 +220,10 @@ export function resolveDeterministicQueryPrefill(search) {
       const biomeType = field.replace('biomeFoodSpawnBias', '').toLowerCase();
       biasValues[biomeType] = parsed;
       prefill[field] = toCanonicalNumberString(parsed);
+    } else if (field === 'forestVisionMultiplier' || field === 'wetlandSpeedMultiplier' || field === 'wetlandTurnMultiplier' || field === 'rockyEnergyDrain') {
+      // Handle terrain effect strength fields (SSN-290)
+      terrainEffectValues[field] = parsed;
+      prefill[field] = toCanonicalNumberString(parsed);
     } else {
       prefill[field] = toCanonicalNumberString(parsed);
     }
@@ -219,6 +245,14 @@ export function resolveDeterministicQueryPrefill(search) {
     forest: biasValues.forest,
     wetland: biasValues.wetland,
     rocky: biasValues.rocky
+  };
+
+  // Add nested terrainEffectStrengths to prefill (SSN-290)
+  prefill.terrainEffectStrengths = {
+    forestVisionMultiplier: terrainEffectValues.forestVisionMultiplier,
+    wetlandSpeedMultiplier: terrainEffectValues.wetlandSpeedMultiplier,
+    wetlandTurnMultiplier: terrainEffectValues.wetlandTurnMultiplier,
+    rockyEnergyDrain: terrainEffectValues.rockyEnergyDrain
   };
 
   return {

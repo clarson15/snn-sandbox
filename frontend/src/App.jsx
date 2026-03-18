@@ -220,7 +220,12 @@ function createFormStateFromConfig(config) {
     biomeFoodSpawnBiasPlains: String(config.biomeFoodSpawnBias?.plains ?? DEFAULT_CONFIG.biomeFoodSpawnBias.plains),
     biomeFoodSpawnBiasForest: String(config.biomeFoodSpawnBias?.forest ?? DEFAULT_CONFIG.biomeFoodSpawnBias.forest),
     biomeFoodSpawnBiasWetland: String(config.biomeFoodSpawnBias?.wetland ?? DEFAULT_CONFIG.biomeFoodSpawnBias.wetland),
-    biomeFoodSpawnBiasRocky: String(config.biomeFoodSpawnBias?.rocky ?? DEFAULT_CONFIG.biomeFoodSpawnBias.rocky)
+    biomeFoodSpawnBiasRocky: String(config.biomeFoodSpawnBias?.rocky ?? DEFAULT_CONFIG.biomeFoodSpawnBias.rocky),
+    // Terrain effect strengths (SSN-290)
+    forestVisionMultiplier: String(config.terrainEffectStrengths?.forestVisionMultiplier ?? DEFAULT_CONFIG.terrainEffectStrengths.forestVisionMultiplier),
+    wetlandSpeedMultiplier: String(config.terrainEffectStrengths?.wetlandSpeedMultiplier ?? DEFAULT_CONFIG.terrainEffectStrengths.wetlandSpeedMultiplier),
+    wetlandTurnMultiplier: String(config.terrainEffectStrengths?.wetlandTurnMultiplier ?? DEFAULT_CONFIG.terrainEffectStrengths.wetlandTurnMultiplier),
+    rockyEnergyDrain: String(config.terrainEffectStrengths?.rockyEnergyDrain ?? DEFAULT_CONFIG.terrainEffectStrengths.rockyEnergyDrain)
   };
 }
 
@@ -1319,7 +1324,12 @@ function App() {
       biomeFoodSpawnBiasPlains: String(preset.config.biomeFoodSpawnBias?.plains ?? DEFAULT_CONFIG.biomeFoodSpawnBias.plains),
       biomeFoodSpawnBiasForest: String(preset.config.biomeFoodSpawnBias?.forest ?? DEFAULT_CONFIG.biomeFoodSpawnBias.forest),
       biomeFoodSpawnBiasWetland: String(preset.config.biomeFoodSpawnBias?.wetland ?? DEFAULT_CONFIG.biomeFoodSpawnBias.wetland),
-      biomeFoodSpawnBiasRocky: String(preset.config.biomeFoodSpawnBias?.rocky ?? DEFAULT_CONFIG.biomeFoodSpawnBias.rocky)
+      biomeFoodSpawnBiasRocky: String(preset.config.biomeFoodSpawnBias?.rocky ?? DEFAULT_CONFIG.biomeFoodSpawnBias.rocky),
+      // Terrain effect strengths (SSN-290)
+      forestVisionMultiplier: String(preset.config.terrainEffectStrengths?.forestVisionMultiplier ?? DEFAULT_CONFIG.terrainEffectStrengths.forestVisionMultiplier),
+      wetlandSpeedMultiplier: String(preset.config.terrainEffectStrengths?.wetlandSpeedMultiplier ?? DEFAULT_CONFIG.terrainEffectStrengths.wetlandSpeedMultiplier),
+      wetlandTurnMultiplier: String(preset.config.terrainEffectStrengths?.wetlandTurnMultiplier ?? DEFAULT_CONFIG.terrainEffectStrengths.wetlandTurnMultiplier),
+      rockyEnergyDrain: String(preset.config.terrainEffectStrengths?.rockyEnergyDrain ?? DEFAULT_CONFIG.terrainEffectStrengths.rockyEnergyDrain)
     };
 
     setFormState(newFormState);
@@ -1374,6 +1384,13 @@ function App() {
         forest: toFiniteNumberOrDefault(formState.biomeFoodSpawnBiasForest, DEFAULT_CONFIG.biomeFoodSpawnBias.forest),
         wetland: toFiniteNumberOrDefault(formState.biomeFoodSpawnBiasWetland, DEFAULT_CONFIG.biomeFoodSpawnBias.wetland),
         rocky: toFiniteNumberOrDefault(formState.biomeFoodSpawnBiasRocky, DEFAULT_CONFIG.biomeFoodSpawnBias.rocky)
+      },
+      // Terrain effect strengths (SSN-290)
+      terrainEffectStrengths: {
+        forestVisionMultiplier: toFiniteNumberOrDefault(formState.forestVisionMultiplier, DEFAULT_CONFIG.terrainEffectStrengths.forestVisionMultiplier),
+        wetlandSpeedMultiplier: toFiniteNumberOrDefault(formState.wetlandSpeedMultiplier, DEFAULT_CONFIG.terrainEffectStrengths.wetlandSpeedMultiplier),
+        wetlandTurnMultiplier: toFiniteNumberOrDefault(formState.wetlandTurnMultiplier, DEFAULT_CONFIG.terrainEffectStrengths.wetlandTurnMultiplier),
+        rockyEnergyDrain: toFiniteNumberOrDefault(formState.rockyEnergyDrain, DEFAULT_CONFIG.terrainEffectStrengths.rockyEnergyDrain)
       }
     };
 
