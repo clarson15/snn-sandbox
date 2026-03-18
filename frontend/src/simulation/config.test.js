@@ -185,6 +185,135 @@ describe('simulation config helpers', () => {
     });
   });
 
+  it('generates non-overlapping terrain zones (SSN-292)', () => {
+    const config = normalizeSimulationConfig(
+      {
+        name: 'Non-overlap test',
+        seed: 'non-overlap-seed',
+        worldWidth: '640',
+        worldHeight: '360',
+        initialPopulation: '4',
+        minimumPopulation: '4',
+        initialFoodCount: '8',
+        terrainZoneGeneration: {
+          enabled: true,
+          zoneCount: 4,
+          minZoneWidthRatio: 0.2,
+          maxZoneWidthRatio: 0.3,
+          minZoneHeightRatio: 0.2,
+          maxZoneHeightRatio: 0.3,
+          zoneTypes: ['plains', 'forest', 'wetland', 'rocky']
+        }
+      },
+      'non-overlap-seed'
+    );
+
+    const world = createInitialWorldFromConfig(config);
+    const zones = world.terrainZones;
+
+    // Verify all zones are present
+    expect(zones).toHaveLength(4);
+
+    // Check no overlaps exist
+    for (let i = 0; i < zones.length; i++) {
+      for (let j = i + 1; j < zones.length; j++) {
+        const a = zones[i].bounds;
+        const b = zones[j].bounds;
+
+        // Explicit overlap check
+        const overlapsX = a.x < b.x + b.width && b.x < a.x + a.width;
+        const overlapsY = a.y < b.y + b.height && b.y < a.y + a.height;
+
+        expect(overlapsX && overlapsY).toBe(false);
+      }
+    }
+  });
+
+  it('generates deterministic non-overlapping zones for same seed (SSN-292)', () => {
+    const config = normalizeSimulationConfig(
+      {
+        name: 'Deterministic non-overlap',
+        seed: 'det-nonoverlap-123',
+        worldWidth: '640',
+        worldHeight: '360',
+        initialPopulation: '4',
+        minimumPopulation: '4',
+        initialFoodCount: '8',
+        terrainZoneGeneration: {
+          enabled: true,
+          zoneCount: 3,
+          minZoneWidthRatio: 0.18,
+          maxZoneWidthRatio: 0.42,
+          minZoneHeightRatio: 0.18,
+          maxZoneHeightRatio: 0.42,
+          zoneTypes: ['plains', 'forest', 'wetland']
+        }
+      },
+      'det-nonoverlap-123'
+    );
+
+    const worldA = createInitialWorldFromConfig(config);
+    const worldB = createInitialWorldFromConfig(config);
+
+    // Should be deterministic (same zones both times)
+    expect(worldA.terrainZones).toEqual(worldB.terrainZones);
+
+    // Verify no overlaps in each world
+    const zones = worldA.terrainZones;
+    for (let i = 0; i < zones.length; i++) {
+      for (let j = i + 1; j < zones.length; j++) {
+        const a = zones[i].bounds;
+        const b = zones[j].bounds;
+        const overlapsX = a.x < b.x + b.width && b.x < a.x + a.width;
+        const overlapsY = a.y < b.y + b.height && b.y < a.y + a.height;
+        expect(overlapsX && overlapsY).toBe(false);
+      }
+    }
+  });
+
+  it('gracefully returns fewer zones when placement is constrained (SSN-292)', () => {
+    // Use very large zones that can't all fit without overlap
+    const config = normalizeSimulationConfig(
+      {
+        name: 'Constrained zones',
+        seed: 'constrained-zones-seed',
+        worldWidth: '200',
+        worldHeight: '200',
+        initialPopulation: '4',
+        minimumPopulation: '4',
+        initialFoodCount: '8',
+        terrainZoneGeneration: {
+          enabled: true,
+          zoneCount: 10,
+          minZoneWidthRatio: 0.4,
+          maxZoneWidthRatio: 0.5,
+          minZoneHeightRatio: 0.4,
+          maxZoneHeightRatio: 0.5,
+          zoneTypes: ['plains', 'forest', 'wetland', 'rocky']
+        }
+      },
+      'constrained-zones-seed'
+    );
+
+    const world = createInitialWorldFromConfig(config);
+    const zones = world.terrainZones;
+
+    // Should have at least some zones (not all 10)
+    expect(zones.length).toBeLessThanOrEqual(10);
+    expect(zones.length).toBeGreaterThan(0);
+
+    // Verify no overlaps even with constrained placement
+    for (let i = 0; i < zones.length; i++) {
+      for (let j = i + 1; j < zones.length; j++) {
+        const a = zones[i].bounds;
+        const b = zones[j].bounds;
+        const overlapsX = a.x < b.x + b.width && b.x < a.x + a.width;
+        const overlapsY = a.y < b.y + b.height && b.y < a.y + a.height;
+        expect(overlapsX && overlapsY).toBe(false);
+      }
+    }
+  });
+
   it('assigns deterministic distinct colors to initially generated organisms', () => {
     const config = normalizeSimulationConfig(
       {

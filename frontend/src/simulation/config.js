@@ -646,6 +646,55 @@ export function normalizeSimulationConfig(input, resolvedSeed) {
   };
 }
 
+/**
+ * Check if two bounding boxes overlap
+ * @param {{x:number,y:number,width:number,height:number}} a
+ * @param {{x:number,y:number,width:number,height:number}} b
+ * @returns {boolean} true if the bounds overlap
+ */
+function boundsOverlap(a, b) {
+  // No overlap if one is to the left of the other
+  if (a.x + a.width <= b.x || b.x + b.width <= a.x) {
+    return false;
+  }
+  // No overlap if one is above the other
+  if (a.y + a.height <= b.y || b.y + b.height <= a.y) {
+    return false;
+  }
+  // Overlap in both axes
+  return true;
+}
+
+/**
+ * Generate a single terrain zone with random position and size
+ * @param {number} index - zone index for type assignment
+ * @param {object} config - world config
+ * @param {object} rng - random number generator
+ * @param {Array} zoneTypes - array of zone type strings
+ * @param {number} minWidth - minimum zone width
+ * @param {number} maxWidth - maximum zone width
+ * @param {number} minHeight - minimum zone height
+ * @param {number} maxHeight - maximum zone height
+ * @returns {{id:string, type:string, bounds:{x:number,y:number,width:number,height:number}}}
+ */
+function generateSingleZone(index, config, rng, zoneTypes, minWidth, maxWidth, minHeight, maxHeight) {
+  const width = minWidth + (rng.nextFloat() * Math.max(0, maxWidth - minWidth));
+  const height = minHeight + (rng.nextFloat() * Math.max(0, maxHeight - minHeight));
+  const x = rng.nextFloat() * Math.max(0, config.worldWidth - width);
+  const y = rng.nextFloat() * Math.max(0, config.worldHeight - height);
+
+  return {
+    id: `terrain-zone-${index}`,
+    type: zoneTypes[index % zoneTypes.length],
+    bounds: {
+      x: Number(x.toFixed(3)),
+      y: Number(y.toFixed(3)),
+      width: Number(width.toFixed(3)),
+      height: Number(height.toFixed(3))
+    }
+  };
+}
+
 function generateTerrainZonesFromConfig(config, rng) {
   const generation = {
     ...DEFAULT_TERRAIN_ZONE_GENERATION,
@@ -665,23 +714,42 @@ function generateTerrainZonesFromConfig(config, rng) {
   const minHeight = config.worldHeight * (generation.minZoneHeightRatio ?? generation.minimumZoneHeightRatio);
   const maxHeight = config.worldHeight * (generation.maxZoneHeightRatio ?? generation.maximumZoneHeightRatio);
 
-  return Array.from({ length: generation.zoneCount }, (_, index) => {
-    const width = minWidth + (rng.nextFloat() * Math.max(0, maxWidth - minWidth));
-    const height = minHeight + (rng.nextFloat() * Math.max(0, maxHeight - minHeight));
-    const x = rng.nextFloat() * Math.max(0, config.worldWidth - width);
-    const y = rng.nextFloat() * Math.max(0, config.worldHeight - height);
+  // Maximum attempts per zone to find a non-overlapping position
+  const MAX_PLACEMENT_ATTEMPTS = 100;
+  const zones = [];
 
-    return {
-      id: `terrain-zone-${index}`,
-      type: zoneTypes[index % zoneTypes.length],
-      bounds: {
-        x: Number(x.toFixed(3)),
-        y: Number(y.toFixed(3)),
-        width: Number(width.toFixed(3)),
-        height: Number(height.toFixed(3))
+  for (let index = 0; index < generation.zoneCount; index++) {
+    let placed = false;
+
+    for (let attempt = 0; attempt < MAX_PLACEMENT_ATTEMPTS; attempt++) {
+      const newZone = generateSingleZone(index, config, rng, zoneTypes, minWidth, maxWidth, minHeight, maxHeight);
+
+      // Check against all existing zones for overlap
+      const hasOverlap = zones.some(existingZone => boundsOverlap(newZone.bounds, existingZone.bounds));
+
+      if (!hasOverlap) {
+        zones.push(newZone);
+        placed = true;
+        break;
       }
-    };
-  });
+    }
+
+    // If we couldn't place this zone after MAX_PLACEMENT_ATTEMPTS, continue trying
+    // remaining zones (they might still fit in remaining space)
+    // This ensures deterministic behavior - we'll just have fewer zones than requested
+    if (!placed) {
+      // Try one more time with minimum size to maximize chances of fitting
+      const newZone = generateSingleZone(index, config, rng, zoneTypes, minWidth, minWidth, minHeight, minHeight);
+      const hasOverlap = zones.some(existingZone => boundsOverlap(newZone.bounds, existingZone.bounds));
+
+      if (!hasOverlap) {
+        zones.push(newZone);
+      }
+      // If still can't place, skip this zone - we return whatever we could fit
+    }
+  }
+
+  return zones;
 }
 
 function createInitialBrain(rng, organismType = 'herbivore') {
