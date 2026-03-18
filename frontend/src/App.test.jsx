@@ -8,7 +8,7 @@ import { loadReplayComparisonPresets } from './simulation/replayComparisonPreset
 import { stepWorld } from './simulation/engine';
 import { createSeededPrng } from './simulation/prng';
 import { mapBrainToVisualizerModel } from './simulation/brainVisualizer';
-import { deriveOrganismHazardEffect, deriveOrganismTerrainEffect } from './simulation/stats';
+import { deriveOrganismHazardEffect, deriveOrganismTerrainEffect, formatOrganismTerrainEffect } from './simulation/stats';
 
 function ensureWritableLocalStorage() {
   const storage = window.localStorage;
@@ -614,10 +614,9 @@ describe('App', () => {
   });
 
   it('starts simulation with edited terrain effect values (SSN-291)', async () => {
-    // Use deterministic config to verify the exact terrain effect values were used
-    // Pre-compute expected world with our terrain effect values
-    const config = normalizeSimulationConfig({
-      seed: 'terrain-effect-test-seed',
+    const editedSeed = 'terrain-effect-test-seed';
+    const editedConfig = normalizeSimulationConfig({
+      seed: editedSeed,
       worldWidth: 800,
       worldHeight: 480,
       initialPopulation: 20,
@@ -634,35 +633,49 @@ describe('App', () => {
       wetlandSpeedMultiplier: '0.75',
       wetlandTurnMultiplier: '0.8',
       rockyEnergyDrain: '1.5'
-    }, 'terrain-effect-test-seed');
+    }, editedSeed);
+    const defaultConfig = normalizeSimulationConfig({
+      seed: editedSeed,
+      worldWidth: 800,
+      worldHeight: 480,
+      initialPopulation: 20,
+      initialFoodCount: 30,
+      terrainZoneGeneration: {
+        enabled: true,
+        zoneCount: 1,
+        minZoneWidthRatio: 0.8,
+        maxZoneWidthRatio: 0.8,
+        minZoneHeightRatio: 0.8,
+        maxZoneHeightRatio: 0.8
+      }
+    }, editedSeed);
 
-    const expectedWorld = createInitialWorldFromConfig(config);
+    const editedWorld = createInitialWorldFromConfig(editedConfig);
+    const defaultWorld = createInitialWorldFromConfig(defaultConfig);
+    const editedTerrainZone = editedWorld.terrainZones[0];
+    const defaultTerrainZone = defaultWorld.terrainZones[0];
+    expect(editedTerrainZone).toBeTruthy();
+    expect(defaultTerrainZone).toBeTruthy();
 
-    // Find an organism that's in terrain (using the correct bounds property)
-    const organismInTerrain = expectedWorld.organisms.find((org) => {
-      return expectedWorld.terrainZones.some((zone) => {
-        const bounds = zone.bounds;
-        if (!bounds) return false;
-        const inX = org.x >= bounds.x && org.x <= bounds.x + bounds.width;
-        const inY = org.y >= bounds.y && org.y <= bounds.y + bounds.height;
-        return inX && inY;
-      });
+    const terrainOrganism = editedWorld.organisms.find((org) => {
+      const bounds = editedTerrainZone.bounds;
+      return org.x >= bounds.x && org.x <= bounds.x + bounds.width && org.y >= bounds.y && org.y <= bounds.y + bounds.height;
     });
-    expect(organismInTerrain).toBeTruthy();
+    expect(terrainOrganism).toBeTruthy();
+
+    const editedTerrainEffect = deriveOrganismTerrainEffect(terrainOrganism, editedWorld.terrainZones);
+    const defaultTerrainEffect = deriveOrganismTerrainEffect(terrainOrganism, defaultWorld.terrainZones);
+    expect(formatOrganismTerrainEffect(editedTerrainEffect)).toEqual(formatOrganismTerrainEffect(defaultTerrainEffect));
+    expect(editedConfig.terrainEffectStrengths).not.toEqual(defaultConfig.terrainEffectStrengths);
 
     render(<App />);
 
-    // Expand terrain effect strengths section and change values
     const terrainEffectSection = screen.getByText(/terrain effect strengths/i).closest('details');
     fireEvent.click(terrainEffectSection.querySelector('summary'));
-
-    // Change terrain effect strength values (different from defaults)
     fireEvent.change(screen.getByLabelText(/forest vision multiplier/i), { target: { value: '0.25' } });
     fireEvent.change(screen.getByLabelText(/wetland speed multiplier/i), { target: { value: '0.75' } });
     fireEvent.change(screen.getByLabelText(/wetland turn multiplier/i), { target: { value: '0.8' } });
     fireEvent.change(screen.getByLabelText(/rocky energy drain/i), { target: { value: '1.5' } });
-
-    // Enable terrain zones (matching our pre-computed config)
     const terrainToggle = screen.getByLabelText(/enable terrain zones/i);
     if (!terrainToggle.checked) {
       fireEvent.click(terrainToggle);
@@ -672,41 +685,28 @@ describe('App', () => {
     fireEvent.change(screen.getByLabelText(/max zone width ratio/i), { target: { value: '0.8' } });
     fireEvent.change(screen.getByLabelText(/min zone height ratio/i), { target: { value: '0.8' } });
     fireEvent.change(screen.getByLabelText(/max zone height ratio/i), { target: { value: '0.8' } });
-
-    // Set seed
-    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'terrain-effect-test-seed' } });
-
-    // Start simulation - this path uses the edited form values
+    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: editedSeed } });
     fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
 
-    // Verify simulation started
-    await waitFor(
-      () => {
-        expect(screen.getByText(/^tick count:/i)).toBeInTheDocument();
-      },
-      { timeout: 30000 }
-    );
+    await waitFor(() => {
+      expect(screen.getByText(/^tick count:/i)).toBeInTheDocument();
+    });
 
-    // Verify seed matches our config
     const statsHud = screen.getByRole('region', { name: /simulation stats hud/i });
-    expect(within(statsHud).getByText(/^seed:/i)).toHaveTextContent('Seed: terrain-effect-test-seed');
+    expect(within(statsHud).getByText(/^seed:/i)).toHaveTextContent(`Seed: ${editedSeed}`);
 
-    // Verify terrain zone was created (matches our config)
-    expect(expectedWorld.terrainZones).toHaveLength(1);
-
-    // Select the organism that should be in terrain (using coordinates from expected world)
     const canvas = screen.getByLabelText(/simulation world/i);
     vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
       x: 0, y: 0, left: 0, top: 0, width: 800, height: 480, right: 800, bottom: 480, toJSON: () => ({})
     });
+    fireEvent.click(canvas, { clientX: terrainOrganism.x, clientY: terrainOrganism.y });
 
-    // Click on organism that should be in terrain
-    fireEvent.click(canvas, { clientX: organismInTerrain.x, clientY: organismInTerrain.y });
-
-    // Verify organism HUD shows terrain info - this proves terrain system is working
-    // with our config (which includes our custom terrain effect values)
     const organismHud = screen.getByRole('region', { name: /organism info/i });
     expect(organismHud).toHaveTextContent(/Terrain:/);
+    expect(organismHud).toHaveTextContent(/vision/i);
+    expect(organismHud).toHaveTextContent(/speed/i);
+    expect(organismHud).toHaveTextContent(/turn/i);
+    expect(organismHud).toHaveTextContent(/energy/i);
   });
 
   it('preserves same-seed determinism with identical terrain effect config (SSN-291)', async () => {
