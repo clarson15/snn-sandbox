@@ -196,6 +196,78 @@ describe('App', () => {
     expect(screen.getByLabelText(/max life \(ticks\)/i)).toHaveValue(1000);
   });
 
+  it('collapsible config sections expand and collapse while preserving field values', () => {
+    render(<App />);
+
+    // Verify Presets / Run Identity section is open by default and contains expected fields
+    const presetsHeadings = screen.getAllByRole('heading', { name: /presets \/ run identity/i });
+    expect(presetsHeadings).toHaveLength(1);
+    const presetsSummary = presetsHeadings[0].closest('summary');
+    expect(presetsSummary).toBeTruthy();
+    const presetsDetailsElement = presetsSummary.closest('details');
+    expect(presetsDetailsElement).toHaveAttribute('open');
+    // Verify fields are present in the Presets section
+    expect(screen.getByLabelText(/quick-start preset/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/simulation name/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/seed \(optional\)/i)).toBeInTheDocument();
+
+    // World and Population sections are open by default
+    expect(screen.getByLabelText(/world width/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/initial population/i)).toBeInTheDocument();
+
+    // Verify World section is open by default - find the details element containing world settings heading
+    const worldHeadings = screen.getAllByRole('heading', { name: /world settings/i });
+    const worldSummary = worldHeadings[0].closest('summary');
+    expect(worldSummary).toBeTruthy();
+    const worldDetailsElement = worldSummary.closest('details');
+    expect(worldDetailsElement).toHaveAttribute('open');
+
+    // Verify Population section is open by default
+    const populationHeadings = screen.getAllByRole('heading', { name: /population settings/i });
+    const populationSummary = populationHeadings[0].closest('summary');
+    const populationDetailsElement = populationSummary.closest('details');
+    expect(populationDetailsElement).toHaveAttribute('open');
+
+    // Change a value in an open section
+    const worldWidthInput = screen.getByLabelText(/world width/i);
+    fireEvent.change(worldWidthInput, { target: { value: '1500' } });
+    expect(worldWidthInput.value).toBe('1500');
+
+    // Collapse World section by clicking the summary
+    fireEvent.click(worldSummary);
+
+    // Verify section is collapsed
+    expect(worldDetailsElement).not.toHaveAttribute('open');
+
+    // Expand again and verify value is preserved
+    fireEvent.click(worldSummary);
+    expect(worldWidthInput.value).toBe('1500');
+
+    // Test a collapsed section - Evolution settings
+    const evolutionHeadings = screen.getAllByRole('heading', { name: /evolution settings/i });
+    const evolutionSummary = evolutionHeadings[0].closest('summary');
+    const evolutionDetailsElement = evolutionSummary.closest('details');
+    expect(evolutionDetailsElement).not.toHaveAttribute('open');
+
+    // Expand Evolution section by clicking the summary
+    fireEvent.click(evolutionSummary);
+
+    // Verify we can interact with fields in the expanded section
+    expect(screen.getByLabelText(/mutation rate \(legacy\)/i)).toBeInTheDocument();
+
+    // Change a value in the now-visible Evolution section
+    const mutationRateInput = screen.getByLabelText(/mutation rate \(legacy\)/i);
+    fireEvent.change(mutationRateInput, { target: { value: '0.5' } });
+    expect(mutationRateInput.value).toBe('0.5');
+
+    // Collapse and verify value is preserved
+    fireEvent.click(evolutionSummary);
+    expect(evolutionDetailsElement).not.toHaveAttribute('open');
+
+    fireEvent.click(evolutionSummary);
+    expect(screen.getByLabelText(/mutation rate \(legacy\)/i).value).toBe('0.5');
+  });
+
   it('uses the resolved app version in the about dialog', async () => {
     render(<App />);
 

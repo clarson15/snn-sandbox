@@ -3318,169 +3318,181 @@ function App() {
                 <p className="panel-copy">Tune the world after you can already see the run context.</p>
               </div>
 
-              <label>
-                Quick-start preset
-                <select value={selectedPresetId} onChange={onPresetChange}>
-                  <option value="">Custom (select a preset)</option>
-                  {SIMULATION_PRESETS.map((preset) => (
-                    <option key={preset.id} value={preset.id}>
-                      {preset.name}
-                    </option>
-                  ))}
-                  {customPresets.length > 0 ? (
-                    <optgroup label="Custom Presets">
-                      {customPresets.map((preset) => (
-                        <option key={preset.id} value={preset.id}>
-                          {preset.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ) : null}
-                </select>
-              </label>
-              {selectedPresetId ? (
-                <p className="field-hint">
-                  {getPresetById(selectedPresetId)?.description || customPresets.find((p) => p.id === selectedPresetId)?.description}
-                </p>
-              ) : null}
+              <details open>
+                <summary><h3>Presets / Run Identity</h3></summary>
+                <label>
+                  Quick-start preset
+                  <select value={selectedPresetId} onChange={onPresetChange}>
+                    <option value="">Custom (select a preset)</option>
+                    {SIMULATION_PRESETS.map((preset) => (
+                      <option key={preset.id} value={preset.id}>
+                        {preset.name}
+                      </option>
+                    ))}
+                    {customPresets.length > 0 ? (
+                      <optgroup label="Custom Presets">
+                        {customPresets.map((preset) => (
+                          <option key={preset.id} value={preset.id}>
+                            {preset.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ) : null}
+                  </select>
+                </label>
+                {selectedPresetId ? (
+                  <p className="field-hint">
+                    {getPresetById(selectedPresetId)?.description || customPresets.find((p) => p.id === selectedPresetId)?.description}
+                  </p>
+                ) : null}
 
-              {!showSavePresetInput ? (
-                <button type="button" onClick={() => setShowSavePresetInput(true)}>
-                  Save current as preset
-                </button>
-              ) : (
+                {!showSavePresetInput ? (
+                  <button type="button" onClick={() => setShowSavePresetInput(true)}>
+                    Save current as preset
+                  </button>
+                ) : (
+                  <div className="field-row">
+                    <input
+                      value={newPresetName}
+                      onChange={(event) => setNewPresetName(event.target.value)}
+                      placeholder="Preset name"
+                      onKeyDown={(event) => event.key === 'Enter' && onSavePreset()}
+                    />
+                    <button type="button" onClick={onSavePreset}>
+                      Save
+                    </button>
+                    <button type="button" onClick={() => { setShowSavePresetInput(false); setNewPresetName(''); }}>
+                      Cancel
+                    </button>
+                  </div>
+                )}
+
+                <label>
+                  Simulation name
+                  <input value={formState.name} onChange={onFieldChange('name')} />
+                  {errors.name ? <span className="error-text">{errors.name}</span> : null}
+                </label>
+
+                <label>
+                  Seed (optional)
+                  <input value={formState.seed} onChange={onFieldChange('seed')} placeholder="Leave blank to auto-generate" />
+                </label>
+                <p className="field-hint">Leave blank to generate a seed once at start; save this value to replay identical deterministic runs.</p>
+              </details>
+
+              <details open>
+                <summary><h3>World settings</h3></summary>
+                <p className="field-hint">World width/height: 100–3000.</p>
                 <div className="field-row">
-                  <input
-                    value={newPresetName}
-                    onChange={(event) => setNewPresetName(event.target.value)}
-                    placeholder="Preset name"
-                    onKeyDown={(event) => event.key === 'Enter' && onSavePreset()}
-                  />
-                  <button type="button" onClick={onSavePreset}>
-                    Save
-                  </button>
-                  <button type="button" onClick={() => { setShowSavePresetInput(false); setNewPresetName(''); }}>
-                    Cancel
-                  </button>
+                  <label>
+                    World width
+                    <input type="number" value={formState.worldWidth} onChange={onFieldChange('worldWidth')} />
+                    {errors.worldWidth ? <span className="error-text">{errors.worldWidth}</span> : null}
+                  </label>
+                  <label>
+                    World height
+                    <input type="number" value={formState.worldHeight} onChange={onFieldChange('worldHeight')} />
+                    {errors.worldHeight ? <span className="error-text">{errors.worldHeight}</span> : null}
+                  </label>
                 </div>
-              )}
+              </details>
 
-              <label>
-                Simulation name
-                <input value={formState.name} onChange={onFieldChange('name')} />
-                {errors.name ? <span className="error-text">{errors.name}</span> : null}
-              </label>
+              <details open>
+                <summary><h3>Population settings</h3></summary>
+                <p className="field-hint">Initial/minimum population: 1–2000.</p>
+                <div className="field-row">
+                  <label>
+                    Initial population
+                    <input type="number" value={formState.initialPopulation} onChange={onFieldChange('initialPopulation')} />
+                    {errors.initialPopulation ? <span className="error-text">{errors.initialPopulation}</span> : null}
+                  </label>
+                  <label>
+                    Minimum population
+                    <input type="number" value={formState.minimumPopulation} onChange={onFieldChange('minimumPopulation')} />
+                    {errors.minimumPopulation ? <span className="error-text">{errors.minimumPopulation}</span> : null}
+                  </label>
+                </div>
+              </details>
 
-              <label>
-                Seed (optional)
-                <input value={formState.seed} onChange={onFieldChange('seed')} placeholder="Leave blank to auto-generate" />
-              </label>
-              <p className="field-hint">Leave blank to generate a seed once at start; save this value to replay identical deterministic runs.</p>
+              <details>
+                <summary><h3>Food settings</h3></summary>
+                <p className="field-hint">Spawn chance: 0–1. Max food must be ≥ initial food count.</p>
+                <div className="field-row">
+                  <label>
+                    Initial food count
+                    <input type="number" value={formState.initialFoodCount} onChange={onFieldChange('initialFoodCount')} />
+                    {errors.initialFoodCount ? <span className="error-text">{errors.initialFoodCount}</span> : null}
+                  </label>
+                  <label>
+                    Food spawn chance (0-1)
+                    <input type="number" step="0.01" value={formState.foodSpawnChance} onChange={onFieldChange('foodSpawnChance')} />
+                    {errors.foodSpawnChance ? <span className="error-text">{errors.foodSpawnChance}</span> : null}
+                  </label>
+                  <label>
+                    Food energy value
+                    <input type="number" value={formState.foodEnergyValue} onChange={onFieldChange('foodEnergyValue')} />
+                    {errors.foodEnergyValue ? <span className="error-text">{errors.foodEnergyValue}</span> : null}
+                  </label>
+                </div>
 
-              <h3>World settings</h3>
-              <p className="field-hint">World width/height: 100–3000.</p>
-              <div className="field-row">
                 <label>
-                  World width
-                  <input type="number" value={formState.worldWidth} onChange={onFieldChange('worldWidth')} />
-                  {errors.worldWidth ? <span className="error-text">{errors.worldWidth}</span> : null}
+                  Max food
+                  <input type="number" value={formState.maxFood} onChange={onFieldChange('maxFood')} />
+                  {errors.maxFood ? <span className="error-text">{errors.maxFood}</span> : null}
                 </label>
-                <label>
-                  World height
-                  <input type="number" value={formState.worldHeight} onChange={onFieldChange('worldHeight')} />
-                  {errors.worldHeight ? <span className="error-text">{errors.worldHeight}</span> : null}
-                </label>
-              </div>
+              </details>
 
-              <h3>Population settings</h3>
-              <p className="field-hint">Initial/minimum population: 1–2000.</p>
-              <div className="field-row">
-                <label>
-                  Initial population
-                  <input type="number" value={formState.initialPopulation} onChange={onFieldChange('initialPopulation')} />
-                  {errors.initialPopulation ? <span className="error-text">{errors.initialPopulation}</span> : null}
-                </label>
-                <label>
-                  Minimum population
-                  <input type="number" value={formState.minimumPopulation} onChange={onFieldChange('minimumPopulation')} />
-                  {errors.minimumPopulation ? <span className="error-text">{errors.minimumPopulation}</span> : null}
-                </label>
-              </div>
+              <details>
+                <summary><h3>Evolution settings</h3></summary>
+                <p className="field-hint">Mutation controls are deterministic and seed-driven (range 0–1). Legacy controls apply to all buckets when new controls are not set.</p>
+                <div className="field-row">
+                  <label>
+                    Mutation rate (legacy)
+                    <input type="number" step="0.01" value={formState.mutationRate} onChange={onFieldChange('mutationRate')} />
+                    {errors.mutationRate ? <span className="error-text">{errors.mutationRate}</span> : null}
+                  </label>
+                  <label>
+                    Mutation strength (legacy)
+                    <input type="number" step="0.01" value={formState.mutationStrength} onChange={onFieldChange('mutationStrength')} />
+                    {errors.mutationStrength ? <span className="error-text">{errors.mutationStrength}</span> : null}
+                  </label>
+                </div>
+                <div className="field-row">
+                  <label>
+                    Physical traits mutation rate
+                    <input type="number" step="0.01" value={formState.physicalTraitsMutationRate} onChange={onFieldChange('physicalTraitsMutationRate')} />
+                    {errors.physicalTraitsMutationRate ? <span className="error-text">{errors.physicalTraitsMutationRate}</span> : null}
+                  </label>
+                  <label>
+                    Physical traits mutation strength
+                    <input type="number" step="0.01" value={formState.physicalTraitsMutationStrength} onChange={onFieldChange('physicalTraitsMutationStrength')} />
+                    {errors.physicalTraitsMutationStrength ? <span className="error-text">{errors.physicalTraitsMutationStrength}</span> : null}
+                  </label>
+                </div>
+                <div className="field-row">
+                  <label>
+                    Brain structure mutation rate
+                    <input type="number" step="0.01" value={formState.brainStructureMutationRate} onChange={onFieldChange('brainStructureMutationRate')} />
+                    {errors.brainStructureMutationRate ? <span className="error-text">{errors.brainStructureMutationRate}</span> : null}
+                  </label>
+                </div>
+                <div className="field-row">
+                  <label>
+                    Brain weight mutation rate
+                    <input type="number" step="0.01" value={formState.brainWeightMutationRate} onChange={onFieldChange('brainWeightMutationRate')} />
+                    {errors.brainWeightMutationRate ? <span className="error-text">{errors.brainWeightMutationRate}</span> : null}
+                  </label>
+                  <label>
+                    Brain weight mutation strength
+                    <input type="number" step="0.01" value={formState.brainWeightMutationStrength} onChange={onFieldChange('brainWeightMutationStrength')} />
+                    {errors.brainWeightMutationStrength ? <span className="error-text">{errors.brainWeightMutationStrength}</span> : null}
+                  </label>
+                </div>
+              </details>
 
-              <h3>Food settings</h3>
-              <p className="field-hint">Spawn chance: 0–1. Max food must be ≥ initial food count.</p>
-              <div className="field-row">
-                <label>
-                  Initial food count
-                  <input type="number" value={formState.initialFoodCount} onChange={onFieldChange('initialFoodCount')} />
-                  {errors.initialFoodCount ? <span className="error-text">{errors.initialFoodCount}</span> : null}
-                </label>
-                <label>
-                  Food spawn chance (0-1)
-                  <input type="number" step="0.01" value={formState.foodSpawnChance} onChange={onFieldChange('foodSpawnChance')} />
-                  {errors.foodSpawnChance ? <span className="error-text">{errors.foodSpawnChance}</span> : null}
-                </label>
-                <label>
-                  Food energy value
-                  <input type="number" value={formState.foodEnergyValue} onChange={onFieldChange('foodEnergyValue')} />
-                  {errors.foodEnergyValue ? <span className="error-text">{errors.foodEnergyValue}</span> : null}
-                </label>
-              </div>
-
-              <label>
-                Max food
-                <input type="number" value={formState.maxFood} onChange={onFieldChange('maxFood')} />
-                {errors.maxFood ? <span className="error-text">{errors.maxFood}</span> : null}
-              </label>
-
-              <h3>Evolution settings</h3>
-              <p className="field-hint">Mutation controls are deterministic and seed-driven (range 0–1). Legacy controls apply to all buckets when new controls are not set.</p>
-              <div className="field-row">
-                <label>
-                  Mutation rate (legacy)
-                  <input type="number" step="0.01" value={formState.mutationRate} onChange={onFieldChange('mutationRate')} />
-                  {errors.mutationRate ? <span className="error-text">{errors.mutationRate}</span> : null}
-                </label>
-                <label>
-                  Mutation strength (legacy)
-                  <input type="number" step="0.01" value={formState.mutationStrength} onChange={onFieldChange('mutationStrength')} />
-                  {errors.mutationStrength ? <span className="error-text">{errors.mutationStrength}</span> : null}
-                </label>
-              </div>
-              <div className="field-row">
-                <label>
-                  Physical traits mutation rate
-                  <input type="number" step="0.01" value={formState.physicalTraitsMutationRate} onChange={onFieldChange('physicalTraitsMutationRate')} />
-                  {errors.physicalTraitsMutationRate ? <span className="error-text">{errors.physicalTraitsMutationRate}</span> : null}
-                </label>
-                <label>
-                  Physical traits mutation strength
-                  <input type="number" step="0.01" value={formState.physicalTraitsMutationStrength} onChange={onFieldChange('physicalTraitsMutationStrength')} />
-                  {errors.physicalTraitsMutationStrength ? <span className="error-text">{errors.physicalTraitsMutationStrength}</span> : null}
-                </label>
-              </div>
-              <div className="field-row">
-                <label>
-                  Brain structure mutation rate
-                  <input type="number" step="0.01" value={formState.brainStructureMutationRate} onChange={onFieldChange('brainStructureMutationRate')} />
-                  {errors.brainStructureMutationRate ? <span className="error-text">{errors.brainStructureMutationRate}</span> : null}
-                </label>
-              </div>
-              <div className="field-row">
-                <label>
-                  Brain weight mutation rate
-                  <input type="number" step="0.01" value={formState.brainWeightMutationRate} onChange={onFieldChange('brainWeightMutationRate')} />
-                  {errors.brainWeightMutationRate ? <span className="error-text">{errors.brainWeightMutationRate}</span> : null}
-                </label>
-                <label>
-                  Brain weight mutation strength
-                  <input type="number" step="0.01" value={formState.brainWeightMutationStrength} onChange={onFieldChange('brainWeightMutationStrength')} />
-                  {errors.brainWeightMutationStrength ? <span className="error-text">{errors.brainWeightMutationStrength}</span> : null}
-                </label>
-              </div>
-
-              <h3>Reproduction settings</h3>
-              <p className="field-hint">Threshold/cost/start energy: 1-200, 0-200, 0-200. Reproduction age and refractory period gate breeding cadence. Max life sets the lifespan cap in ticks.</p>
+              <details>
+                <summary><h3>Reproduction settings</h3></summary>
+                <p className="field-hint">Threshold/cost/start energy: 1-200, 0-200, 0-200. Reproduction age and refractory period gate breeding cadence. Max life sets the lifespan cap in ticks.</p>
               <div className="field-row">
                 <label>
                   Reproduction threshold
@@ -3515,123 +3527,131 @@ function App() {
                   {errors.maximumOrganismAge ? <span className="error-text">{errors.maximumOrganismAge}</span> : null}
                 </label>
               </div>
+              </details>
 
-              <h3>Predator settings</h3>
-              <p className="field-hint">Configure predator population and hunting behavior.</p>
-              <div className="field-row">
-                <label>
-                  Initial predators
-                  <input type="number" value={formState.initialPredatorCount} onChange={onFieldChange('initialPredatorCount')} />
-                  {errors.initialPredatorCount ? <span className="error-text">{errors.initialPredatorCount}</span> : null}
-                </label>
-                <label>
-                  Predator energy gain
-                  <input type="number" value={formState.predatorEnergyGain} onChange={onFieldChange('predatorEnergyGain')} />
-                  {errors.predatorEnergyGain ? <span className="error-text">{errors.predatorEnergyGain}</span> : null}
-                </label>
-                <label>
-                  Predator hunt radius
-                  <input type="number" value={formState.predatorHuntRadius} onChange={onFieldChange('predatorHuntRadius')} />
-                  {errors.predatorHuntRadius ? <span className="error-text">{errors.predatorHuntRadius}</span> : null}
-                </label>
-              </div>
+              <details>
+                <summary><h3>Predator settings</h3></summary>
+                <p className="field-hint">Configure predator population and hunting behavior.</p>
+                <div className="field-row">
+                  <label>
+                    Initial predators
+                    <input type="number" value={formState.initialPredatorCount} onChange={onFieldChange('initialPredatorCount')} />
+                    {errors.initialPredatorCount ? <span className="error-text">{errors.initialPredatorCount}</span> : null}
+                  </label>
+                  <label>
+                    Predator energy gain
+                    <input type="number" value={formState.predatorEnergyGain} onChange={onFieldChange('predatorEnergyGain')} />
+                    {errors.predatorEnergyGain ? <span className="error-text">{errors.predatorEnergyGain}</span> : null}
+                  </label>
+                  <label>
+                    Predator hunt radius
+                    <input type="number" value={formState.predatorHuntRadius} onChange={onFieldChange('predatorHuntRadius')} />
+                    {errors.predatorHuntRadius ? <span className="error-text">{errors.predatorHuntRadius}</span> : null}
+                  </label>
+                </div>
+              </details>
 
-              <h3>Environment settings</h3>
-              <p className="field-hint">Configure terrain zone generation for environmental variety.</p>
-              <div className="field-row">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={formState.terrainZoneEnabled === 'true'}
-                    onChange={(e) => {
-                      const newValue = e.target.checked ? 'true' : 'false';
-                      setFormState((prev) => ({ ...prev, terrainZoneEnabled: newValue }));
-                    }}
-                  />
-                  Enable terrain zones
-                </label>
-              </div>
-              {formState.terrainZoneEnabled === 'true' ? (
-                <>
-                  <p className="field-hint">Zone count: 1-20. Width/height ratios: 0.05-0.5.</p>
-                  <div className="field-row">
-                    <label>
-                      Zone count
-                      <input type="number" value={formState.terrainZoneCount} onChange={onFieldChange('terrainZoneCount')} />
-                      {errors.terrainZoneCount ? <span className="error-text">{errors.terrainZoneCount}</span> : null}
-                    </label>
-                  </div>
-                  <div className="field-row">
-                    <label>
-                      Min zone width ratio
-                      <input type="number" step="0.01" value={formState.terrainZoneMinWidthRatio} onChange={onFieldChange('terrainZoneMinWidthRatio')} />
-                      {errors.terrainZoneMinWidthRatio ? <span className="error-text">{errors.terrainZoneMinWidthRatio}</span> : null}
-                    </label>
-                    <label>
-                      Max zone width ratio
-                      <input type="number" step="0.01" value={formState.terrainZoneMaxWidthRatio} onChange={onFieldChange('terrainZoneMaxWidthRatio')} />
-                      {errors.terrainZoneMaxWidthRatio ? <span className="error-text">{errors.terrainZoneMaxWidthRatio}</span> : null}
-                    </label>
-                  </div>
-                  <div className="field-row">
-                    <label>
-                      Min zone height ratio
-                      <input type="number" step="0.01" value={formState.terrainZoneMinHeightRatio} onChange={onFieldChange('terrainZoneMinHeightRatio')} />
-                      {errors.terrainZoneMinHeightRatio ? <span className="error-text">{errors.terrainZoneMinHeightRatio}</span> : null}
-                    </label>
-                    <label>
-                      Max zone height ratio
-                      <input type="number" step="0.01" value={formState.terrainZoneMaxHeightRatio} onChange={onFieldChange('terrainZoneMaxHeightRatio')} />
-                      {errors.terrainZoneMaxHeightRatio ? <span className="error-text">{errors.terrainZoneMaxHeightRatio}</span> : null}
-                    </label>
-                  </div>
-                  {errors.terrainZoneWidthRatio ? <p className="error-text">{errors.terrainZoneWidthRatio}</p> : null}
-                  {errors.terrainZoneHeightRatio ? <p className="error-text">{errors.terrainZoneHeightRatio}</p> : null}
-                </>
-              ) : null}
+              <details>
+                <summary><h3>Environment settings</h3></summary>
+                <p className="field-hint">Configure terrain zone generation for environmental variety.</p>
+                <div className="field-row">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={formState.terrainZoneEnabled === 'true'}
+                      onChange={(e) => {
+                        const newValue = e.target.checked ? 'true' : 'false';
+                        setFormState((prev) => ({ ...prev, terrainZoneEnabled: newValue }));
+                      }}
+                    />
+                    Enable terrain zones
+                  </label>
+                </div>
+                {formState.terrainZoneEnabled === 'true' ? (
+                  <>
+                    <p className="field-hint">Zone count: 1-20. Width/height ratios: 0.05-0.5.</p>
+                    <div className="field-row">
+                      <label>
+                        Zone count
+                        <input type="number" value={formState.terrainZoneCount} onChange={onFieldChange('terrainZoneCount')} />
+                        {errors.terrainZoneCount ? <span className="error-text">{errors.terrainZoneCount}</span> : null}
+                      </label>
+                    </div>
+                    <div className="field-row">
+                      <label>
+                        Min zone width ratio
+                        <input type="number" step="0.01" value={formState.terrainZoneMinWidthRatio} onChange={onFieldChange('terrainZoneMinWidthRatio')} />
+                        {errors.terrainZoneMinWidthRatio ? <span className="error-text">{errors.terrainZoneMinWidthRatio}</span> : null}
+                      </label>
+                      <label>
+                        Max zone width ratio
+                        <input type="number" step="0.01" value={formState.terrainZoneMaxWidthRatio} onChange={onFieldChange('terrainZoneMaxWidthRatio')} />
+                        {errors.terrainZoneMaxWidthRatio ? <span className="error-text">{errors.terrainZoneMaxWidthRatio}</span> : null}
+                      </label>
+                    </div>
+                    <div className="field-row">
+                      <label>
+                        Min zone height ratio
+                        <input type="number" step="0.01" value={formState.terrainZoneMinHeightRatio} onChange={onFieldChange('terrainZoneMinHeightRatio')} />
+                        {errors.terrainZoneMinHeightRatio ? <span className="error-text">{errors.terrainZoneMinHeightRatio}</span> : null}
+                      </label>
+                      <label>
+                        Max zone height ratio
+                        <input type="number" step="0.01" value={formState.terrainZoneMaxHeightRatio} onChange={onFieldChange('terrainZoneMaxHeightRatio')} />
+                        {errors.terrainZoneMaxHeightRatio ? <span className="error-text">{errors.terrainZoneMaxHeightRatio}</span> : null}
+                      </label>
+                    </div>
+                    {errors.terrainZoneWidthRatio ? <p className="error-text">{errors.terrainZoneWidthRatio}</p> : null}
+                    {errors.terrainZoneHeightRatio ? <p className="error-text">{errors.terrainZoneHeightRatio}</p> : null}
+                  </>
+                ) : null}
+              </details>
 
-              <h3>Hazard settings</h3>
-              <p className="field-hint">Configure danger zones that damage organisms.</p>
-              <div className="field-row">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={formState.dangerZoneEnabled === 'true'}
-                    onChange={(e) => {
-                      const newValue = e.target.checked ? 'true' : 'false';
-                      setFormState((prev) => ({ ...prev, dangerZoneEnabled: newValue }));
-                    }}
-                  />
-                  Enable danger zones
-                </label>
-              </div>
-              {formState.dangerZoneEnabled === 'true' ? (
-                <>
-                  <p className="field-hint">Zone count: 0-10. Radius: 10-200. Damage: 0-5.</p>
-                  <div className="field-row">
-                    <label>
-                      Zone count
-                      <input type="number" value={formState.dangerZoneCount} onChange={onFieldChange('dangerZoneCount')} />
-                      {errors.dangerZoneCount ? <span className="error-text">{errors.dangerZoneCount}</span> : null}
-                    </label>
-                  </div>
-                  <div className="field-row">
-                    <label>
-                      Zone radius
-                      <input type="number" value={formState.dangerZoneRadius} onChange={onFieldChange('dangerZoneRadius')} />
-                      {errors.dangerZoneRadius ? <span className="error-text">{errors.dangerZoneRadius}</span> : null}
-                    </label>
-                    <label>
-                      Damage per tick
-                      <input type="number" step="0.1" value={formState.dangerZoneDamage} onChange={onFieldChange('dangerZoneDamage')} />
-                      {errors.dangerZoneDamage ? <span className="error-text">{errors.dangerZoneDamage}</span> : null}
-                    </label>
-                  </div>
-                </>
-              ) : null}
+              <details>
+                <summary><h3>Hazard settings</h3></summary>
+                <p className="field-hint">Configure danger zones that damage organisms.</p>
+                <div className="field-row">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={formState.dangerZoneEnabled === 'true'}
+                      onChange={(e) => {
+                        const newValue = e.target.checked ? 'true' : 'false';
+                        setFormState((prev) => ({ ...prev, dangerZoneEnabled: newValue }));
+                      }}
+                    />
+                    Enable danger zones
+                  </label>
+                </div>
+                {formState.dangerZoneEnabled === 'true' ? (
+                  <>
+                    <p className="field-hint">Zone count: 0-10. Radius: 10-200. Damage: 0-5.</p>
+                    <div className="field-row">
+                      <label>
+                        Zone count
+                        <input type="number" value={formState.dangerZoneCount} onChange={onFieldChange('dangerZoneCount')} />
+                        {errors.dangerZoneCount ? <span className="error-text">{errors.dangerZoneCount}</span> : null}
+                      </label>
+                    </div>
+                    <div className="field-row">
+                      <label>
+                        Zone radius
+                        <input type="number" value={formState.dangerZoneRadius} onChange={onFieldChange('dangerZoneRadius')} />
+                        {errors.dangerZoneRadius ? <span className="error-text">{errors.dangerZoneRadius}</span> : null}
+                      </label>
+                      <label>
+                        Damage per tick
+                        <input type="number" step="0.1" value={formState.dangerZoneDamage} onChange={onFieldChange('dangerZoneDamage')} />
+                        {errors.dangerZoneDamage ? <span className="error-text">{errors.dangerZoneDamage}</span> : null}
+                      </label>
+                    </div>
+                  </>
+                ) : null}
+              </details>
 
-              <h3>Food spawn bias</h3>
-              <p className="field-hint">Adjust food spawn probability per biome type. Default 1.0 preserves SSN-284 behavior.</p>
+              <details>
+                <summary><h3>Food spawn bias</h3></summary>
+                <p className="field-hint">Adjust food spawn probability per biome type. Default 1.0 preserves SSN-284 behavior.</p>
               <div className="field-row">
                 <label>
                   Plains bias
@@ -3656,6 +3676,7 @@ function App() {
                   {errors.biomeFoodSpawnBiasRocky ? <span className="error-text">{errors.biomeFoodSpawnBiasRocky}</span> : null}
                 </label>
               </div>
+              </details>
 
               <div className="field-row">
                 <button type="button" onClick={onResetConfigToDefaults}>
