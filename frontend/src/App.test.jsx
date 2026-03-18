@@ -199,6 +199,18 @@ describe('App', () => {
   it('collapsible config sections expand and collapse while preserving field values', () => {
     render(<App />);
 
+    // Verify Presets / Run Identity section is open by default and contains expected fields
+    const presetsHeadings = screen.getAllByRole('heading', { name: /presets \/ run identity/i });
+    expect(presetsHeadings).toHaveLength(1);
+    const presetsSummary = presetsHeadings[0].closest('summary');
+    expect(presetsSummary).toBeTruthy();
+    const presetsDetailsElement = presetsSummary.closest('details');
+    expect(presetsDetailsElement).toHaveAttribute('open');
+    // Verify fields are present in the Presets section
+    expect(screen.getByLabelText(/quick-start preset/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/simulation name/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/seed \(optional\)/i)).toBeInTheDocument();
+
     // World and Population sections are open by default
     expect(screen.getByLabelText(/world width/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/initial population/i)).toBeInTheDocument();

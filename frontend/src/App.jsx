@@ -3318,64 +3318,67 @@ function App() {
                 <p className="panel-copy">Tune the world after you can already see the run context.</p>
               </div>
 
-              <label>
-                Quick-start preset
-                <select value={selectedPresetId} onChange={onPresetChange}>
-                  <option value="">Custom (select a preset)</option>
-                  {SIMULATION_PRESETS.map((preset) => (
-                    <option key={preset.id} value={preset.id}>
-                      {preset.name}
-                    </option>
-                  ))}
-                  {customPresets.length > 0 ? (
-                    <optgroup label="Custom Presets">
-                      {customPresets.map((preset) => (
-                        <option key={preset.id} value={preset.id}>
-                          {preset.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ) : null}
-                </select>
-              </label>
-              {selectedPresetId ? (
-                <p className="field-hint">
-                  {getPresetById(selectedPresetId)?.description || customPresets.find((p) => p.id === selectedPresetId)?.description}
-                </p>
-              ) : null}
+              <details open>
+                <summary><h3>Presets / Run Identity</h3></summary>
+                <label>
+                  Quick-start preset
+                  <select value={selectedPresetId} onChange={onPresetChange}>
+                    <option value="">Custom (select a preset)</option>
+                    {SIMULATION_PRESETS.map((preset) => (
+                      <option key={preset.id} value={preset.id}>
+                        {preset.name}
+                      </option>
+                    ))}
+                    {customPresets.length > 0 ? (
+                      <optgroup label="Custom Presets">
+                        {customPresets.map((preset) => (
+                          <option key={preset.id} value={preset.id}>
+                            {preset.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ) : null}
+                  </select>
+                </label>
+                {selectedPresetId ? (
+                  <p className="field-hint">
+                    {getPresetById(selectedPresetId)?.description || customPresets.find((p) => p.id === selectedPresetId)?.description}
+                  </p>
+                ) : null}
 
-              {!showSavePresetInput ? (
-                <button type="button" onClick={() => setShowSavePresetInput(true)}>
-                  Save current as preset
-                </button>
-              ) : (
-                <div className="field-row">
-                  <input
-                    value={newPresetName}
-                    onChange={(event) => setNewPresetName(event.target.value)}
-                    placeholder="Preset name"
-                    onKeyDown={(event) => event.key === 'Enter' && onSavePreset()}
-                  />
-                  <button type="button" onClick={onSavePreset}>
-                    Save
+                {!showSavePresetInput ? (
+                  <button type="button" onClick={() => setShowSavePresetInput(true)}>
+                    Save current as preset
                   </button>
-                  <button type="button" onClick={() => { setShowSavePresetInput(false); setNewPresetName(''); }}>
-                    Cancel
-                  </button>
-                </div>
-              )}
+                ) : (
+                  <div className="field-row">
+                    <input
+                      value={newPresetName}
+                      onChange={(event) => setNewPresetName(event.target.value)}
+                      placeholder="Preset name"
+                      onKeyDown={(event) => event.key === 'Enter' && onSavePreset()}
+                    />
+                    <button type="button" onClick={onSavePreset}>
+                      Save
+                    </button>
+                    <button type="button" onClick={() => { setShowSavePresetInput(false); setNewPresetName(''); }}>
+                      Cancel
+                    </button>
+                  </div>
+                )}
 
-              <label>
-                Simulation name
-                <input value={formState.name} onChange={onFieldChange('name')} />
-                {errors.name ? <span className="error-text">{errors.name}</span> : null}
-              </label>
+                <label>
+                  Simulation name
+                  <input value={formState.name} onChange={onFieldChange('name')} />
+                  {errors.name ? <span className="error-text">{errors.name}</span> : null}
+                </label>
 
-              <label>
-                Seed (optional)
-                <input value={formState.seed} onChange={onFieldChange('seed')} placeholder="Leave blank to auto-generate" />
-              </label>
-              <p className="field-hint">Leave blank to generate a seed once at start; save this value to replay identical deterministic runs.</p>
+                <label>
+                  Seed (optional)
+                  <input value={formState.seed} onChange={onFieldChange('seed')} placeholder="Leave blank to auto-generate" />
+                </label>
+                <p className="field-hint">Leave blank to generate a seed once at start; save this value to replay identical deterministic runs.</p>
+              </details>
 
               <details open>
                 <summary><h3>World settings</h3></summary>
