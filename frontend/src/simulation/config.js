@@ -96,7 +96,9 @@ export function saveCustomPreset(name, config) {
       dangerZoneRadius: config.dangerZoneRadius,
       dangerZoneDamage: config.dangerZoneDamage,
       // Biome food spawn bias (SSN-285, SSN-286)
-      biomeFoodSpawnBias: config.biomeFoodSpawnBias
+      biomeFoodSpawnBias: config.biomeFoodSpawnBias,
+      // Terrain effect strengths (SSN-290)
+      terrainEffectStrengths: config.terrainEffectStrengths
 
     },
     createdAt: now

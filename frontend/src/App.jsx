@@ -183,6 +183,7 @@ function normalizeComparableSeed(seed) {
 
 function createFormStateFromConfig(config) {
   const tz = config.terrainZoneGeneration ?? DEFAULT_CONFIG.terrainZoneGeneration;
+  const tes = config.terrainEffectStrengths ?? DEFAULT_CONFIG.terrainEffectStrengths;
   return {
     ...config,
     worldWidth: String(config.worldWidth),
@@ -220,7 +221,12 @@ function createFormStateFromConfig(config) {
     biomeFoodSpawnBiasPlains: String(config.biomeFoodSpawnBias?.plains ?? DEFAULT_CONFIG.biomeFoodSpawnBias.plains),
     biomeFoodSpawnBiasForest: String(config.biomeFoodSpawnBias?.forest ?? DEFAULT_CONFIG.biomeFoodSpawnBias.forest),
     biomeFoodSpawnBiasWetland: String(config.biomeFoodSpawnBias?.wetland ?? DEFAULT_CONFIG.biomeFoodSpawnBias.wetland),
-    biomeFoodSpawnBiasRocky: String(config.biomeFoodSpawnBias?.rocky ?? DEFAULT_CONFIG.biomeFoodSpawnBias.rocky)
+    biomeFoodSpawnBiasRocky: String(config.biomeFoodSpawnBias?.rocky ?? DEFAULT_CONFIG.biomeFoodSpawnBias.rocky),
+    // Terrain effect strengths (SSN-290)
+    terrainEffectForestVisionMultiplier: String(tes.forestVisionMultiplier ?? DEFAULT_CONFIG.terrainEffectStrengths.forestVisionMultiplier),
+    terrainEffectWetlandSpeedMultiplier: String(tes.wetlandSpeedMultiplier ?? DEFAULT_CONFIG.terrainEffectStrengths.wetlandSpeedMultiplier),
+    terrainEffectWetlandTurnMultiplier: String(tes.wetlandTurnMultiplier ?? DEFAULT_CONFIG.terrainEffectStrengths.wetlandTurnMultiplier),
+    terrainEffectRockyEnergyDrain: String(tes.rockyEnergyDrain ?? DEFAULT_CONFIG.terrainEffectStrengths.rockyEnergyDrain)
   };
 }
 
