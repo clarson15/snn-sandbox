@@ -668,6 +668,8 @@ describe('App', () => {
     expect(formatOrganismTerrainEffect(editedTerrainEffect)).toEqual(formatOrganismTerrainEffect(defaultTerrainEffect));
     expect(editedConfig.terrainEffectStrengths).not.toEqual(defaultConfig.terrainEffectStrengths);
 
+    const toEngineStepParamsSpy = vi.spyOn(await import('./simulation/config'), 'toEngineStepParams');
+
     render(<App />);
 
     const terrainEffectSection = screen.getByText(/terrain effect strengths/i).closest('details');
