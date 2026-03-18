@@ -669,6 +669,7 @@ describe('App', () => {
 
   // SSN-290: Terrain effect strength preset tests
   it('persists terrain effect strength settings when saving custom preset (SSN-290)', async () => {
+    const { getCustomPresets } = require('./simulation/config');
     render(<App />);
 
     // Save a custom preset (terrain effect strengths use defaults since no UI to change them)
