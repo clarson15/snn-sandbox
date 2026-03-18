@@ -617,6 +617,75 @@ describe('simulation config helpers', () => {
     expect(normalized.dangerZoneDamage).toBe(2.0);
   });
 
+  // SSN-290: Terrain effect strength fields should be persisted in custom presets
+  it('persists terrain effect strength settings in custom presets', () => {
+    // Save a preset with custom terrain effect strength settings
+    const saved = saveCustomPreset('Terrain Effect Test Preset', {
+      worldWidth: 800,
+      worldHeight: 480,
+      initialPopulation: 10,
+      minimumPopulation: 8,
+      initialFoodCount: 20,
+      foodSpawnChance: 0.05,
+      foodEnergyValue: 6,
+      maxFood: 100,
+      terrainEffectStrengths: {
+        forestVisionMultiplier: 0.3,
+        wetlandSpeedMultiplier: 0.7,
+        wetlandTurnMultiplier: 0.8,
+        rockyEnergyDrain: 1.5
+      }
+    });
+
+    expect(saved).toBe(true);
+    const presets = getCustomPresets();
+
+    // Verify the preset was saved with terrain effect strength values
+    const savedPreset = presets.find(p => p.name === 'Terrain Effect Test Preset');
+    expect(savedPreset).toBeDefined();
+    expect(savedPreset.config.terrainEffectStrengths).toEqual({
+      forestVisionMultiplier: 0.3,
+      wetlandSpeedMultiplier: 0.7,
+      wetlandTurnMultiplier: 0.8,
+      rockyEnergyDrain: 1.5
+    });
+
+    // Verify normalization preserves the terrain effect strength values
+    const normalized = normalizeSimulationConfig(savedPreset.config, 'terrain-effect-test-seed');
+    expect(normalized.terrainEffectStrengths.forestVisionMultiplier).toBe(0.3);
+    expect(normalized.terrainEffectStrengths.wetlandSpeedMultiplier).toBe(0.7);
+    expect(normalized.terrainEffectStrengths.wetlandTurnMultiplier).toBe(0.8);
+    expect(normalized.terrainEffectStrengths.rockyEnergyDrain).toBe(1.5);
+  });
+
+  // SSN-290: Backward compatibility - presets without terrain effect strengths should use defaults
+  it('falls back to default terrain effect strengths when preset lacks them (backward compatibility)', () => {
+    // Save a preset WITHOUT terrain effect strength settings (old preset format)
+    const saved = saveCustomPreset('Old Preset Without Terrain', {
+      worldWidth: 800,
+      worldHeight: 480,
+      initialPopulation: 10,
+      minimumPopulation: 8,
+      initialFoodCount: 20,
+      foodSpawnChance: 0.05,
+      foodEnergyValue: 6,
+      maxFood: 100
+      // Note: no terrainEffectStrengths field
+    });
+
+    expect(saved).toBe(true);
+    const presets = getCustomPresets();
+    const savedPreset = presets.find(p => p.name === 'Old Preset Without Terrain');
+    expect(savedPreset).toBeDefined();
+
+    // Verify that applying the preset uses default terrain effect strength values
+    const normalized = normalizeSimulationConfig(savedPreset.config, 'old-preset-seed');
+    expect(normalized.terrainEffectStrengths.forestVisionMultiplier).toBe(0.5); // default
+    expect(normalized.terrainEffectStrengths.wetlandSpeedMultiplier).toBe(0.5); // default
+    expect(normalized.terrainEffectStrengths.wetlandTurnMultiplier).toBe(0.5); // default
+    expect(normalized.terrainEffectStrengths.rockyEnergyDrain).toBe(0.2); // default
+  });
+
   it('loads schema-safe draft values and ignores unknown fields', () => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
       name: 'Draft Name',

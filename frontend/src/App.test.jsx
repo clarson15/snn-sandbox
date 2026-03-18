@@ -511,6 +511,55 @@ describe('App', () => {
     expect(screen.getByLabelText(/rocky bias/i)).toHaveValue(1.0);
   });
 
+  // SSN-290: Terrain effect strength preset tests
+  it('persists terrain effect strength settings when saving custom preset (SSN-290)', async () => {
+    render(<App />);
+
+    // Save a custom preset (terrain effect strengths use defaults since no UI to change them)
+    fireEvent.click(screen.getByRole('button', { name: /save current as preset/i }));
+    fireEvent.change(screen.getByPlaceholderText(/preset name/i), { target: { value: 'Terrain Effect Test Preset' } });
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    // Get the custom presets and verify terrain effect strengths are persisted
+    const presets = getCustomPresets();
+    const savedPreset = presets.find(p => p.name === 'Terrain Effect Test Preset');
+    expect(savedPreset).toBeDefined();
+    // Default terrain effect strength values should be in the saved preset
+    expect(savedPreset.config.terrainEffectStrengths).toEqual({
+      forestVisionMultiplier: 0.5,
+      wetlandSpeedMultiplier: 0.5,
+      wetlandTurnMultiplier: 0.5,
+      rockyEnergyDrain: 0.2
+    });
+
+    // Apply the preset - should not crash and should use the values
+    const presetSelect = screen.getByLabelText(/quick-start preset/i);
+    const customOption = screen.getByRole('option', { name: /terrain effect test preset/i });
+    fireEvent.change(presetSelect, { target: { value: customOption.getAttribute('value') } });
+
+    // The preset was applied (no error thrown)
+  });
+
+  it('falls back to defaults when applying preset without terrain effect strengths (backward compatibility, SSN-290)', async () => {
+    render(<App />);
+
+    // Apply a built-in preset (which won't have terrainEffectStrengths in config)
+    const presetSelect = screen.getByLabelText(/quick-start preset/i);
+    const defaultOption = screen.getByRole('option', { name: /balanced/i });
+    fireEvent.change(presetSelect, { target: { value: defaultOption.getAttribute('value') } });
+
+    // Should not crash - the code should fall back to defaults for terrain effect strengths
+    // We verify this by checking that the config normalization uses defaults
+    const config = normalizeSimulationConfig({
+      worldWidth: '800',
+      worldHeight: '480'
+    }, 'backward-compat-test');
+    expect(config.terrainEffectStrengths.forestVisionMultiplier).toBe(0.5);
+    expect(config.terrainEffectStrengths.wetlandSpeedMultiplier).toBe(0.5);
+    expect(config.terrainEffectStrengths.wetlandTurnMultiplier).toBe(0.5);
+    expect(config.terrainEffectStrengths.rockyEnergyDrain).toBe(0.2);
+  });
+
   it('generates danger zones when enabled and starts simulation', async () => {
     render(<App />);
 
