@@ -755,6 +755,45 @@ button:disabled {
   border: 0;
 }
 
+/* Collapsible config section styles */
+.config-panel details > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 0.25rem 0;
+  margin: 0.5rem 0;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.config-panel details > summary h3 {
+  display: inline;
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.config-panel details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.config-panel details > summary::before {
+  content: '▶';
+  display: inline-block;
+  margin-right: 0.5rem;
+  font-size: 0.75rem;
+  transition: transform 0.2s ease;
+}
+
+.config-panel details[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.config-panel details > summary:focus {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 @media (max-width: 1180px) {
   .hero-panel,
   .config-and-canvas-row,
