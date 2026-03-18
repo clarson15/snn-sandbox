@@ -1369,4 +1369,118 @@ describe('simulation config helpers', () => {
       expect(errorsValid['terrainEffectStrengths.rockyEnergyDrain']).toBeUndefined();
     });
   });
+
+  // SSN-290: Terrain effect strengths should be persisted in custom presets
+  describe('custom preset terrain effect strengths (SSN-290)', () => {
+    beforeEach(() => {
+      // Clear custom presets before each test by removing from localStorage
+      window.localStorage.removeItem('snn-sandbox.custom-presets');
+    });
+
+    it('persists terrain effect strengths in custom presets', () => {
+      const saved = saveCustomPreset('Terrain Effect Preset', {
+        worldWidth: 800,
+        worldHeight: 480,
+        initialPopulation: 10,
+        minimumPopulation: 8,
+        initialFoodCount: 20,
+        foodSpawnChance: 0.05,
+        foodEnergyValue: 6,
+        maxFood: 100,
+        terrainEffectStrengths: {
+          forestVisionMultiplier: 0.25,
+          wetlandSpeedMultiplier: 0.75,
+          wetlandTurnMultiplier: 0.4,
+          rockyEnergyDrain: 1.5
+        }
+      });
+
+      expect(saved).toBe(true);
+      const presets = getCustomPresets();
+      expect(presets).toHaveLength(1);
+      
+      const preset = presets[0];
+      expect(preset.name).toBe('Terrain Effect Preset');
+      expect(preset.config.terrainEffectStrengths).toEqual({
+        forestVisionMultiplier: 0.25,
+        wetlandSpeedMultiplier: 0.75,
+        wetlandTurnMultiplier: 0.4,
+        rockyEnergyDrain: 1.5
+      });
+    });
+
+    it('restores terrain effect strengths when normalizing saved preset config', () => {
+      // Save a preset with terrain effect strengths
+      saveCustomPreset('Terrain Restore Test', {
+        worldWidth: 1024,
+        worldHeight: 768,
+        initialPopulation: 15,
+        minimumPopulation: 10,
+        initialFoodCount: 25,
+        foodSpawnChance: 0.06,
+        foodEnergyValue: 7,
+        maxFood: 150,
+        terrainEffectStrengths: {
+          forestVisionMultiplier: 0.3,
+          wetlandSpeedMultiplier: 0.8,
+          wetlandTurnMultiplier: 0.6,
+          rockyEnergyDrain: 1.0
+        }
+      });
+
+      // Apply the preset and normalize
+      const presets = getCustomPresets();
+      const presetConfig = presets[0].config;
+      
+      const normalized = normalizeSimulationConfig(presetConfig, 'test-seed');
+      
+      expect(normalized.terrainEffectStrengths.forestVisionMultiplier).toBe(0.3);
+      expect(normalized.terrainEffectStrengths.wetlandSpeedMultiplier).toBe(0.8);
+      expect(normalized.terrainEffectStrengths.wetlandTurnMultiplier).toBe(0.6);
+      expect(normalized.terrainEffectStrengths.rockyEnergyDrain).toBe(1.0);
+    });
+
+    it('falls back to defaults for terrain effect strengths when preset lacks them (backward compatibility)', () => {
+      // Save a preset WITHOUT terrain effect strengths (old preset format)
+      const storage = window.localStorage;
+      const oldPresets = storage.getItem('snn-sandbox.custom-presets');
+      storage.setItem('snn-sandbox.custom-presets', JSON.stringify([
+        {
+          id: 'legacy-preset',
+          name: 'Legacy Preset',
+          description: 'Old preset without terrain effect strengths',
+          config: {
+            worldWidth: 800,
+            worldHeight: 480,
+            initialPopulation: 10,
+            minimumPopulation: 8,
+            initialFoodCount: 20,
+            foodSpawnChance: 0.05,
+            foodEnergyValue: 6,
+            maxFood: 100
+            // Note: no terrainEffectStrengths - simulating old preset
+          },
+          createdAt: Date.now() - 86400000 // 1 day ago
+        }
+      ]));
+
+      const presets = getCustomPresets();
+      expect(presets).toHaveLength(1);
+      expect(presets[0].config.terrainEffectStrengths).toBeUndefined();
+      
+      // Normalizing should fall back to defaults
+      const normalized = normalizeSimulationConfig(presets[0].config, 'legacy-seed');
+      expect(normalized.terrainEffectStrengths.forestVisionMultiplier).toBe(0.5);
+      expect(normalized.terrainEffectStrengths.wetlandSpeedMultiplier).toBe(0.5);
+      expect(normalized.terrainEffectStrengths.wetlandTurnMultiplier).toBe(0.5);
+      expect(normalized.terrainEffectStrengths.rockyEnergyDrain).toBe(0.2);
+      
+      // Restore original presets
+      if (oldPresets) {
+        storage.setItem('snn-sandbox.custom-presets', oldPresets);
+      } else {
+        storage.removeItem('snn-sandbox.custom-presets');
+      }
+    });
+  });
 });
