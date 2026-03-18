@@ -475,11 +475,17 @@ export function validateSimulationConfig(input) {
     }
   }
 
-  // Terrain effect strengths validation (SSN-287)
+  // Terrain effect strengths validation (SSN-287, SSN-291)
+  // Check both nested format (terrainEffectStrengths.forestVisionMultiplier) and flat format (forestVisionMultiplier)
   const terrainEffectTypes = ['forestVisionMultiplier', 'wetlandSpeedMultiplier', 'wetlandTurnMultiplier', 'rockyEnergyDrain'];
   const terrainInput = input.terrainEffectStrengths ?? {};
   for (const effectType of terrainEffectTypes) {
-    const effectValue = Number(terrainInput[effectType] ?? DEFAULT_CONFIG.terrainEffectStrengths[effectType]);
+    // Check nested format first, then flat format
+    const effectValue = Number(
+      terrainInput[effectType] ??
+      input[effectType] ??
+      DEFAULT_CONFIG.terrainEffectStrengths[effectType]
+    );
     // Valid ranges: 0 to 1 for multipliers, 0 to 2 for energy drain
     const maxVal = effectType === 'rockyEnergyDrain' ? 2 : 1;
     if (!Number.isFinite(effectValue) || effectValue < 0 || effectValue > maxVal) {
