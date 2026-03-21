@@ -9,7 +9,7 @@ import { loadReplayComparisonPresets } from './simulation/replayComparisonPreset
 import { stepWorld } from './simulation/engine';
 import { createSeededPrng } from './simulation/prng';
 import { mapBrainToVisualizerModel } from './simulation/brainVisualizer';
-import { deriveOrganismHazardEffect } from './simulation/stats';
+import { deriveOrganismHazardEffect, deriveOrganismTerrainEffect } from './simulation/stats';
 
 function ensureWritableLocalStorage() {
   const storage = window.localStorage;
