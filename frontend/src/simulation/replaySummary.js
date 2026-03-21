@@ -9,10 +9,10 @@ const FALLBACKS = {
 };
 
 const CONTEXT_LABELS = {
-  seed: 'seed',
-  simulationVersion: 'simulationVersion',
-  replayStartTick: 'replayStartTick',
-  simulationParameters: 'simulationParameters'
+  seed: 'Seed',
+  simulationVersion: 'Simulation version',
+  replayStartTick: 'Replay start tick',
+  simulationParameters: 'Simulation parameters'
 };
 
 function toNonEmptyString(value) {
@@ -62,7 +62,7 @@ function deriveSimulationVersion(metadata) {
   );
 }
 
-function deriveReplayContextIndicator({ replaySnapshotMetadata, currentReplayContext }) {
+export function deriveReplayContextIndicator({ replaySnapshotMetadata, currentReplayContext }) {
   const differences = [];
 
   const replaySeed = toNonEmptyString(replaySnapshotMetadata?.seed);

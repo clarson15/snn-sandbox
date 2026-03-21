@@ -92,7 +92,7 @@ describe('deriveReplaySummaryStrip', () => {
       mismatchEvents: [],
       canJumpToFirstMismatch: false,
       contextLabel: 'Context Mismatch',
-      contextDifferences: ['replayStartTick', 'simulationParameters']
+      contextDifferences: ['Replay start tick', 'Simulation parameters']
     });
   });
 
@@ -127,7 +127,7 @@ describe('deriveReplaySummaryStrip', () => {
       mismatchEvents: [],
       canJumpToFirstMismatch: false,
       contextLabel: 'Context Mismatch',
-      contextDifferences: ['seed', 'replayStartTick', 'simulationParameters']
+      contextDifferences: ['Seed', 'Replay start tick', 'Simulation parameters']
     });
   });
 
