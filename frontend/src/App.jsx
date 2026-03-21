@@ -59,6 +59,7 @@ import { StatsGraph } from './simulation/statsGraph';
 import { deriveRunMetadata, serializeReproducibilityMetadata } from './simulation/metadata';
 import { replaySnapshotToTick } from './simulation/replay';
 import {
+  deriveReplayContextIndicator,
   deriveReplaySummaryStrip,
   deriveSimulationParametersSignature,
   filterMismatchEvents,
@@ -1741,9 +1742,31 @@ function App() {
 
   const hasSimulation = useMemo(() => Boolean(worldRef.current && rngRef.current), [tickDisplay, resolvedSeed]);
 
+  // Compute effective mismatch detection that includes context-only mismatches, consistent with runtimeModeLabel
+  const contextIndicator = useMemo(
+    () =>
+      deriveReplayContextIndicator({
+        replaySnapshotMetadata,
+        currentReplayContext: {
+          seed: resolvedSeed,
+          simulationVersion: SIMULATION_VERSION,
+          replayStartTick: replayContextRef.current?.baseWorldState?.tick,
+          simulationParametersSignature: deriveSimulationParametersSignature(activeConfigRef.current)
+        }
+      }),
+    [replaySnapshotMetadata, resolvedSeed]
+  );
+  const effectiveMismatchDetected = useMemo(
+    () =>
+      contextIndicator.contextDifferences.length > 0 ||
+      replaySnapshotMetadata?.mismatchDetected === true ||
+      replaySnapshotMetadata?.comparison?.mismatchDetected === true,
+    [contextIndicator, replaySnapshotMetadata]
+  );
+
   const controlDisableReasons = useMemo(
-    () => getControlDisableReasons({ hasSimulation, replayActive, mismatchDetected: replaySnapshotMetadata?.mismatchDetected, paused, spectatorMode }),
-    [hasSimulation, replayActive, replaySnapshotMetadata?.mismatchDetected, paused, spectatorMode]
+    () => getControlDisableReasons({ hasSimulation, replayActive, mismatchDetected: effectiveMismatchDetected, paused, spectatorMode }),
+    [hasSimulation, replayActive, effectiveMismatchDetected, paused, spectatorMode]
   );
 
   const derivedStats = useMemo(() => deriveSimulationStats(displayWorld), [displayWorld, tickDisplay, resolvedSeed]);

@@ -62,7 +62,7 @@ function deriveSimulationVersion(metadata) {
   );
 }
 
-function deriveReplayContextIndicator({ replaySnapshotMetadata, currentReplayContext }) {
+export function deriveReplayContextIndicator({ replaySnapshotMetadata, currentReplayContext }) {
   const differences = [];
 
   const replaySeed = toNonEmptyString(replaySnapshotMetadata?.seed);
