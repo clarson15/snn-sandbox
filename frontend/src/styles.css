@@ -336,6 +336,12 @@ a {
   border-radius: 1px;
 }
 
+.stats-graph-axis-label {
+  font-size: 0.6rem;
+  fill: var(--muted);
+  font-family: inherit;
+}
+
 .hud-playback-controls,
 .hud-runtime-copy {
   display: flex;

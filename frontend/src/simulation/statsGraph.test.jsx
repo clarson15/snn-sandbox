@@ -11,12 +11,12 @@ afterEach(() => {
 describe('StatsGraph', () => {
   it('renders empty state when history has less than 2 samples', () => {
     const { container } = render(<StatsGraph history={[]} />);
-    expect(container.querySelector('.stats-graph-empty')).toHaveTextContent('Collecting data...');
+    expect(container.querySelector('.stats-graph-empty')).toHaveTextContent('Data forming...');
   });
 
   it('renders empty state for null/undefined history', () => {
     const { container } = render(<StatsGraph history={null} />);
-    expect(container.querySelector('.stats-graph-empty')).toHaveTextContent('Collecting data...');
+    expect(container.querySelector('.stats-graph-empty')).toHaveTextContent('Data forming...');
   });
 
   it('renders SVG with polylines when history has enough data', () => {
@@ -93,5 +93,34 @@ describe('StatsGraph', () => {
     const { container } = render(<StatsGraph history={history} width={400} />);
     const graph = container.querySelector('.stats-graph');
     expect(graph.style.width).toBe('400px');
+  });
+
+  it('renders Y-axis and X-axis labels when history has enough data', () => {
+    const history = [
+      { tick: 0, population: 5, foodCount: 10, averageGeneration: 1.5, averageEnergy: 8 },
+      { tick: 10, population: 8, foodCount: 15, averageGeneration: 2.0, averageEnergy: 10 }
+    ];
+
+    const { container } = render(<StatsGraph history={history} width={280} />);
+    
+    const axisLabels = container.querySelectorAll('.stats-graph-axis-label');
+    // Expect 4 axis labels: 2 Y-axis (min, max) and 2 X-axis (start, end tick)
+    expect(axisLabels).toHaveLength(4);
+  });
+
+  it('empty state still shows legend so players see what metrics will be tracked', () => {
+    const { container } = render(<StatsGraph history={[]} />);
+    
+    const legend = container.querySelector('.stats-graph-legend');
+    expect(legend).toBeInTheDocument();
+    
+    // Legend items should be visible even in empty state
+    const swatches = container.querySelectorAll('.stats-graph-swatch');
+    expect(swatches).toHaveLength(3);
+    
+    // Legend should show the metric labels
+    expect(legend).toHaveTextContent('Pop');
+    expect(legend).toHaveTextContent('Food');
+    expect(legend).toHaveTextContent('Gen');
   });
 });
