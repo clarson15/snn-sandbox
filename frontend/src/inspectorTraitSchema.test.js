@@ -6,6 +6,7 @@ describe('deriveInspectorTraitSections', () => {
   it('returns deterministic section composition and trait ordering', () => {
     const formattedInspector = {
       id: 'org-7',
+      species: 'species-abc',
       lifeStage: 'egg',
       parentId: 'org-3',
       offspringCount: '2',
@@ -28,12 +29,11 @@ describe('deriveInspectorTraitSections', () => {
       inputNeuronCount: '2',
       hiddenNeuronCount: '1',
       outputNeuronCount: '2',
-      synapseCount: '8'
-      ,
+      synapseCount: '8',
       inputBindings: 'Energy sensor, Food distance sensor',
       outputBindings: 'Forward movement actuator, Turn left actuator',
       terrain: 'Forest: 50% vision',
-      hazard: 'Lava: -1.5 energy/tick'
+      hazard: 'Lava (-1.5 energy/tick)'
     };
 
     const first = deriveInspectorTraitSections(formattedInspector);
@@ -52,7 +52,7 @@ describe('deriveInspectorTraitSections', () => {
     ]);
 
     expect(first.map((section) => section.fields.map((field) => field.key))).toEqual([
-      ['id', 'lifeStage', 'parentId', 'offspringCount', 'generation', 'age', 'incubationAge', 'energy'],
+      ['id', 'species', 'lifeStage', 'parentId', 'offspringCount', 'generation', 'age', 'incubationAge', 'energy'],
       ['position', 'size', 'speed', 'adolescenceAge', 'eggHatchTime', 'turnRate', 'visionRange', 'nearestFoodDistance', 'metabolism', 'terrain', 'hazard'],
       ['birthMode', 'maturationPeriod', 'eggHatchTime', 'neuronCount', 'inputNeuronCount', 'hiddenNeuronCount', 'outputNeuronCount', 'synapseCount', 'inputBindings', 'outputBindings']
     ]);

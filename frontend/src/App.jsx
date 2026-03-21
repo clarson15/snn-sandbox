@@ -980,6 +980,26 @@ function App() {
     return Number.isFinite(nearestDistance) ? nearestDistance : null;
   }, [displayWorld, inspectorOrganism]);
 
+  // Compute species map for visual species identification (SSN-219)
+  // Pass previous species assignments to maintain stable colors as organisms die
+  const speciesMap = useMemo(() => {
+    if (!displayWorld?.organisms) return null;
+    return detectSpecies(displayWorld.organisms, 0.5, previousSpeciesMapRef.current);
+  }, [displayWorld]);
+
+  // Update the ref with the new species map for the next render
+  useEffect(() => {
+    if (speciesMap) {
+      previousSpeciesMapRef.current = speciesMap;
+    }
+  }, [speciesMap]);
+
+  // Get species info for inspector organism (works with both live and stale snapshots)
+  const inspectorOrganismSpeciesId = useMemo(() => {
+    if (!inspectorOrganism || !speciesMap) return null;
+    return speciesMap.get(inspectorOrganism.id);
+  }, [inspectorOrganism, speciesMap]);
+
   // Derive terrain effect for inspector organism (handles pinned/stale context correctly)
   const inspectorOrganismTerrainEffect = useMemo(() => {
     if (!inspectorOrganism || !displayWorld?.terrainZones) {
@@ -1008,8 +1028,8 @@ function App() {
   );
 
   const formattedInspector = useMemo(
-    () => formatInspectorSnapshot(inspectorOrganism, inspectorNearestFoodDistance, inspectorOrganismTerrainEffect, inspectorOrganismHazardEffect),
-    [inspectorOrganism, inspectorNearestFoodDistance, inspectorOrganismTerrainEffect, inspectorOrganismHazardEffect]
+    () => formatInspectorSnapshot(inspectorOrganism, inspectorNearestFoodDistance, inspectorOrganismTerrainEffect, inspectorOrganismHazardEffect, inspectorOrganismSpeciesId),
+    [inspectorOrganism, inspectorNearestFoodDistance, inspectorOrganismTerrainEffect, inspectorOrganismHazardEffect, inspectorOrganismSpeciesId]
   );
   const isHudSelectedOrganismEggLaying = Number.isFinite(Number(inspectorOrganism?.traits?.eggHatchTime))
     && Number(inspectorOrganism?.traits?.eggHatchTime) > 0;
@@ -1718,32 +1738,6 @@ function App() {
   );
 
   const derivedStats = useMemo(() => deriveSimulationStats(displayWorld), [displayWorld, tickDisplay, resolvedSeed]);
-
-  // Compute species map for visual species identification (SSN-219)
-  // Pass previous species assignments to maintain stable colors as organisms die
-  const speciesMap = useMemo(() => {
-    if (!displayWorld?.organisms) return null;
-    return detectSpecies(displayWorld.organisms, 0.5, previousSpeciesMapRef.current);
-  }, [displayWorld]);
-
-  // Update the ref with the new species map for the next render
-  useEffect(() => {
-    if (speciesMap) {
-      previousSpeciesMapRef.current = speciesMap;
-    }
-  }, [speciesMap]);
-
-  // Get species info for selected organism (SSN-219)
-  const selectedOrganismSpeciesId = useMemo(() => {
-    if (!selectedOrganism || !speciesMap) return null;
-    return speciesMap.get(selectedOrganism.id);
-  }, [selectedOrganism, speciesMap]);
-
-  // Get species info for inspector organism (works with both live and stale snapshots)
-  const inspectorOrganismSpeciesId = useMemo(() => {
-    if (!inspectorOrganism || !speciesMap) return null;
-    return speciesMap.get(inspectorOrganism.id);
-  }, [inspectorOrganism, speciesMap]);
 
   // Get unique species for legend (SSN-219)
   const speciesLegend = useMemo(() => {
@@ -2975,34 +2969,22 @@ function App() {
                       {inspectorTraitSections.map((section) => (
                         <div key={section.key} className="inspector-trait-section">
                           <p className="inspector-section-label">{section.label}</p>
-                          {section.fields.map((field) => (
-                            <p key={field.key}>
-                              <strong>{field.label}:</strong> {field.value}
-                            </p>
-                          ))}
+                          {section.fields.map((field) => {
+                            if (field.key === 'species' && inspectorOrganismSpeciesId) {
+                              return (
+                                <p key={field.key}>
+                                  <strong>{field.label}:</strong> <span style={{ color: getSpeciesColor(inspectorOrganismSpeciesId) }}>{field.value}</span>
+                                </p>
+                              );
+                            }
+                            return (
+                              <p key={field.key}>
+                                <strong>{field.label}:</strong> {field.value}
+                              </p>
+                            );
+                          })}
                         </div>
                       ))}
-                      {inspectorOrganismSpeciesId ? (
-                        <p><strong>Species:</strong> <span style={{ color: getSpeciesColor(inspectorOrganismSpeciesId) }}>{inspectorOrganismSpeciesId}</span></p>
-                      ) : null}
-                      {formattedInspectorOrganismHazardEffect ? (
-                        <p className="hazard-indicator">
-                          <strong>Hazard:</strong> {formattedInspectorOrganismHazardEffect.hazardLabel} ({formattedInspectorOrganismHazardEffect.damageLabel})
-                        </p>
-                      ) : (
-                        <p className="no-hazard-indicator">
-                          <strong>Hazard:</strong> None
-                        </p>
-                      )}
-                      {formattedInspectorOrganismTerrainEffect ? (
-                        <p className="terrain-indicator">
-                          <strong>Terrain:</strong> {formattedInspectorOrganismTerrainEffect.zoneLabel}: {formattedInspectorOrganismTerrainEffect.effectLabel}
-                        </p>
-                      ) : (
-                        <p className="no-terrain-indicator">
-                          <strong>Terrain:</strong> None
-                        </p>
-                      )}
                     </div>
                     {brainGraphModel && brainGraphModel.nodes.length > 0 ? (
                       <div className="organism-hud-brain">

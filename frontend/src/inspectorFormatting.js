@@ -142,21 +142,22 @@ function formatInspectorHazard(hazardEffect) {
     label = zones.map((z) => z.label).join(' + ');
   }
 
-  // Format damage
+  // Format damage with parentheses (matches expected display format)
   if (totalDamage > 0) {
-    return `${label}: -${totalDamage.toFixed(1)} energy/tick`;
+    return `${label} (-${totalDamage.toFixed(1)} energy/tick)`;
   }
 
   return `${label}: no damage`;
 }
 
-function formatInspectorSnapshot(organism, nearestFoodDistance, terrainEffect, hazardEffect) {
+function formatInspectorSnapshot(organism, nearestFoodDistance, terrainEffect, hazardEffect, speciesId) {
   const brain = organism?.brain ?? {};
   const neurons = Array.isArray(brain.neurons) ? brain.neurons : [];
   const synapses = Array.isArray(brain.synapses) ? brain.synapses : [];
 
   return {
     id: typeof organism?.id === 'string' && organism.id.trim().length > 0 ? organism.id : INSPECTOR_PLACEHOLDER,
+    species: typeof speciesId === 'string' && speciesId.trim().length > 0 ? speciesId : INSPECTOR_PLACEHOLDER,
     lifeStage: typeof organism?.lifeStage === 'string' ? organism.lifeStage : 'live',
     generation: formatInteger(organism?.generation),
     parentId: resolveParentId(organism),
