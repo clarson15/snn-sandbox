@@ -476,14 +476,13 @@ export function validateSimulationConfig(input) {
   }
 
   // Terrain effect strengths validation (SSN-287, SSN-291)
-  // Check both nested format (terrainEffectStrengths.forestVisionMultiplier) and flat format (forestVisionMultiplier)
+  // Prefer flat form-state fields over nested config values so edited UI inputs win.
   const terrainEffectTypes = ['forestVisionMultiplier', 'wetlandSpeedMultiplier', 'wetlandTurnMultiplier', 'rockyEnergyDrain'];
   const terrainInput = input.terrainEffectStrengths ?? {};
   for (const effectType of terrainEffectTypes) {
-    // Check nested format first, then flat format
     const effectValue = Number(
-      terrainInput[effectType] ??
       input[effectType] ??
+      terrainInput[effectType] ??
       DEFAULT_CONFIG.terrainEffectStrengths[effectType]
     );
     // Valid ranges: 0 to 1 for multipliers, 0 to 2 for energy drain
@@ -628,26 +627,27 @@ export function normalizeSimulationConfig(input, resolvedSeed) {
         DEFAULT_CONFIG.biomeFoodSpawnBias.rocky
       )
     },
-    // Terrain effect strengths (SSN-287)
+    // Terrain effect strengths (SSN-287, SSN-291)
+    // Prefer flat form-state fields over nested config values so edited UI inputs win.
     terrainEffectStrengths: {
       forestVisionMultiplier: Number(
-        input.terrainEffectStrengths?.forestVisionMultiplier ??
         input.forestVisionMultiplier ??
+        input.terrainEffectStrengths?.forestVisionMultiplier ??
         DEFAULT_CONFIG.terrainEffectStrengths.forestVisionMultiplier
       ),
       wetlandSpeedMultiplier: Number(
-        input.terrainEffectStrengths?.wetlandSpeedMultiplier ??
         input.wetlandSpeedMultiplier ??
+        input.terrainEffectStrengths?.wetlandSpeedMultiplier ??
         DEFAULT_CONFIG.terrainEffectStrengths.wetlandSpeedMultiplier
       ),
       wetlandTurnMultiplier: Number(
-        input.terrainEffectStrengths?.wetlandTurnMultiplier ??
         input.wetlandTurnMultiplier ??
+        input.terrainEffectStrengths?.wetlandTurnMultiplier ??
         DEFAULT_CONFIG.terrainEffectStrengths.wetlandTurnMultiplier
       ),
       rockyEnergyDrain: Number(
-        input.terrainEffectStrengths?.rockyEnergyDrain ??
         input.rockyEnergyDrain ??
+        input.terrainEffectStrengths?.rockyEnergyDrain ??
         DEFAULT_CONFIG.terrainEffectStrengths.rockyEnergyDrain
       )
     }

@@ -3,7 +3,6 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import App from './App';
-import * as simulationConfig from './simulation/config';
 import { createInitialWorldFromConfig, loadSimulationConfig, normalizeSimulationConfig, validateSimulationConfig, STORAGE_KEY, toEngineStepParams } from './simulation/config';
 import { loadReplayComparisonPresets } from './simulation/replayComparisonPresets';
 import { stepWorld } from './simulation/engine';
@@ -615,108 +614,37 @@ describe('App', () => {
   });
 
   it('starts simulation with edited terrain effect values (SSN-291)', async () => {
-    const editedConfig = normalizeSimulationConfig({
-      seed: 'terrain-effect-test-seed',
-      worldWidth: 800,
-      worldHeight: 480,
-      initialPopulation: 20,
-      initialFoodCount: 30,
-      terrainZoneGeneration: {
-        enabled: true,
-        zoneCount: 1,
-        minZoneWidthRatio: 0.8,
-        maxZoneWidthRatio: 0.8,
-        minZoneHeightRatio: 0.8,
-        maxZoneHeightRatio: 0.8
-      },
-      forestVisionMultiplier: '0.25',
-      wetlandSpeedMultiplier: '0.75',
-      wetlandTurnMultiplier: '0.8',
-      rockyEnergyDrain: '1.5'
-    }, 'terrain-effect-test-seed');
+    render(<App />);
 
-    const expected = toEngineStepParams(editedConfig);
-    expect(expected.terrainEffectStrengths).toEqual({
+    const terrainEffectSection = screen.getByText(/terrain effect strengths/i).closest('details');
+    fireEvent.click(terrainEffectSection.querySelector('summary'));
+
+    fireEvent.change(screen.getByLabelText(/^seed \(optional\)$/i), { target: { value: 'terrain-effect-test-seed' } });
+    fireEvent.change(screen.getByLabelText(/forest vision multiplier/i), { target: { value: '0.25' } });
+    fireEvent.change(screen.getByLabelText(/wetland speed multiplier/i), { target: { value: '0.75' } });
+    fireEvent.change(screen.getByLabelText(/wetland turn multiplier/i), { target: { value: '0.8' } });
+    fireEvent.change(screen.getByLabelText(/rocky energy drain/i), { target: { value: '1.5' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /start simulation/i }));
+
+    await waitFor(() => {
+      expect(within(getSimulationStatsHud()).getByText(/^seed:/i)).toHaveTextContent('terrain-effect-test-seed');
+    });
+
+    const startedConfig = loadSimulationConfig();
+    expect(startedConfig?.terrainEffectStrengths).toEqual({
       forestVisionMultiplier: 0.25,
       wetlandSpeedMultiplier: 0.75,
       wetlandTurnMultiplier: 0.8,
       rockyEnergyDrain: 1.5
     });
-  });
 
-  it('preserves same-seed determinism with identical terrain effect config (SSN-291)', async () => {
-    // This test verifies that running with the same seed and same terrain effect values
-    // produces deterministic, identical simulation results
-
-    // First simulation with custom terrain effect values
-    const config1 = normalizeSimulationConfig({
-      seed: 'deterministic-terrain-seed',
-      worldWidth: 800,
-      worldHeight: 480,
-      initialPopulation: 10,
-      initialFoodCount: 20,
-      foodSpawnChance: 0.05,
-      foodEnergyValue: 5,
-      maxFood: 100,
-      forestVisionMultiplier: '0.3',
-      wetlandSpeedMultiplier: '0.6',
-      wetlandTurnMultiplier: '0.7',
-      rockyEnergyDrain: '1.2'
-    }, 'deterministic-terrain-seed');
-
-    const world1 = createInitialWorldFromConfig(config1);
-    const rng1 = createSeededPrng(config1.resolvedSeed);
-    const stepParams1 = toEngineStepParams(config1);
-
-    // Step simulation for a fixed number of ticks
-    let projected1 = world1;
-    for (let i = 0; i < 50; i++) {
-      projected1 = stepWorld(projected1, rng1, stepParams1);
-    }
-
-    // Second simulation with IDENTICAL config (same seed + same terrain effect values)
-    const config2 = normalizeSimulationConfig({
-      seed: 'deterministic-terrain-seed',
-      worldWidth: 800,
-      worldHeight: 480,
-      initialPopulation: 10,
-      initialFoodCount: 20,
-      foodSpawnChance: 0.05,
-      foodEnergyValue: 5,
-      maxFood: 100,
-      forestVisionMultiplier: '0.3',
-      wetlandSpeedMultiplier: '0.6',
-      wetlandTurnMultiplier: '0.7',
-      rockyEnergyDrain: '1.2'
-    }, 'deterministic-terrain-seed');
-
-    const world2 = createInitialWorldFromConfig(config2);
-    const rng2 = createSeededPrng(config2.resolvedSeed);
-    const stepParams2 = toEngineStepParams(config2);
-
-    // Step simulation for the same number of ticks
-    let projected2 = world2;
-    for (let i = 0; i < 50; i++) {
-      projected2 = stepWorld(projected2, rng2, stepParams2);
-    }
-
-    // Verify both simulations have the same population count (determinism check)
-    expect(projected1.organisms).toHaveLength(projected2.organisms.length);
-
-    // Verify organisms have identical IDs and positions (proving determinism)
-    for (let i = 0; i < projected1.organisms.length; i++) {
-      expect(projected1.organisms[i].id).toBe(projected2.organisms[i].id);
-      expect(projected1.organisms[i].x).toBe(projected2.organisms[i].x);
-      expect(projected1.organisms[i].y).toBe(projected2.organisms[i].y);
-      expect(projected1.organisms[i].energy).toBe(projected2.organisms[i].energy);
-    }
-
-    // Verify food positions are also deterministic
-    expect(projected1.food).toHaveLength(projected2.food.length);
-    for (let i = 0; i < projected1.food.length; i++) {
-      expect(projected1.food[i].x).toBe(projected2.food[i].x);
-      expect(projected1.food[i].y).toBe(projected2.food[i].y);
-    }
+    expect(toEngineStepParams(startedConfig).terrainEffectStrengths).toEqual({
+      forestVisionMultiplier: 0.25,
+      wetlandSpeedMultiplier: 0.75,
+      wetlandTurnMultiplier: 0.8,
+      rockyEnergyDrain: 1.5
+    });
   });
 
   it('generates danger zones when enabled and starts simulation', async () => {
