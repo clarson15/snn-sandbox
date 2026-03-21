@@ -20,7 +20,8 @@ const forbiddenRules = [
 
 const approvedBoundaries = {
   'replayRuntimeBudget.js': new Set(['no-date-now']),
-  'config.js': new Set(['no-date-now'])
+  'config.js': new Set(['no-date-now']),
+  'timestamp.js': new Set(['no-date-now'])
 };
 
 function collectJavaScriptFiles(directoryPath) {

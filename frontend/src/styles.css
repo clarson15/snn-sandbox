@@ -591,6 +591,11 @@ canvas {
   flex-wrap: wrap;
 }
 
+.saved-simulation-copy .metadata-secondary {
+  font-size: 0.85em;
+  opacity: 0.65;
+}
+
 .replay-layout {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
