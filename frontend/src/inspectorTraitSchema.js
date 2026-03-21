@@ -4,6 +4,7 @@ const INSPECTOR_TRAIT_SECTION_SCHEMA = Object.freeze([
     label: 'Lifecycle',
     fields: Object.freeze([
       Object.freeze({ key: 'id', label: 'ID' }),
+      Object.freeze({ key: 'species', label: 'Species' }),
       Object.freeze({ key: 'lifeStage', label: 'Stage' }),
       Object.freeze({ key: 'parentId', label: 'Parent' }),
       Object.freeze({ key: 'offspringCount', label: 'Offspring' }),

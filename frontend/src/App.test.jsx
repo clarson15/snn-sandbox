@@ -891,7 +891,7 @@ describe('App', () => {
     const organismHud = screen.getByRole('region', { name: /organism info/i });
     expect(organismHud).toHaveTextContent(`Organism ${organismOutsideZone.id.slice(0, 8)}`);
     expect(organismHud).toHaveTextContent(/Hazard:/);
-    expect(organismHud).toHaveTextContent(/Hazard:\s*None/i);
+    expect(organismHud).toHaveTextContent(/Hazard:\s*—/i);
 
     vi.useRealTimers();
   });
@@ -3651,7 +3651,7 @@ describe('App', () => {
     const organismHud = screen.getByRole('region', { name: /organism info/i });
     expect(organismHud).toHaveTextContent(`Organism ${organismInZone.id.slice(0, 8)}`);
     expect(organismHud).toHaveTextContent(/Hazard:/);
-    expect(organismHud).toHaveTextContent(/Hazard:\s*(Lava|Acid|Radiation):\s*-[\d.]+ energy\/tick/i);
+    expect(organismHud).toHaveTextContent(/Hazard:\s*(Lava|Acid|Radiation)\s*\(-[\d.]+\s*energy\/tick\)/i);
 
     vi.useRealTimers();
   });

@@ -41,6 +41,7 @@ describe('formatInspectorSnapshot', () => {
 
     expect(formatted).toEqual({
       id: 'org-42',
+      species: '—',
       lifeStage: 'egg',
       generation: '3',
       parentId: 'org-7',
@@ -171,7 +172,7 @@ describe('formatInspectorSnapshot', () => {
       { zones: [{ type: 'lava', label: 'Lava', damage: 1.5 }], totalDamage: 1.5 }
     );
 
-    expect(formatted.hazard).toBe('Lava: -1.5 energy/tick');
+    expect(formatted.hazard).toBe('Lava (-1.5 energy/tick)');
   });
 
   it('formats multiple hazard zones', () => {
@@ -186,7 +187,7 @@ describe('formatInspectorSnapshot', () => {
       { zones: [{ type: 'lava', label: 'Lava', damage: 1.0 }, { type: 'acid', label: 'Acid', damage: 0.5 }], totalDamage: 1.5 }
     );
 
-    expect(formatted.hazard).toBe('Lava + Acid: -1.5 energy/tick');
+    expect(formatted.hazard).toBe('Lava + Acid (-1.5 energy/tick)');
   });
 });
 
@@ -199,12 +200,12 @@ describe('formatInspectorHazard', () => {
 
   it('formats single hazard zone with damage', () => {
     const hazardEffect = { zones: [{ type: 'lava', label: 'Lava', damage: 2.5 }], totalDamage: 2.5 };
-    expect(formatInspectorHazard(hazardEffect)).toBe('Lava: -2.5 energy/tick');
+    expect(formatInspectorHazard(hazardEffect)).toBe('Lava (-2.5 energy/tick)');
   });
 
   it('formats multiple hazard zones', () => {
     const hazardEffect = { zones: [{ type: 'lava', label: 'Lava', damage: 1.0 }, { type: 'radiation', label: 'Radiation', damage: 0.5 }], totalDamage: 1.5 };
-    expect(formatInspectorHazard(hazardEffect)).toBe('Lava + Radiation: -1.5 energy/tick');
+    expect(formatInspectorHazard(hazardEffect)).toBe('Lava + Radiation (-1.5 energy/tick)');
   });
 
   it('formats hazard zone with no damage', () => {
