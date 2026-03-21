@@ -85,7 +85,7 @@ import {
   saveSimulationSnapshot,
   SnapshotNameConflictError
 } from './simulation/api';
-import { formatSimulationTimestamp } from './simulation/timestamp';
+import { formatRelativeTime, formatSimulationTimestamp } from './simulation/timestamp';
 import { generateDeterministicCopyName } from './simulation/saveName';
 import { resolveDeterministicQueryPrefill } from './simulation/shareLink';
 import {
@@ -3759,9 +3759,15 @@ function App() {
               </div>
               {savedSimulationsError ? <p role="alert">{savedSimulationsError}</p> : null}
               {savedSimulations.length === 0 ? (
-                <p>{savedSimulationsError ? 'Saved simulations unavailable.' : 'No saved simulations yet.'}</p>
+                <p>
+                  {savedSimulationsError
+                    ? 'Saved simulations unavailable.'
+                    : 'No saved simulations yet. Start a new simulation to create your first saved run.'}
+                </p>
               ) : savedSimulationListView.visibleItems.length === 0 ? (
-                <p>No saved simulations match the current filter.</p>
+                <p>
+                  No saved simulations match the current filter. Clear the filter above to see all saves.
+                </p>
               ) : (
                 <ul className="saved-simulation-list">
                   {savedSimulationListView.visibleItems.map((snapshot) => {
@@ -3775,7 +3781,10 @@ function App() {
                       <li key={snapshot.id} className={`saved-simulation-item${isSelected ? ' is-selected' : ''}`} aria-current={isSelected ? 'true' : undefined}>
                         <div className="saved-simulation-copy">
                           <strong>{snapshot.name}</strong>
-                          <span>Updated {formatSimulationTimestamp(snapshot.updatedAt)}</span>
+                          <span>
+                            Updated {formatRelativeTime(snapshot.updatedAt)}{' '}
+                            <span className="metadata-secondary">({formatSimulationTimestamp(snapshot.updatedAt)})</span>
+                          </span>
                           <span>Seed {seedLabel} · tick {tickLabel}</span>
                           <span>Population {snapshot.populationCount ?? 'metadata unavailable'} · config {snapshot.configSummary ?? 'metadata unavailable'}</span>
                         </div>
