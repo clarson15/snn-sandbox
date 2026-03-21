@@ -3695,6 +3695,35 @@ function App() {
               </div>
               </details>
 
+              <details>
+                <summary><h3>Terrain effect strengths</h3></summary>
+                <p className="field-hint">Adjust how strongly terrain types affect organisms. Default values preserve SSN-284 behavior.</p>
+                <div className="field-row">
+                  <label>
+                    Forest vision multiplier
+                    <input type="number" step="0.05" min="0" max="1" value={formState.forestVisionMultiplier} onChange={onFieldChange('forestVisionMultiplier')} />
+                    {errors['terrainEffectStrengths.forestVisionMultiplier'] ? <span className="error-text">{errors['terrainEffectStrengths.forestVisionMultiplier']}</span> : null}
+                  </label>
+                  <label>
+                    Wetland speed multiplier
+                    <input type="number" step="0.05" min="0" max="1" value={formState.wetlandSpeedMultiplier} onChange={onFieldChange('wetlandSpeedMultiplier')} />
+                    {errors['terrainEffectStrengths.wetlandSpeedMultiplier'] ? <span className="error-text">{errors['terrainEffectStrengths.wetlandSpeedMultiplier']}</span> : null}
+                  </label>
+                </div>
+                <div className="field-row">
+                  <label>
+                    Wetland turn multiplier
+                    <input type="number" step="0.05" min="0" max="1" value={formState.wetlandTurnMultiplier} onChange={onFieldChange('wetlandTurnMultiplier')} />
+                    {errors['terrainEffectStrengths.wetlandTurnMultiplier'] ? <span className="error-text">{errors['terrainEffectStrengths.wetlandTurnMultiplier']}</span> : null}
+                  </label>
+                  <label>
+                    Rocky energy drain
+                    <input type="number" step="0.05" min="0" max="2" value={formState.rockyEnergyDrain} onChange={onFieldChange('rockyEnergyDrain')} />
+                    {errors['terrainEffectStrengths.rockyEnergyDrain'] ? <span className="error-text">{errors['terrainEffectStrengths.rockyEnergyDrain']}</span> : null}
+                  </label>
+                </div>
+              </details>
+
               <div className="field-row">
                 <button type="button" onClick={onResetConfigToDefaults}>
                   Use defaults
