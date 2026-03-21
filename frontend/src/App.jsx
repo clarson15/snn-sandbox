@@ -235,20 +235,29 @@ function toFiniteNumberOrDefault(value, fallback) {
 }
 
 
-function getControlDisableReasons({ hasSimulation, replayActive, paused, spectatorMode }) {
+function getControlDisableReasons({ hasSimulation, replayActive, mismatchDetected, paused, spectatorMode }) {
   const simulationRequiredReason = 'Start a simulation to enable this control.';
   const spectatorModeReason = 'Spectator mode is active. Changes cannot be saved.';
+  const replayModeReason = 'Replay mode is active. Resume live simulation to use this control.';
+  const comparisonModeReason = 'Comparison mode is active. Resume live simulation to use this control.';
+
+  const getReplayReason = () => {
+    if (mismatchDetected) {
+      return comparisonModeReason;
+    }
+    return replayModeReason;
+  };
 
   return {
     regenerateSeed: hasSimulation ? '' : spectatorMode ? spectatorModeReason : simulationRequiredReason,
     restartFromSeed: hasSimulation ? '' : spectatorMode ? spectatorModeReason : simulationRequiredReason,
-    pause: !hasSimulation ? simulationRequiredReason : replayActive ? 'Replay mode is active. Resume live simulation to pause playback.' : spectatorMode ? spectatorModeReason : '',
-    resume: !hasSimulation ? simulationRequiredReason : replayActive ? 'Replay mode is active. Resume live simulation before using runtime playback controls.' : spectatorMode ? spectatorModeReason : '',
-    speed: !hasSimulation ? simulationRequiredReason : replayActive ? 'Replay mode is active. Resume live simulation to change speed.' : spectatorMode ? spectatorModeReason : '',
+    pause: !hasSimulation ? simulationRequiredReason : replayActive ? getReplayReason() : spectatorMode ? spectatorModeReason : '',
+    resume: !hasSimulation ? simulationRequiredReason : replayActive ? getReplayReason() : spectatorMode ? spectatorModeReason : '',
+    speed: !hasSimulation ? simulationRequiredReason : replayActive ? getReplayReason() : spectatorMode ? spectatorModeReason : '',
     step: !hasSimulation
       ? simulationRequiredReason
       : replayActive
-        ? 'Replay mode is active. Resume live simulation to step ticks.'
+        ? getReplayReason()
         : !paused
           ? 'Pause the simulation to step one tick at a time.'
           : spectatorMode
@@ -1733,8 +1742,8 @@ function App() {
   const hasSimulation = useMemo(() => Boolean(worldRef.current && rngRef.current), [tickDisplay, resolvedSeed]);
 
   const controlDisableReasons = useMemo(
-    () => getControlDisableReasons({ hasSimulation, replayActive, paused, spectatorMode }),
-    [hasSimulation, replayActive, paused, spectatorMode]
+    () => getControlDisableReasons({ hasSimulation, replayActive, mismatchDetected: replaySnapshotMetadata?.mismatchDetected, paused, spectatorMode }),
+    [hasSimulation, replayActive, replaySnapshotMetadata?.mismatchDetected, paused, spectatorMode]
   );
 
   const derivedStats = useMemo(() => deriveSimulationStats(displayWorld), [displayWorld, tickDisplay, resolvedSeed]);
@@ -2851,7 +2860,13 @@ function App() {
     }));
   };
 
-  const runtimeModeLabel = replayActive ? 'Replay active' : paused ? 'Paused' : `Running at ${speedMultiplier}x`;
+  const runtimeModeLabel = replayActive
+    ? replaySummaryStrip?.mismatchDetected
+      ? 'Replay: Comparison Mode'
+      : 'Replay: Pure Replay'
+    : paused
+      ? 'Paused'
+      : `Running at ${speedMultiplier}x`;
 
   return (
     <main className="app-shell">
@@ -3880,6 +3895,11 @@ function App() {
                       <>
                         <h3>Mismatch events</h3>
                         <p>Keyboard: Alt+ArrowUp / Alt+ArrowDown to move between mismatch events while focused in replay panels.</p>
+                        {selectedMismatchDetails ? (
+                          <p className="mismatch-active-indicator" role="status">
+                            ▶ Selected mismatch: tick {selectedMismatchDetails.tick}, path {selectedMismatchDetails.path}
+                          </p>
+                        ) : null}
                         <p className="sr-only" aria-live="polite">{activeMismatchAnnouncement}</p>
                         <ul>
                           {filteredMismatchEvents.map((eventItem) => {
